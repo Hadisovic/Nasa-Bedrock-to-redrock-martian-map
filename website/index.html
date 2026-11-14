@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#030407" />
+    <meta name="description" content="An interactive Google Earth themed 3D Mars globe with realistic atmosphere and NASA imagery." />
+    <link rel="icon" type="image/svg+xml" href="/mars-mark.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>Martian Globe — Google Earth Experience</title>
+  </head>
+  <body>
+    <main id="app">
+      <!-- Homescreen Landing Page -->
+      <section id="landing" class="landing" role="button" tabindex="0" aria-label="Press to continue to Mars">
+        <img class="landing__art" src="/martian-map-home.jpg" alt="A Martian landscape with an astronaut, a rover lander, and a holographic map under a red planet" draggable="false" />
+        <div class="landing__shade" aria-hidden="true"></div>
+        <div class="landing__hint" aria-hidden="true">
+          <span class="landing__hint-line"></span>
+          <span class="landing__prompt">Press to continue</span>
+          <span class="landing__key">CLICK ANYWHERE <i>·</i> ENTER</span>
+        </div>
+      </section>
+
+      <!-- Google Earth Universe & Globe Experience (Post-Homescreen) -->
+      <section id="universe" class="universe" aria-hidden="true" hidden>
+        <!-- Full-screen WebGL Scene -->
+        <div id="globe-scene" class="globe-scene" aria-label="Interactive 3D Mars Globe. Drag to rotate, scroll to zoom, right-click to tilt."></div>
+
+        <!-- Google Earth Top-Left Exploration Bar -->
+        <div class="ge-top-bar" aria-label="Exploration menu">
+          <div class="ge-pill-row">
+            <div class="ge-search-pill" id="ge-search-pill">
+              <svg class="ge-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <span class="ge-search-label">Landmarks</span>
+              <button class="ge-search-toggle" id="ge-landmarks-toggle" type="button" aria-expanded="false" aria-label="Toggle landmark locations" title="Landmarks">
+                <svg class="ge-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </div>
+
+            <!-- NASA Challenge Datasets Selector Pill -->
+            <div class="ge-layers-pill" id="ge-layers-pill">
+              <svg class="ge-layers-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+              <span class="ge-layers-label" id="ge-layers-active-label">Viking Color</span>
+              <button class="ge-search-toggle" id="ge-layers-toggle" type="button" aria-expanded="false" aria-label="Toggle NASA datasets" title="NASA Datasets">
+                <svg class="ge-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Day & Night vs All Lighted Mode Toggle Pill -->
+            <button class="ge-lighting-pill" id="ge-lighting-pill" type="button" aria-pressed="false" aria-label="Toggle planetary lighting mode" title="Lighting: Day & Night (Click for All Lighted)">
+              <svg class="ge-lighting-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2"></path>
+                <path d="M12 20v2"></path>
+                <path d="m4.93 4.93 1.41 1.41"></path>
+                <path d="m17.66 17.66 1.41 1.41"></path>
+                <path d="M2 12h2"></path>
+                <path d="M20 12h2"></path>
+                <path d="m6.34 17.66-1.41 1.41"></path>
+                <path d="m19.07 4.93-1.41 1.41"></path>
+              </svg>
+              <span class="ge-lighting-pill-text" id="ge-lighting-pill-text">Day & Night</span>
+            </button>
+
+            <!-- Google Maps Directions / Route Planner Pill -->
+            <button class="ge-routes-pill" id="ge-routes-pill" type="button" aria-pressed="false" aria-label="Open Martian Route Planner" title="Directions / Route Planner">
+              <svg class="ge-routes-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+              </svg>
+              <span class="ge-routes-label" id="ge-routes-label">Directions</span>
+            </button>
+          </div>
+
+          <!-- Quick Fly-to Landmarks Drawer -->
+          <div class="ge-landmarks-menu" id="ge-landmarks-menu" hidden>
+            <div class="ge-menu-header">Martian Landmarks</div>
+            <div class="ge-landmarks-list">
+              <button class="ge-landmark-chip" data-landmark="olympus-mons" type="button">
+                <span class="ge-chip-dot"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">Olympus Mons</span>
+                  <span class="ge-chip-sub">Solar System's Tallest Peak (22 km)</span>
+                </span>
+              </button>
+              <button class="ge-landmark-chip" data-landmark="valles-marineris" type="button">
+                <span class="ge-chip-dot"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">Valles Marineris</span>
+                  <span class="ge-chip-sub">Grand Canyon of Mars (4,000 km)</span>
+                </span>
+              </button>
+              <button class="ge-landmark-chip" data-landmark="jezero-crater" type="button">
+                <span class="ge-chip-dot"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">Jezero Crater</span>
+                  <span class="ge-chip-sub">Perseverance Landing & Delta</span>
+                </span>
+              </button>
+              <button class="ge-landmark-chip" data-landmark="gale-crater" type="button">
+                <span class="ge-chip-dot"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">Gale Crater</span>
+                  <span class="ge-chip-sub">Curiosity Rover & Mt. Sharp</span>
+                </span>
+              </button>
+              <button class="ge-landmark-chip" data-landmark="north-pole" type="button">
+                <span class="ge-chip-dot"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">Planum Boreum</span>
+                  <span class="ge-chip-sub">North Polar Ice Cap</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- NASA Datasets & Layer Overlay Drawer -->
+          <div class="ge-layers-menu" id="ge-layers-menu" hidden>
+            <div class="ge-menu-header">Base Layer (Default)</div>
+            <div class="ge-landmarks-list ge-base-chip-list">
+              <button class="ge-dataset-chip is-active" data-dataset="viking" type="button">
+                <span class="ge-chip-dot ge-chip-dot--viking"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">NASA Viking MDIM 2.1</span>
+                  <span class="ge-chip-sub">Natural True Color Surface (232 m/px)</span>
+                </span>
+              </button>
+              <button class="ge-dataset-chip" data-dataset="mola" type="button">
+                <span class="ge-chip-dot ge-chip-dot--mola"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">NASA MGS MOLA Elevation</span>
+                  <span class="ge-chip-sub">Topography Color Hillshade (463 m/px)</span>
+                </span>
+              </button>
+              <button class="ge-dataset-chip" data-dataset="themis" type="button">
+                <span class="ge-chip-dot ge-chip-dot--themis"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">NASA THEMIS Infrared</span>
+                  <span class="ge-chip-sub">Day IR Controlled Mosaic (100 m/px)</span>
+                </span>
+              </button>
+            </div>
+
+            <div class="ge-menu-divider"></div>
+
+            <div class="ge-menu-header ge-menu-header--with-badge">
+              <span>Layer Overlay</span>
+              <span class="ge-overlay-status-badge" id="ge-overlay-status-badge">None</span>
+            </div>
+            <div class="ge-landmarks-list ge-overlay-chip-list">
+              <button class="ge-overlay-chip is-active" data-overlay="none" type="button">
+                <span class="ge-chip-dot ge-chip-dot--none"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">None (Base Layer Only)</span>
+                  <span class="ge-chip-sub">Single layer view</span>
+                </span>
+              </button>
+              <button class="ge-overlay-chip" data-overlay="mola" type="button">
+                <span class="ge-chip-dot ge-chip-dot--mola"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">NASA MGS MOLA Elevation</span>
+                  <span class="ge-chip-sub">Topography Color Relief Overlay</span>
+                </span>
+              </button>
+              <button class="ge-overlay-chip" data-overlay="themis" type="button">
+                <span class="ge-chip-dot ge-chip-dot--themis"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">NASA THEMIS Infrared</span>
+                  <span class="ge-chip-sub">Day Thermal Infrared Overlay</span>
+                </span>
+              </button>
+              <button class="ge-overlay-chip" data-overlay="viking" type="button">
+                <span class="ge-chip-dot ge-chip-dot--viking"></span>
+                <span class="ge-chip-info">
+                  <span class="ge-chip-name">NASA Viking MDIM 2.1</span>
+                  <span class="ge-chip-sub">True Color Natural Surface Overlay</span>
+                </span>
+              </button>
+            </div>
+
+            <!-- Overlay Opacity Slider Section (Appears when overlay is active) -->
+            <div class="ge-overlay-controls" id="ge-overlay-controls" hidden>
+              <div class="ge-slider-header">
+                <span class="ge-slider-label">Overlay Opacity</span>
+                <span class="ge-slider-value" id="ge-overlay-value">50%</span>
+              </div>
+              <input type="range" class="ge-slider" id="ge-overlay-slider" min="0" max="100" value="50" step="1" aria-label="Overlay layer opacity" />
+              <div class="ge-slider-presets">
+                <button type="button" class="ge-preset-btn" data-opacity="25">25%</button>
+                <button type="button" class="ge-preset-btn is-active" data-opacity="50">50%</button>
+                <button type="button" class="ge-preset-btn" data-opacity="75">75%</button>
+                <button type="button" class="ge-preset-btn" data-opacity="100">100%</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Google Maps Martian Route Planner Panel -->
+        <!-- On laptops: Tab docked on the right -->
+        <!-- On phones: Sheet tab docked from the bottom -->
+        <aside class="gm-route-panel" id="gm-route-panel" aria-label="Martian Navigation & Route Planning">
+          <!-- Collapse/Expand Tab Handle -->
+          <button class="gm-panel-tab" id="gm-panel-tab" type="button" aria-label="Toggle Route Planner Panel" title="Toggle Route Planner">
+            <div class="gm-tab-grip"></div>
+            <span class="gm-tab-text">Routes</span>
+            <svg class="gm-tab-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+
+          <div class="gm-panel-content" id="gm-panel-content">
+            <!-- Travel Modes Row (Rover, Suborbital Hopper, Drone, EVA Spacesuit) -->
+            <div class="gm-travel-modes" role="tablist" aria-label="Martian Travel Mode">
+              <button class="gm-mode-btn is-active" data-mode="rover" role="tab" aria-selected="true" title="Heavy Pressurized Rover (24 km/h)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="18" height="7" rx="2"></rect><circle cx="7" cy="19" r="2.5"></circle><circle cx="17" cy="19" r="2.5"></circle><path d="M5 10l3-5h8l3 5"></path><line x1="12" y1="5" x2="12" y2="10"></line></svg>
+                <span class="gm-mode-label">Rover</span>
+              </button>
+              <button class="gm-mode-btn" data-mode="hopper" role="tab" aria-selected="false" title="Suborbital Hopper Rocket (1,150 km/h)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09zM12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><line x1="9" y1="12" x2="4" y2="12"/><line x1="15" y1="12" x2="15" y2="17"/></svg>
+                <span class="gm-mode-label">Hopper</span>
+              </button>
+              <button class="gm-mode-btn" data-mode="drone" role="tab" aria-selected="false" title="Scout Drone (58 km/h)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><line x1="3" y1="6" x2="8" y2="10"></line><line x1="21" y1="6" x2="16" y2="10"></line><line x1="3" y1="18" x2="8" y2="14"></line><line x1="21" y1="18" x2="16" y2="14"></line><circle cx="3" cy="6" r="2"></circle><circle cx="21" cy="6" r="2"></circle><circle cx="3" cy="18" r="2"></circle><circle cx="21" cy="18" r="2"></circle></svg>
+                <span class="gm-mode-label">Drone</span>
+              </button>
+              <button class="gm-mode-btn" data-mode="eva" role="tab" aria-selected="false" title="Spacesuit EVA Trek (4.2 km/h)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.5"></circle><path d="m9 20 3-7 3 7M6 11l6 2 6-2M12 11v7"></path></svg>
+                <span class="gm-mode-label">EVA Trek</span>
+              </button>
+            </div>
+
+            <!-- Origin & Destination Inputs Card (Google Maps Signature Directions Card) -->
+            <div class="gm-route-card">
+              <div class="gm-inputs-col">
+                <!-- Visual Connector: Blue dot, vertical dotted line, Red pin -->
+                <div class="gm-point-connectors">
+                  <span class="gm-dot-origin" title="Landing Site (Rocket)"></span>
+                  <span class="gm-connector-line"></span>
+                  <span class="gm-dot-dest" title="Destination (Pin)"></span>
+                </div>
+
+                <div class="gm-inputs-fields">
+                  <!-- Origin: Landing Point -->
+                  <div class="gm-input-row" id="gm-origin-row">
+                    <input type="text" class="gm-input" id="gm-origin-input" placeholder="Choose landing point (Click on Mars)" readonly />
+                    <button class="gm-clear-btn" id="gm-origin-clear" type="button" aria-label="Clear landing point" title="Clear landing point" hidden>×</button>
+                    <button class="gm-pick-map-btn" id="gm-origin-pick" type="button" title="Select landing site on Mars" aria-label="Pick landing site">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+                    </button>
+                  </div>
+
+                  <!-- Destination: Destination Point -->
+                  <div class="gm-input-row" id="gm-dest-row">
+                    <input type="text" class="gm-input" id="gm-dest-input" placeholder="Choose destination (Click on Mars)" readonly />
+                    <button class="gm-clear-btn" id="gm-dest-clear" type="button" aria-label="Clear destination" title="Clear destination" hidden>×</button>
+                    <button class="gm-pick-map-btn" id="gm-dest-pick" type="button" title="Select destination on Mars" aria-label="Pick destination">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Swap Origin and Destination Button -->
+                <button class="gm-swap-btn" id="gm-swap-btn" type="button" title="Reverse starting point and destination" aria-label="Swap points">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                    <polyline points="17 14 12 9 7 14"></polyline>
+                    <line x1="12" y1="9" x2="12" y2="21"></line>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Quick Presets Chips -->
+              <div class="gm-quick-points" id="gm-quick-points">
+                <span class="gm-quick-label">Presets:</span>
+                <button type="button" class="gm-quick-chip" data-preset="jezero-crater">Jezero</button>
+                <button type="button" class="gm-quick-chip" data-preset="olympus-mons">Olympus</button>
+                <button type="button" class="gm-quick-chip" data-preset="valles-marineris">Valles</button>
+                <button type="button" class="gm-quick-chip" data-preset="gale-crater">Gale</button>
+                <button type="button" class="gm-quick-chip" data-preset="north-pole">North Pole</button>
+              </div>
+            </div>
+
+            <!-- Selection Guidance Banner -->
+            <div class="gm-status-banner" id="gm-status-banner">
+              <span class="gm-status-icon" id="gm-status-icon">🚀</span>
+              <span class="gm-status-text" id="gm-status-text">Click anywhere on Mars to choose Landing Site</span>
+            </div>
+
+            <!-- Routes Container (Shows 2-3 routes once points are set) -->
+            <div class="gm-routes-container" id="gm-routes-container" hidden>
+              <div class="gm-routes-header">
+                <span class="gm-routes-title">Available Routes</span>
+                <span class="gm-routes-sub" id="gm-route-count">3 routes computed</span>
+              </div>
+
+              <div class="gm-routes-list" id="gm-routes-list">
+                <!-- Dynamically populated route cards -->
+              </div>
+
+              <!-- Action Bar (Simulate / Preview Route) -->
+              <div class="gm-route-actions">
+                <button class="gm-btn-simulate" id="gm-btn-simulate" type="button">
+                  <svg class="gm-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                  <span id="gm-simulate-label">Simulate / Preview Route</span>
+                </button>
+                <button class="gm-btn-clear" id="gm-btn-clear" type="button" title="Clear Route and Markers">
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Simulated Route Live HUD Bar (Bottom center during simulation) -->
+        <div class="gm-sim-hud" id="gm-sim-hud" hidden>
+          <div class="gm-sim-pulse"></div>
+          <div class="gm-sim-info">
+            <span class="gm-sim-title" id="gm-sim-title">Simulating Route</span>
+            <span class="gm-sim-stats" id="gm-sim-stats">Cruising at 24 km/h • Remaining: 1,840 km</span>
+          </div>
+          <button class="gm-sim-exit" id="gm-sim-exit" type="button">Exit Simulation</button>
+        </div>
+
+        <!-- Google Earth Navigation Controls (Floating Bottom-Right) -->
+        <nav class="ge-nav-controls" aria-label="Globe navigation controls">
+          <!-- Compass with Real-Time Rotating North Needle -->
+          <button id="ge-compass" class="ge-btn ge-btn--compass" type="button" aria-label="Reset North heading" title="Reset North">
+            <svg class="ge-compass-dial" viewBox="0 0 36 36" aria-hidden="true">
+              <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.2"/>
+              <g class="ge-compass-needle" id="ge-compass-needle">
+                <polygon points="18,5 21.5,18 18,15.5" fill="#ea4335" />
+                <polygon points="18,5 14.5,18 18,15.5" fill="#f28b82" />
+                <polygon points="18,31 21.5,18 18,20.5" fill="#9aa0a6" />
+                <polygon points="18,31 14.5,18 18,20.5" fill="#dadce0" />
+              </g>
+              <text x="18" y="11" text-anchor="middle" font-size="5.5" font-weight="700" fill="#ea4335" font-family="'Inter', sans-serif">N</text>
+            </svg>
+          </button>
+
+          <!-- 2D Flat Map / 3D Globe Mode Toggle -->
+          <button id="ge-tilt-toggle" class="ge-btn ge-btn--tilt" type="button" aria-label="Toggle 2D Flat Map or 3D Globe" title="Switch to 2D Flat Map (Looped)">
+            <span class="ge-tilt-label" id="ge-tilt-label">2D</span>
+          </button>
+
+          <!-- Day & Night vs All Lighted Mode Toggle Button -->
+          <button id="ge-lighting-toggle" class="ge-btn ge-btn--lighting" type="button" aria-pressed="false" aria-label="Toggle Day/Night vs All Lighted" title="Lighting: Day & Night (Click for All Lighted)">
+            <svg class="ge-icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path>
+              <path d="M12 20v2"></path>
+              <path d="m4.93 4.93 1.41 1.41"></path>
+              <path d="m17.66 17.66 1.41 1.41"></path>
+              <path d="M2 12h2"></path>
+              <path d="M20 12h2"></path>
+              <path d="m6.34 17.66-1.41 1.41"></path>
+              <path d="m19.07 4.93-1.41 1.41"></path>
+            </svg>
+          </button>
+
+          <!-- Zoom In / Zoom Out Combined Pill -->
+          <div class="ge-zoom-pill">
+            <button id="zoom-in" class="ge-btn ge-btn--zoom" type="button" aria-label="Zoom in" title="Zoom in">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <div class="ge-pill-divider"></div>
+            <button id="zoom-out" class="ge-btn ge-btn--zoom" type="button" aria-label="Zoom out" title="Zoom out">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+          </div>
+
+          <!-- Reset / Center View Button -->
+          <button id="reset-view" class="ge-btn" type="button" aria-label="Reset view" title="Reset view">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3.5"></circle>
+            </svg>
+          </button>
+
+          <!-- Fullscreen Toggle Button -->
+          <button id="ge-fullscreen" class="ge-btn" type="button" aria-label="Toggle fullscreen" title="Fullscreen">
+            <svg class="ge-icon-expand" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <polyline points="9 21 3 21 3 15"></polyline>
+              <polyline points="21 15 21 21 15 21"></polyline>
+              <polyline points="3 9 3 3 9 3"></polyline>
+            </svg>
+          </button>
+        </nav>
+
+        <!-- Google Earth Minimal Status Bar (Bottom) -->
+        <footer class="ge-status-bar" aria-label="Status bar">
+          <div class="ge-attribution" id="attribution-label">
+            <span>NASA / USGS / JPL</span>
+            <span class="ge-status-sep">·</span>
+            <span>Viking Global Color Mosaic (MDIM 2.1)</span>
+          </div>
+          <div class="ge-telemetry">
+            <span id="coordinates-live" class="ge-coords">18° 39' N &nbsp; 77° 35' E</span>
+            <span class="ge-status-sep">·</span>
+            <span id="camera-altitude" class="ge-camera-alt">Camera: 4,800 km</span>
+            <span class="ge-status-sep">·</span>
+            <button id="ge-lighting-status" class="ge-lighting-status-btn" type="button" title="Toggle Day & Night / All Lighted (Key: L)">Day & Night</button>
+          </div>
+        </footer>
+      </section>
+
+      <!-- Transition Blackout & Loading Overlay -->
+      <div id="blackout" class="blackout" aria-hidden="true"></div>
+      <div id="loading" class="loading" aria-live="polite" aria-atomic="true" hidden>
+        <span class="loading__orbit"></span>
+        <span>INITIALIZING ORBIT</span>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
