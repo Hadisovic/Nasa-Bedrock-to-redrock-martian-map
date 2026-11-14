@@ -7,6 +7,7 @@ const steps = [
   { tab: "Directions", text: "Place your lander, then add stops on the map or through search. Blue is outbound. Dashes lead home." },
   { tab: "Save", text: "Tap the route for details or save options. Name it, share a link, or export a file." },
   { tab: "Drone", text: "Open Drone View in 3D. Steer with the arrows. Use Up and Down for altitude." },
+  { tab: "Earth Walk", text: "Earth Walk is a Mars navigation simulation. This tablet uses Earth location outdoors, detected steps indoors, and motion sensors to tilt the camera. The routes and terrain cues use Mars data. Your Earth coordinates stay on this tablet. A future Mars system could feed the same offline planner with positions estimated onboard from cameras, motion sensors, and orbital maps." },
 ];
 
 export function ExplorerHelp() {

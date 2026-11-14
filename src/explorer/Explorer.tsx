@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { CatalogEvent, CatalogFilter } from "./catalog.ts";
 import { insideMarswalkCoverage, isImageLayer, matchesFilter } from "./catalog.ts";
-import { DEFAULT_BASEMAP, loadExplorerData, loadFeatures, loadMolaElevation, markerFor, publicUrl, tileSourceFrom } from "./data.ts";
+import { CREW_LANDING, DEFAULT_BASEMAP, WILDCAT_LATLON, loadExplorerData, loadFeatures, loadMolaElevation, markerFor, publicUrl, tileSourceFrom } from "./data.ts";
 import type { ExplorerData } from "./data.ts";
 import { CatalogPanel, EMPTY_FILTER, EvidenceCard, GlobalLayersPanel, SearchBox } from "./ExplorerPanels.tsx";
 import type { LayerState } from "./ExplorerPanels.tsx";
@@ -31,6 +31,8 @@ import { listSavedDroneWindows } from "./dronePacks.ts";
 import type { SavedDronePack } from "./dronePacks.ts";
 import { terrainSlopeOverlays } from "./slopeLayer.ts";
 import { ExplorerHelp } from "./ExplorerHelp.tsx";
+import { useEarthWalk } from "./useEarthWalk.ts";
+import { EarthWalkControls, EarthWalkSetup } from "./EarthWalkPanel.tsx";
 
 const Globe3D = lazy(() => import("./Globe3D.tsx").then((m) => ({ default: m.Globe3D })));
 
@@ -232,15 +234,18 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const grid = manifest?.layers.find((l) => l.id === "mola-elevation");
   const legRequests = useMemo(() => itineraryLegs(start, stops, returning, origin?.point), [start, stops, returning, origin]);
   const legs = useItinerary(legRequests, grid, activeSlope, blocked, retry);
+  const earthWalk = useEarthWalk(start, stops, returning, legs, grid, activeSlope, blocked, weighted, mission.speed,
+    manifest?.layers.find((layer) => layer.id === "tes-dust-cover"), data?.environment ?? []);
   const routeSummary = summarizeItinerary(legs, stops, mission, weighted);
   const resolvedLegs = useMemo(() => legs.flatMap((leg) => {
     const path = selectedLeg(leg.result, weighted);
     return path ? [path] : [];
   }), [legs, weighted]);
-  const paths = useMemo<MapLeg[]>(() => legs.flatMap((leg) => {
+  const visibleLegs = earthWalk.planned ?? legs;
+  const paths = useMemo<MapLeg[]>(() => visibleLegs.flatMap((leg) => {
     const path = selectedLeg(leg.result, weighted);
     return path ? [{ points: roundRouteCorners(path.points), returning: leg.returning, distanceKm: path.distanceKm }] : [];
-  }), [legs, weighted]);
+  }), [visibleLegs, weighted]);
   const replayPoints = useMemo(() => routeSummary.complete && !routeSummary.regional
     ? resolvedLegs.flatMap((leg, index) => index ? leg.points.slice(1) : leg.points) : [], [resolvedLegs, routeSummary.complete, routeSummary.regional]);
   const previewResult = previewLeg == null ? null : legs[previewLeg]?.result;
@@ -295,6 +300,16 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     }
     if (plan.blocked) setBlocked(plan.blocked);
     setMission(plan.mission); setSavedTerrain(plan.data); setTab("marswalk"); setPanelOpen(true);
+  };
+  const loadEarthWalkDemo = () => {
+    loadPlan({ version: 2, data: PLAN_DATA_VERSION,
+      start: { lat: CREW_LANDING.lat, lon: CREW_LANDING.lon, name: "Wildcat Ridge lander" },
+      stops: [{ point: { ...WILDCAT_LATLON, name: "Berry Hollow" }, scienceMinutes: 0 }],
+      returnToLander: false, slope: 15, weighted: false, mission });
+  };
+  const centerEarthWalk = (point: LatLon) => {
+    setMode("3d");
+    flyTo({ ...point, zoom: 110_000 });
   };
   const fitPoints = useCallback((points: readonly LatLon[], localView: boolean) => {
     if (!points.length) return;
@@ -548,12 +563,13 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           {basemap?.image && (threeD ? (
             <Suspense fallback={<div className="loading" role="status"><span className="spinner" aria-hidden="true" />Loading the 3D globe…</div>}>
               <Globe3D basemap={basemap.image} droneBasemap={natural ? basemap.image : fastBasemap?.image ?? null} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
-                paths={mapPaths} switchView={switchView} replayPoints={replayPoints} sunPoint={subsolar} onPick={chooseOnMap} onRoute={planTo} elevationAt={elevationAt}
+                paths={mapPaths} switchView={switchView} replayPoints={replayPoints} earthWalkPose={earthWalk.pose}
+                sunPoint={subsolar} onPick={chooseOnMap} onRoute={planTo} elevationAt={elevationAt}
                 onRouteClick={paths.length ? tapRoute : undefined} onRouteHover={paths.length ? hoverRoute : undefined}
                 view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current}
                 tiles={tiles} naturalColor={natural}
                 onFlightStart={() => { setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null); }}
-                onUnavailable={(detail) => { setWebglIssue(detail); setMode("2d"); }} />
+                onUnavailable={(detail) => { earthWalk.stop(); setWebglIssue(detail); setMode("2d"); }} />
             </Suspense>
           ) : (
             <GlobeMap2D basemap={basemap.image} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
@@ -567,7 +583,11 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             <time dateTime={new Date(utc).toISOString()}>{new Date(utc).toISOString().slice(0, 19).replace("T", " ")} UTC</time>
           </div>
           <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
-          {!routeToolsOpen && <MapRouteControls pick={pick} legs={legs} summary={routeSummary}
+          <EarthWalkControls walk={earthWalk} speed={mission.speed} recenter={() => {
+            earthWalk.recenter();
+            if (earthWalk.pose) centerEarthWalk(earthWalk.pose.point);
+          }} />
+          {!routeToolsOpen && !earthWalk.session && <MapRouteControls pick={pick} legs={legs} summary={routeSummary}
             onCancel={() => setPick(null)} onDetails={showRouteDetails} onSave={showRouteTools} onFit={fit} />}
           {routeMenu && !routeToolsOpen && <div className="route-quick-menu" role="group" aria-label="Route actions"
             style={{ "--route-menu-x": `${routeMenu.point.x}px`, "--route-menu-y": `${routeMenu.point.y}px` } as CSSProperties}
@@ -726,10 +746,14 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               }}
               extra={<>
                 {savedTerrain !== PLAN_DATA_VERSION && <p className="small" role="status">Saved with terrain {savedTerrain}. Recalculating from the same inputs with terrain {PLAN_DATA_VERSION}. The route may change.</p>}
-                {start && !!stops.length && <Navigation route={routeSummary.complete && !routeSummary.regional ? resolvedLegs : []} returning={returning}
+                <Navigation route={routeSummary.complete && !routeSummary.regional ? resolvedLegs : []} returning={returning}
                   local={legs.some(({ result }) => result?.terrain && !result.terrain.regional)} fix={() => setPick("position")}
                   report={() => setPick("block")} clear={resetNavigation} block={blocked} position={setCurrent}
-                  recorded={(value) => { setCurrent(value); setOrigin(value); }} />}
+                  recorded={(value) => { setCurrent(value); setOrigin(value); }}
+                  earthWalk={<EarthWalkSetup walk={earthWalk} demo={loadEarthWalkDemo} started={() => {
+                    if (start) centerEarthWalk(start);
+                    setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null);
+                  }} />} />
                 {current && <p className="small muted">{current.source} fix · {new Date(current.timestamp).toLocaleTimeString()} · uncertainty {current.uncertaintyM ?? "unknown"}
                   {start ? ` · ${(greatCircleKm(start, current.point) * 1000).toFixed(0)} m from lander, ${bearingDeg(start, current.point).toFixed(0)}°` : ""}</p>}
                 {localOffsets && <p className="small muted">From lander · {Math.round(localOffsets.eastM)} m east · {Math.round(localOffsets.northM)} m north

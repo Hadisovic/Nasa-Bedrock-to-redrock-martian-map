@@ -24,6 +24,8 @@ import type { OnlineTerrain } from "./onlineTerrain.ts";
 import { createAtmosphere, createStarfield } from "./globeAtmosphere.ts";
 import { globeTileWindow, makeGlobeTileTexture } from "./globeTiles.ts";
 import { discreteOverlay } from "./overlaySampling.ts";
+import { loadEarthAstronaut } from "./earthAstronaut.ts";
+import type { WalkPose } from "./earthWalk.ts";
 
 export interface Globe3DProps {
   basemap: HTMLImageElement;
@@ -44,6 +46,7 @@ export interface Globe3DProps {
   paths: readonly MapLeg[];
   switchView: () => void;
   replayPoints: readonly LatLon[];
+  earthWalkPose?: WalkPose | null;
   onRouteClick?: (point: RouteMapPoint | null) => void;
   onRouteHover?: (point: RouteMapPoint | null) => void;
   onPick?: (point: LatLon) => void;
@@ -80,6 +83,9 @@ export function Globe3D(props: Globe3DProps) {
   const host = useRef<HTMLDivElement>(null);
   const hitLayer = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const earthPose = useRef(props.earthWalkPose);
+  earthPose.current = props.earthWalkPose;
+  const earthAstronaut = useRef<Awaited<ReturnType<typeof loadEarthAstronaut>> | null>(null);
   const [detailImagery, setDetailImagery] = useState(false);
   const [detail, setDetail] = useState<{ region: "gale" | "wildcat"; asset: SurfaceTerrain } | null>(null);
   const [tilted, setTilted] = useState(false);
@@ -311,6 +317,22 @@ export function Globe3D(props: Globe3DProps) {
   onViewChangeRef.current = onViewChange;
   const press = useRef<{ x: number; y: number; id: number } | null>(null);
   const landing = useRef<{ key: string; time: number } | null>(null);
+  const hasEarthWalk = !!props.earthWalkPose;
+  useEffect(() => {
+    const view = s.current;
+    if (!view || !hasEarthWalk) return;
+    let live = true;
+    void loadEarthAstronaut().then((astronaut) => {
+      if (!live) { astronaut.dispose(); return; }
+      earthAstronaut.current = astronaut;
+      view.scene.add(astronaut.model);
+    }, () => { if (live) setNotice("The astronaut model could not load."); });
+    return () => {
+      live = false;
+      earthAstronaut.current?.dispose();
+      earthAstronaut.current = null;
+    };
+  }, [ready, hasEarthWalk]);
 
   useEffect(() => {
     const element = host.current!;
@@ -514,6 +536,7 @@ export function Globe3D(props: Globe3DProps) {
     const atlasGround = new THREE.Color(0x7688a5);
     const solarGround = new THREE.Color(0x24324f);
     let atlasMix = sunRef.current ? 0 : 1;
+    let smoothPoint: LatLon | null = null;
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
       const frameMs = lastFrame ? Math.min(48, now - lastFrame) : 16;
@@ -527,6 +550,19 @@ export function Globe3D(props: Globe3DProps) {
         camera.position.copy(flightDirection.multiplyScalar(surfaceRef.current(location).length() + clearance));
         if (t >= 1) flight = null;
       }
+      const pose = earthPose.current;
+      if (pose && !droneRef.current) {
+        const factor = reduceMotion.matches ? 1 : 1 - Math.exp(-frameMs / 140);
+        if (!smoothPoint) smoothPoint = { ...pose.point };
+        smoothPoint.lat = THREE.MathUtils.lerp(smoothPoint.lat, pose.point.lat, factor);
+        smoothPoint.lon = wrapLon(smoothPoint.lon + lonDelta(smoothPoint.lon, pose.point.lon) * factor);
+        if (!flight) {
+          const location = unitToLatLon([camera.position.x, camera.position.y, camera.position.z]);
+          const altitude = Math.max(MIN_CLEARANCE, camera.position.length() - surfaceRef.current(location).length());
+          const anchor = surfaceRef.current(smoothPoint);
+          camera.position.copy(anchor).setLength(anchor.length() + altitude);
+        }
+      } else smoothPoint = null;
       // Rotation slows as the camera gets close, so the surface does not race past.
       const center = unitToLatLon([camera.position.x, camera.position.y, camera.position.z]);
       const surfaceRadius = surfaceRef.current(center).length();
@@ -551,7 +587,7 @@ export function Globe3D(props: Globe3DProps) {
       controls.dampingFactor = 1 - Math.pow(1 - 0.052, frameMs / (1000 / 60));
       controls.enabled = !droneRef.current;
       controls.update();
-      const targetTilt = detailRef.current ? (tiltRef.current ? 0.58 : 0) + touchTilt.current + deviceAngle.current : 0;
+      const targetTilt = detailRef.current ? pose?.tilt ?? ((tiltRef.current ? 0.58 : 0) + touchTilt.current + deviceAngle.current) : 0;
       tiltAmount = reduceMotion.matches ? targetTilt : THREE.MathUtils.lerp(tiltAmount, targetTilt, 0.17);
       const clearance = camera.position.length() - surfaceRadius;
       renderCamera.position.copy(camera.position);
@@ -577,6 +613,7 @@ export function Globe3D(props: Globe3DProps) {
         renderCamera.lookAt(north.multiplyScalar(Math.cos(a)).addScaledVector(east, Math.sin(a)).addScaledVector(up, -0.55).add(renderCamera.position));
       } else renderCamera.up.set(0, 1, 0);
       renderCamera.updateMatrixWorld();
+      if (pose && smoothPoint) earthAstronaut.current?.update(pose, smoothPoint, frameMs / 1000, renderCamera, heightPx(), surfaceRef.current);
       for (const patch of relief.children) {
         const normal = patch.userData.surfaceNormal as THREE.Vector3;
         patch.visible = normal.dot(renderCamera.position) > .99;
@@ -727,6 +764,7 @@ export function Globe3D(props: Globe3DProps) {
       canvas.removeEventListener("pointerup", onTouchEnd);
       canvas.removeEventListener("pointercancel", onTouchEnd);
       controls.dispose();
+      earthAstronaut.current?.model.removeFromParent();
       if (tileTexture.value !== texture) tileTexture.value.dispose();
       markerGroup.children.forEach(disposeMarker);
       scene.remove(markerGroup);
@@ -1083,13 +1121,13 @@ export function Globe3D(props: Globe3DProps) {
         ))}
       </div>
       <MapControls switchView={props.switchView} zoomIn={() => s.current?.zoomBy(1 / 1.6)} zoomOut={() => s.current?.zoomBy(1.6)}
-        needle={compass} flying={!!drone} resetNorth={() => {
+        needle={compass} flying={!!drone} canSwitch={!hasEarthWalk} resetNorth={() => {
         const state = droneRef.current;
         if (state) { setFollowing(false); setFlightPosition({ ...state, heading: 0 }); }
         else { setTilted(false); touchTilt.current = 0; deviceAngle.current = 0; s.current?.fly(view, true); }
       }} />
       <div className={`flight-tools${drone ? " flight-tools--flying" : ""}`}>
-        <button type="button" className="btn btn--small" aria-pressed={!!drone} onClick={() => {
+        <button type="button" className="btn btn--small" disabled={hasEarthWalk} aria-pressed={!!drone} onClick={() => {
           if (drone || loadingFlight) { closeFlight(); setNotice(""); return; }
           props.onFlightStart();
           if (!activeDetail || activeDetail === zoomDetail || !Number.isFinite(activeDetail.sample(view)) || !activeDetail.verifiedImagery?.(view)) {
@@ -1100,7 +1138,7 @@ export function Globe3D(props: Globe3DProps) {
         }}>{drone ? "Exit Drone View" : loadingFlight ? "Cancel terrain download" : "Drone View"}</button>
         {activeDetail && !drone && <button type="button" className="btn btn--small" aria-pressed={tilted}
           onClick={() => { touchTilt.current = 0; setTilted(!tilted); }}>{tilted ? "Top view" : "Tilt terrain"}</button>}
-        {!drone && <button className="btn btn--small" aria-pressed={motion} onClick={async () => {
+        {!drone && !hasEarthWalk && <button className="btn btn--small" aria-pressed={motion} onClick={async () => {
           if (motion) { setMotion(false); setNotice(""); return; }
           const cls = window.DeviceOrientationEvent as (typeof DeviceOrientationEvent & { requestPermission?: () => Promise<string> }) | undefined;
           try {

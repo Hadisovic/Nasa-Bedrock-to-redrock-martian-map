@@ -19,10 +19,11 @@ function readFixes(raw: string): Position[] {
   });
 }
 
-export function Navigation({ route, returning, local, fix, report, block, clear, position, recorded }: {
+export function Navigation({ route, returning, local, fix, report, block, clear, position, recorded, earthWalk }: {
   route: readonly GlobalRouteLeg[]; returning: boolean; local: boolean; fix: () => void; report: () => void; block: LatLon | null; clear: () => void;
   position: (value: Position | null) => void;
   recorded: (value: Position) => void;
+  earthWalk: React.ReactNode;
 }) {
   const [step, setStep] = useState(0);
   const [running, setRunning] = useState(false);
@@ -56,6 +57,7 @@ export function Navigation({ route, returning, local, fix, report, block, clear,
     setStep(nextIndex); position(makePosition(points[nextIndex].point, "simulated"));
   };
   return <details><summary>Navigate and replan</summary>
+    {earthWalk}
     {current && <>
       <p><strong>Simulated position</strong> · {formatLatLon(current.point, 5)}</p>
       <p>{next ? <>{Math.abs(turn) >= 25 ? (turn > 0 ? "Turn right" : "Turn left") : "Continue"} · {bearing.toFixed(0)}° from north
