@@ -250,6 +250,10 @@
 .earth-walk-setup label { display:block; margin:.65rem 0; }
 .earth-walk-setup .mission-row { margin-top:.6rem; }
 .earth-walk-controls > strong { font-size:1.15rem; }
+.route-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem; margin:.35rem 0; }
+.route-metrics dt { font-size:.72rem; color:#c3cede; }
+.route-metrics dd { margin:.12rem 0 0; font-size:1rem; font-weight:700; }
+.earth-walk-controls__exit { border-color:#f59a88; color:#ffbaa9; }
 .explorer__sidebar .sidebar__foot, .explorer__sidebar .explorer__resize-panel::before,
 .explorer__sidebar .layer-row, .explorer__sidebar .filters { border-color:var(--map-border); }
 .explorer__sidebar input[type=range] { accent-color:var(--map-selection); }

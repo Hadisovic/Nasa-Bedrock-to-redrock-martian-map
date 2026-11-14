@@ -331,7 +331,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
         fixState = "waiting";
         setMessage("Location signal lost. Waiting for a fresh fix.");
       }
-      if (session.mode === "Recorded Walk") advance(0.25 * Math.max(1.8, routeSpeed, s.track.at(-1)!.metres / 38));
+      if (session.mode === "Recorded Walk") advance(0.25 * recordedSpeed(s.track.at(-1)!.metres));
       else if (lastMove && Date.now() - lastMove > 1200) { lastMove = 0; publish(false); }
     }, 250);
     return () => {
@@ -355,7 +355,9 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     return () => window.clearTimeout(timer);
   }, [session, pose?.point, observations]);
 
+  function recordedSpeed(metres: number) { return Math.max(1.8, Number.isFinite(routeSpeed) ? routeSpeed : 0, metres / 38); }
   return { eligible, liveEligible, session, paused, pose, message, cue: cue && cueText(cue), remaining, accuracy, nextStop, planned, starting,
+    playbackSpeed: recordedSpeed((session ? state.current.track : track).at(-1)?.metres ?? 0),
     start, stop, recenter: () => { state.current.neutral = null; state.current.tilt = 0; update(false); },
     togglePause: () => {
       if (state.current.arrived) return;

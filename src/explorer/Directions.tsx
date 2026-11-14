@@ -39,7 +39,7 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
     </div>
     <div className="map-route__actions">
       {picking ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
-        {onStart && <button type="button" className="btn btn--small directions__start" onClick={onStart}>Start</button>}
+        {onStart && <button type="button" className="btn btn--small directions__start" onClick={onStart}>Start route</button>}
         <button type="button" className="btn btn--small" onClick={onDetails}>Directions</button>
         {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
       </>}
@@ -173,7 +173,7 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
         <div><h3>{totals.complete ? totals.travel !== null ? minutes(totals.travel) : distance(totals.distanceKm)
           : legs.some(({ result }) => result && result.status !== "ok") ? "Route unavailable" : "Finding route…"}</h3>
           {totals.complete && <span className="small">{totals.travel !== null ? `${distance(totals.distanceKm)} · ` : ""}{returning ? "Round trip" : "One way"}</span>}</div>
-        {onStart && <button type="button" className="btn directions__start" onClick={onStart}>Start</button>}
+        {onStart && <button type="button" className="btn directions__start" onClick={onStart}>Start route</button>}
       </div>
       {totals.regional && <p className="small muted">Regional route · Live Earth Walk is available at Wildcat Ridge.</p>}
       {hasResult && <div className="mission-row">

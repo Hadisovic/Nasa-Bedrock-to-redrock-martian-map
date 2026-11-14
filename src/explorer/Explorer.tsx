@@ -585,7 +585,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             <time dateTime={new Date(utc).toISOString()}>{new Date(utc).toISOString().slice(0, 19).replace("T", " ")} UTC</time>
           </div>
           <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
-          <EarthWalkControls walk={earthWalk} speed={mission.speed} recenter={() => {
+          <EarthWalkControls walk={earthWalk} speed={mission.speed} exit={() => { earthWalk.stop(); showRouteDetails(); }} recenter={() => {
             earthWalk.recenter();
             if (earthWalk.pose) centerEarthWalk(earthWalk.pose.point);
           }} />
@@ -768,7 +768,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           <p className="sidebar__foot small muted">Centre {formatLatLon(view, 2)} · planetocentric, east longitude</p>
         </aside>
       </main>
-      <EarthWalkSetup walk={earthWalk} open={earthWalkSetupOpen} close={() => setEarthWalkSetupOpen(false)} started={() => {
+      <EarthWalkSetup walk={earthWalk} open={earthWalkSetupOpen} close={() => setEarthWalkSetupOpen(false)}
+        distanceM={routeSummary.distanceKm * 1000} speed={mission.speed} started={() => {
         setEarthWalkSetupOpen(false);
         if (start) centerEarthWalk(start);
         setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null);
