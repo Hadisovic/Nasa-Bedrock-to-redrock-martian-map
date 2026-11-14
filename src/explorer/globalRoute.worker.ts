@@ -1,6 +1,8 @@
 import { routeGlobalLeg } from "./globalRouting.ts";
-import type { DirectionalRoute, ElevationGrid, GlobalRouteLeg, LegTerrain } from "./globalRouting.ts";
-import { greatCircleKm, wrapLon } from "./geo.ts";
+import type { DirectionalRoute, ElevationGrid, LegTerrain } from "./globalRouting.ts";
+import { BALANCED_WEIGHT, LOWER_TERRAIN_WEIGHT } from "../analysis/terrainCost.ts";
+import { assessLeg, compareLegs } from "./routeAssessment.ts";
+import { greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import { insideMarswalkCoverage } from "./catalog.ts";
 import { projectMars, unprojectMars } from "../contracts/coordinates.ts";
@@ -34,42 +36,47 @@ const unproject = (point: ReturnType<typeof project>) => {
 
 async function localRoute(source: TerrainGrid, start: LatLon, end: LatLon, slope: number, terrainInfo: LegTerrain,
   blocked: LatLon | null): Promise<DirectionalRoute> {
-  const { planDirectionalLeg, climbAlong, nearestConnectedPoint } = await import("../analysis/routing.ts");
+  const { planDirectionalLeg, nearestConnectedPoint } = await import("../analysis/routing.ts");
   const cell = blocked && cellAt(source.layout, project(blocked));
   const terrain = cell ? { ...source, elevationsM: source.elevationsM.slice() } : source;
   if (cell) terrain.elevationsM[cell.row * terrain.layout.width + cell.column] = NaN;
   const plan = (from: LatLon, to: LatLon) => planDirectionalLeg({
-    terrain, habitat: project(from), destination: project(to), maxAbsSlopeDeg: slope, slopePenaltyWeight: 4,
-  });
-  const leg = (route: RouteLeg, from: LatLon, to: LatLon): GlobalRouteLeg => {
+    terrain, habitat: project(from), destination: project(to), maxAbsSlopeDeg: slope, slopePenaltyWeight: LOWER_TERRAIN_WEIGHT,
+  }, { balancedWeight: BALANCED_WEIGHT, spacingM: terrainInfo.spacingM });
+  const leg = (route: RouteLeg, from: LatLon, to: LatLon, roughness?: Float32Array) => {
     const points = route.geometry.map(unproject);
     points[0] = from;
     points[points.length - 1] = to;
-    return { points, distanceKm: route.horizontalDistanceM / 1000, maxSlopeDeg: route.maxAbsSlopeDeg,
-      climbM: climbAlong(terrain, route).gainM, elevationsM: route.geometry.map((point) => {
-        const sample = cellAt(terrain.layout, point);
-        const z = sample && terrain.elevationsM[sample.row * terrain.layout.width + sample.column];
-        return typeof z === "number" && Number.isFinite(z) ? z : null;
-      }) };
+    const cells = route.geometry.map((point) => {
+      const sample = cellAt(terrain.layout, point)!;
+      return sample.row * terrain.layout.width + sample.column;
+    });
+    return assessLeg(points, cells.map((i) => terrain.elevationsM[i]), slope, roughness && { grid: roughness, cells });
   };
+  const first = cellAt(terrain.layout, project(start)), last = cellAt(terrain.layout, project(end));
+  if (terrainInfo.regional && first && last && first.row === last.row && first.column === last.column &&
+      greatCircleKm(start, end) > 1e-9 && Number.isFinite(terrain.elevationsM[first.row * terrain.layout.width + first.column])) {
+    return { status: "unavailable", detail: "Both endpoints fall inside one regional elevation cell. A finer grid is needed to assess this leg.", terrain: terrainInfo };
+  }
   const result = plan(start, end);
   if (result.status === "available") {
-    return { status: "ok", shortest: leg(result.shortest, start, end),
-      alternative: result.alternative && leg(result.alternative, start, end), terrain: terrainInfo };
+    const convert = (route: RouteLeg) => leg(route, start, end, result.roughness);
+    return { status: "ok", ...compareLegs(convert(result.shortest), result.balanced && convert(result.balanced),
+      result.alternative && convert(result.alternative)), terrain: terrainInfo };
   }
 
   const failure = { status: result.status, detail: result.detail, terrain: terrainInfo };
   if (!(slope > 0 && slope < 90)) return failure;
   const radius = Math.max(80, terrain.layout.pixelSizeM * 6);
-  const nearEnd = nearestConnectedPoint(terrain, project(start), project(end), slope, radius);
-  const candidate = nearEnd ?? nearestConnectedPoint(terrain, project(end), project(start), slope, radius);
+  const nearEnd = nearestConnectedPoint(terrain, project(start), project(end), slope, radius, true);
+  const candidate = nearEnd ?? nearestConnectedPoint(terrain, project(end), project(start), slope, radius, true);
   if (!candidate) return failure;
   const point = unproject(candidate);
   const from = nearEnd ? start : point, to = nearEnd ? point : end;
   const preview = plan(from, to);
   if (preview.status !== "available") return failure;
   return { ...failure, suggestion: { point, endpoint: nearEnd ? "end" : "start",
-    movedKm: greatCircleKm(nearEnd ? end : start, point), preview: leg(preview.shortest, from, to) } };
+    movedKm: greatCircleKm(nearEnd ? end : start, point), preview: leg(preview.shortest, from, to, preview.roughness) } };
 }
 
 function loadGrid(url: string, width: number, height: number) {
@@ -90,7 +97,8 @@ async function calculate({ start, end, slope, url, width, height, base, blocked 
   if (insideMarswalkCoverage(start) && insideMarswalkCoverage(end)) {
     const terrain = await (jezero ??= loadJezeroTerrain().catch((error) => { jezero = undefined; throw error; }));
     return localRoute(terrain, start, end, slope,
-      { label: "Wildcat Ridge HiRISE", spacingM: terrain.layout.pixelSizeM, regional: false }, blocked);
+      { label: "Wildcat Ridge HiRISE", spacingM: terrain.layout.pixelSizeM, regional: false,
+        source: "https://doi.org/10.5066/P9REJ9JN" }, blocked);
   }
   if (nearGale(start) && nearGale(end)) {
     const { elevations } = await loadGrid(new URL(galeElevationFile, base).href, galeLayout.width, galeLayout.height);
@@ -98,20 +106,19 @@ async function calculate({ start, end, slope, url, width, height, base, blocked 
       provenance: { mission: "Mars Reconnaissance Orbiter and Mars Express", instrument: "HiRISE, CTX and HRSC",
         sources: [{ title: "USGS Gale elevation model", url: "https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m" }],
         limitations: ["20 m bilinear sample of a mixed-resolution terrain mosaic via NASA Mars Trek."] } };
-    return localRoute(terrain, start, end, slope, { label: "Gale Crater terrain", spacingM: galeLayout.pixelSizeM, regional: false }, blocked);
+    return localRoute(terrain, start, end, slope, { label: "Gale Crater terrain", spacingM: galeLayout.pixelSizeM, regional: false,
+      source: terrain.provenance.sources[0].url }, blocked);
   }
 
+  // Bound each request to a small crop. Preserve offline planet-scale routing and
+  // keep a real no-route result from finer data rather than retrying on a coarser grid.
+  if (Math.max(Math.abs(start.lat - end.lat), Math.abs(start.lon - end.lon)) <= 0.67) {
+    const { loadTrekRouting } = await import("./trekRouting.ts");
+    const local = await loadTrekRouting([start, end], AbortSignal.timeout(4500));
+    if (local) return localRoute(local.terrain, start, end, slope, local.terrainInfo, blocked);
+  }
   const grid = await loadGrid(url, width, height);
-  const route = routeGlobalLeg(grid, start, end, slope);
-  if (!blocked || route.status !== "ok") return route;
-  // Coarse routing cannot evade a reported obstacle within a cell used by this leg.
-  const key = ({ lat, lon }: LatLon) => [
-    Math.min(height - 1, Math.floor((90 - lat) / 180 * height)), Math.floor((wrapLon(lon) + 180) / 360 * width),
-  ].join(":");
-  const cell = key(blocked);
-  const intersects = (leg: GlobalRouteLeg) => leg.points.some((point) => key(point) === cell);
-  if (intersects(route.shortest)) return { status: "unavailable", terrain: route.terrain, detail: "A reported obstacle is on this leg. Coarse MOLA cannot resolve a detour around it." };
-  return route.alternative && intersects(route.alternative) ? { ...route, alternative: undefined } : route;
+  return routeGlobalLeg(grid, start, end, slope, blocked ?? undefined);
 }
 
 self.onmessage = async ({ data }: MessageEvent<LegRequest>) => {

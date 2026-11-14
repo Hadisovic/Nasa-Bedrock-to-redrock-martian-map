@@ -3,10 +3,12 @@ import { formatLatLon } from "./geo.ts";
 import { searchEvents } from "./catalog.ts";
 import type { CatalogEvent } from "./catalog.ts";
 import { MAX_STOPS, validMission } from "./missionPlan.ts";
-import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
-import { selectedLeg, summarizeItinerary } from "./itinerary.ts";
+import type { Endpoint, MissionOptions, RouteChoice, Stop } from "./missionPlan.ts";
+import { availableChoices, legsForChoice, selectedLeg, summarizeItinerary } from "./itinerary.ts";
 import type { PlannedLeg } from "./itinerary.ts";
 import { marsAt } from "./marsTime.ts";
+import { estimateLegMinutes } from "./routeAssessment.ts";
+import type { LegTerrain } from "./globalRouting.ts";
 
 export type Pick = "start" | "add" | "position" | "block" | number;
 export const routeStartId = "directions-start";
@@ -16,8 +18,8 @@ const distance = (km: number) => km < 1 ? `${Math.round(km * 1000)} m`
   : `${km.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
 const minutes = (min: number) => min >= 60 ? `${(min / 60).toFixed(1)} hr` : `${Math.ceil(min)} min`;
 const labelPoint = (point: Endpoint) => point.name ?? formatLatLon(point, 4);
-const terrainName = ({ label, spacingM, regional }: { label: string; spacingM: number; regional: boolean }) =>
-  `${label} · ${spacingM < 1000 ? `${Math.round(spacingM)} m` : `~${(spacingM / 1000).toFixed(1)} km`}${regional ? " · regional estimate" : ""}`;
+const terrainName = ({ label, spacingM, regional }: LegTerrain) =>
+  `${label} · ${spacingM < 1000 ? `${Number(spacingM.toPrecision(2))} m` : `~${(spacingM / 1000).toFixed(1)} km`}${regional ? " · regional estimate" : ""}`;
 
 export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart }: {
   pick: Pick | null; legs: readonly PlannedLeg[]; summary: ReturnType<typeof summarizeItinerary>;
@@ -34,7 +36,7 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
       {picking ? <><strong>{title}</strong><span>Use the map, a site flag, or search.</span></> : <>
         <strong>{summary.complete ? `${distance(summary.distanceKm)} ${legs.at(-1)?.returning ? "round trip" : "one way"}`
           : pending ? "Calculating legs…" : "Itinerary incomplete"}</strong>
-        {summary.regional && <span>Includes coarse MOLA terrain</span>}
+        {summary.regional && <span>Includes regional terrain</span>}
       </>}
     </div>
     <div className="map-route__actions">
@@ -85,13 +87,13 @@ function EndpointField({ label, point, active, events, onPick, onSelect }: {
 }
 
 export function Directions({ start, stops, returning, setReturning, pick, setPick, clearStart, clearRoute, remove, move, swap, setScience,
-  legs, slope, setSlope, fit, weighted, setWeighted, mission, setMission, accept, preview, setPreview, retry, extra,
+  legs, slope, setSlope, fit, choice, setChoice, mission, setMission, accept, preview, setPreview, retry, extra,
   events, selectEndpoint, onDemo, onStart, onSave, walking, liveEligible }: {
   start: Endpoint | null; stops: Stop[]; returning: boolean; setReturning: (value: boolean) => void;
   pick: Pick | null; setPick: (pick: Pick | null) => void; clearStart: () => void; clearRoute: () => void; remove: (index: number) => void;
   move: (index: number, offset: number) => void; swap: () => void; setScience: (index: number, minutes: number) => void;
   legs: PlannedLeg[]; slope: number; setSlope: (value: number) => void; fit: () => void;
-  weighted: boolean; setWeighted: (value: boolean) => void; mission: MissionOptions; setMission: (value: MissionOptions) => void;
+  choice: RouteChoice; setChoice: (value: RouteChoice) => void; mission: MissionOptions; setMission: (value: MissionOptions) => void;
   accept: (index: number, endpoint: "start" | "end", point: Endpoint) => void;
   preview: number | null; setPreview: (index: number | null) => void; retry: () => void; extra: React.ReactNode;
   events: readonly CatalogEvent[]; selectEndpoint: (target: "start" | "add" | number, point: Endpoint) => void;
@@ -99,9 +101,16 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
   liveEligible: boolean;
 }) {
   const { rover, departure, budget } = mission;
-  const totals = summarizeItinerary(legs, stops, mission, weighted);
-  const hasResult = legs.some(({ result }) => result?.status === "ok");
-  const hasAlternative = legs.some(({ result }) => result?.status === "ok" && result.alternative);
+  const totals = summarizeItinerary(legs, stops, mission, choice);
+  const selected = legsForChoice(legs, choice);
+  const hasResult = selected.length > 0;
+  const choices = availableChoices(legs);
+  const shortest = legsForChoice(legs, "shortest");
+  const approach = legs.some(({ result }) => result?.status === "ok" && result.balanced);
+  const climb = selected.reduce((sum, leg) => sum + leg.climbM, 0);
+  const descent = selected.reduce((sum, leg) => sum + (leg.assessment?.descentM ?? 0), 0);
+  const steep = selected.reduce((sum, leg) => sum + (leg.assessment?.steepDistanceKm ?? 0), 0);
+  const limit = rover ? mission.roverSlope : slope;
   const started = legs.length > 0;
   const [addingAt, setAddingAt] = useState<number | null>(null);
   const adding = addingAt === stops.length;
@@ -111,7 +120,7 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
     let time = Date.parse(departure + "Z");
     const speed = rover ? mission.roverSpeed : mission.speed;
     for (const leg of legs) {
-      time += selectedLeg(leg.result, weighted)!.distanceKm * 1_000_000 / speed;
+      time += estimateLegMinutes(selectedLeg(leg.result, choice)!, speed) * 60_000;
       arrivals.push({ time, point: leg.to, returning: leg.returning });
       if (leg.toStop !== null) time += stops[leg.toStop].scienceMinutes * 60_000;
     }
@@ -188,18 +197,65 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
       </div>
       {totals.regional && <p className="small muted">Regional route · Live Earth Walk is available at Wildcat Ridge.</p>}
       {hasResult && <div className="mission-row">
+        {choices.map(({ id, label, color }) => <button key={id} type="button" className="btn btn--small"
+          aria-pressed={choice === id} onClick={() => setChoice(id)} style={{ borderColor: color }}>
+          {id === "balanced" && !approach ? "Shortest feasible · recommended" : label}
+        </button>)}
         <button type="button" className="btn btn--small" onClick={fit}>Fit route</button>
         <button type="button" className="btn btn--small" onClick={onSave}>Save</button>
       </div>}
+      {totals.complete && <>
+        <h4>Route Assessment</h4>
+        <p>{approach
+          ? "The recommended itinerary has lower combined distance and modeled terrain effort."
+          : "The shortest feasible itinerary is recommended because the other paths did not improve the combined planning estimate enough."}</p>
+        {choices.length > 1 && <ul className="itinerary-legs" aria-label="Compare available routes">
+          {choices.map(({ id, label }) => {
+            const candidate = summarizeItinerary(legs, stops, mission, id);
+            const penaltyKm = legsForChoice(legs, id).reduce((sum, leg) => sum + (leg.assessment?.terrainCostKm ?? 0), 0);
+            return <li key={id}><strong>{id === "balanced" && !approach ? "Shortest feasible · recommended" : label}</strong>
+              <small>{distance(candidate.distanceKm)}{candidate.travel != null && ` · ${minutes(candidate.travel)}`}
+                {` · ${distance(penaltyKm)} terrain allowance`}</small></li>;
+          })}
+        </ul>}
+        <dl>
+          <div><dt>Distance</dt><dd>{distance(totals.distanceKm)}</dd></div>
+          <div><dt>Ascent / descent</dt><dd>{Math.round(climb)} m / {Math.round(descent)} m</dd></div>
+          <div><dt>Steepest measured step</dt><dd>{Math.max(...selected.map((leg) => leg.maxSlopeDeg)).toFixed(1)}° of {limit}° limit</dd></div>
+          <div><dt>Distance at or above {(limit * 0.55).toFixed(1)}°</dt><dd>{distance(steep)}</dd></div>
+          <div><dt>Longest such stretch within a leg</dt>
+            <dd>{distance(Math.max(...selected.map((leg) => leg.assessment?.longestSteepRunKm ?? 0)))}</dd></div>
+          {choice !== "shortest" && approach && <div><dt>Extra distance over shortest</dt>
+            <dd>{distance(Math.max(0, totals.distanceKm - shortest.reduce((sum, leg) => sum + leg.distanceKm, 0)))}</dd></div>}
+        </dl>
+        {totals.regional && <p className="small muted">Regional terrain cannot resolve walking or driving conditions. Travel time and resource margin require finer coverage.</p>}
+        <p className="small muted">Radiation dose, temperature and active dust exposure are unevaluated. Historical infrared, thermal inertia and surface dust layers provide context.</p>
+        <details className="itinerary-leg-details">
+          <summary>Planning assumptions</summary>
+          <p className="small">The slope limit is a mission assumption. Missing elevation and reported cells are excluded. Gravel, boulders and other obstacles below the elevation grid spacing are unresolved.</p>
+          <p className="small">The terrain allowance adds distance weighted by squared slope relative to the limit, half weight downhill, and local roughness where measured at 5 m spacing or finer. Scenario travel time uses that equivalent distance at the selected base speed. The lower terrain option weights the allowance four times as heavily. A detour can add up to 25% of the shortest distance. The balanced route must improve equivalent distance by more than 1%. The lower terrain option must reduce the terrain allowance by more than 1% and by more than 0.5% of the shortest distance.</p>
+          <p className="small">Terrain effort is an application planning index. Roughness is local elevation relief with the linear slope removed, expressed as a fraction of half the grid spacing and capped at 1. It contributes at most one quarter of the local terrain allowance factor. <a href="https://science.nasa.gov/resource/radiation-measurements-on-mars/" target="_blank" rel="noreferrer">NASA Curiosity RAD measurements</a> describe the rover’s observation sites and times.</p>
+        </details>
+        {totals.travel != null && <dl>
+          <div><dt>{rover ? "Estimated driving time" : "Estimated walking time"}</dt><dd>{minutes(totals.travel)}</dd></div>
+          {totals.science != null && <div><dt>Total science time</dt><dd>{minutes(totals.science)}</dd></div>}
+          {totals.remaining != null && <div><dt>Time after reserve</dt><dd className={totals.remaining < 0 ? "error" : ""}>{minutes(Math.abs(totals.remaining))} {totals.remaining < 0 ? "short" : "left"}</dd></div>}
+        </dl>}
+      </>}
       {!totals.complete && hasResult && <p className="small muted">The map shows the legs with resolved terrain.</p>}
       <details open={totals.complete ? undefined : true} className="itinerary-leg-details"><summary>Route legs ({legs.length})</summary>
       <ol className="itinerary-legs">
         {legs.map(({ from, to, returning: home, result }, index) => {
-          const leg = selectedLeg(result, weighted);
+          const leg = selectedLeg(result, choice);
           const suggestion = result && result.status !== "ok" ? result.suggestion : undefined;
           return <li key={index}>
             <strong>Leg {index + 1} · {home ? "Return to lander" : `${labelPoint(from)} → ${labelPoint(to)}`}</strong>
-            {result?.terrain && <small>{terrainName(result.terrain)}</small>}
+            {result?.terrain && <small>{result.terrain.source
+              ? <a href={result.terrain.source} target="_blank" rel="noreferrer">{terrainName(result.terrain)}</a>
+              : terrainName(result.terrain)}</small>}
+            {result?.terrain?.bounds && <small>Crop from {formatLatLon({ lat: result.terrain.bounds.south, lon: result.terrain.bounds.west }, 3)}
+              {" to "}{formatLatLon({ lat: result.terrain.bounds.north, lon: result.terrain.bounds.east }, 3)}</small>}
+            {leg?.assessment?.roughnessCoverage != null && <small>Local roughness resolved along {Math.round(leg.assessment.roughnessCoverage * 100)}% of this leg.</small>}
             {!result && <small>Calculating…</small>}
             {leg && <p className="small">{distance(leg.distanceKm)} · {Math.round(leg.climbM)} m ascent · {leg.maxSlopeDeg.toFixed(1)}° steepest step</p>}
             {result && result.status !== "ok" && <p className="small error">{result.detail}</p>}
@@ -226,10 +282,6 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
     <details>
       <summary>Route options</summary>
       <label className="itinerary-return"><input type="checkbox" checked={returning} onChange={(event) => setReturning(event.target.checked)} />Return to lander</label>
-      {hasAlternative && <div className="mission-row">
-        <button type="button" className="btn btn--small" aria-pressed={!weighted} onClick={() => setWeighted(false)}>Shortest distance</button>
-        <button type="button" className="btn btn--small" aria-pressed={weighted} onClick={() => setWeighted(true)}>Lower slope cost</button>
-      </div>}
       <div className="directions__options">
         <label>Departure (UTC) <input type="datetime-local" value={departure} onChange={(e) => setMission({ ...mission, departure: e.target.value })} /></label>
         {rover ? number("Rover speed (m/s)", "roverSpeed", 0.1, 20, 0.1) : number("Walking speed (m/s)", "speed", 0.1, 2, 0.1)}
@@ -239,7 +291,7 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
         {number("Return reserve (min)", "reserve", 0, budget)}
       </div>
       {(!validMission(mission) || totals.science === null) && <p className="error small">Check the departure, speed, science times, budget and reserve.</p>}
-      <p className="small muted">Times assume a constant speed. Mars has about 38% of Earth’s surface gravity. Verify obstacles below grid resolution, traction and power separately.</p>
+      <p className="small muted">Route assessment uses your base speed and a terrain allowance. Verify obstacles below grid resolution, traction and power separately.</p>
       <details><summary>Equipment and supplies</summary><p>Check oxygen, CO₂ removal, cooling, water, food, power, communications, science tools and terrain equipment.</p></details>
       {started && <button className="btn btn--small" type="button" onClick={clearRoute}>Clear route</button>}
       {start && !started && <button className="btn btn--small" type="button" onClick={clearStart}>Clear start</button>}

@@ -7,6 +7,7 @@ import { MapControls } from "./MapControls.tsx";
 import { Astronaut } from "../components/Astronaut.tsx";
 import { imageBounds, insideMarswalkCoverage } from "./catalog.ts";
 import { nearGale } from "./galeLayout.ts";
+import { droneSites } from "./droneCoverage.ts";
 import type { MapLeg } from "./itinerary.ts";
 import type { GlobeMarker, GlobeOverlay, GlobeView, RouteMapPoint, TileSource } from "./types.ts";
 import { discreteOverlay } from "./overlaySampling.ts";
@@ -50,6 +51,17 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
   const [hover, setHover] = useState<LatLon | null>(null);
   const [openCluster, setOpenCluster] = useState<string | null>(null);
   const [tileTick, setTileTick] = useState(0);
+  const [wildcat, setWildcat] = useState<HTMLCanvasElement | null>(null);
+  const site = droneSites[0];
+  const closeToWildcat = view.zoom > 30_000 && view.lat >= site.south - .01 && view.lat <= site.north + .01 &&
+    view.lon >= site.west - .01 && view.lon <= site.east + .01;
+  useEffect(() => {
+    if (!closeToWildcat || wildcat) return;
+    let active = true;
+    void import("./galeTerrain.ts").then(({ wildcatImage }) => wildcatImage())
+      .then(({ canvas }) => { if (active) setWildcat(canvas); }, () => {});
+    return () => { active = false; };
+  }, [closeToWildcat, wildcat]);
   const tileCache = useRef(new Map<string, HTMLImageElement | "error">());
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ pinch?: number; startX?: number; startY?: number; moved?: boolean }>({});
@@ -131,7 +143,17 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
     for (let x = left - Math.ceil((left + 1) / worldW) * worldW; x < size.width; x += worldW) copies.push(x);
 
     ctx.imageSmoothingEnabled = true;
-    for (const x of copies) ctx.drawImage(basemap, x, top, worldW, 180 * v.zoom);
+    // Crop in source pixels before drawing so close zoom does not ask the canvas
+    // backend to rasterize an entire planet-sized destination rectangle.
+    const worldH = 180 * v.zoom;
+    const north = Math.max(0, top), south = Math.min(size.height, top + worldH);
+    for (const x of copies) {
+      const west = Math.max(0, x), east = Math.min(size.width, x + worldW);
+      if (east <= west || south <= north) continue;
+      const sx = basemap.naturalWidth / worldW, sy = basemap.naturalHeight / worldH;
+      ctx.drawImage(basemap, (west - x) * sx, (north - top) * sy, (east - west) * sx, (south - north) * sy,
+        west, north, east - west, south - north);
+    }
 
     // Finer imagery on demand once the bundled basemap would be magnified.
     const baseZoom = basemap.naturalWidth / 360;
@@ -173,6 +195,11 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
           }
         }
       }
+    }
+
+    if (closeToWildcat && wildcat) {
+      const p = project({ lat: site.north, lon: site.west }, v);
+      ctx.drawImage(wildcat, p.x, p.y, (site.east - site.west) * v.zoom, (site.north - site.south) * v.zoom);
     }
 
     if (sunPoint) {
@@ -264,7 +291,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
     if (paths.length) {
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      for (const { points, returning, preview } of paths) {
+      for (const { points, returning, preview, color } of paths) {
         ctx.beginPath();
         let lastX = Infinity;
         for (const point of points) {
@@ -278,13 +305,13 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
         ctx.strokeStyle = "#0b1724";
         ctx.lineWidth = returning ? 4 : 8;
         ctx.stroke();
-        ctx.strokeStyle = returning ? "#fff" : preview ? "#ffe689" : "#69d5ff";
+        ctx.strokeStyle = returning ? "#fff" : preview ? "#ffe689" : color ?? "#69d5ff";
         ctx.lineWidth = returning ? 2.6 : 5;
         ctx.stroke();
       }
       ctx.setLineDash([]);
     }
-  }, [basemap, overlays, markers, view, size, tiles, tileTick, project, selectedId, paths, sunPoint]);
+  }, [basemap, overlays, markers, view, size, tiles, tileTick, project, selectedId, paths, sunPoint, closeToWildcat, wildcat, site]);
 
   // Screen-space clusters; the selected marker always stays on its own.
   const clusters = useMemo(() => {

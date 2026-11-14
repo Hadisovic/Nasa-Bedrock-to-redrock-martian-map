@@ -9,7 +9,7 @@ import { insideMarswalkCoverage } from "./catalog.ts";
 import type { EnvironmentObservation, LayerEntry } from "./catalog.ts";
 import { itineraryLegs, selectedLeg } from "./itinerary.ts";
 import type { Leg, PlannedLeg } from "./itinerary.ts";
-import type { Endpoint, Stop } from "./missionPlan.ts";
+import type { Endpoint, RouteChoice, Stop } from "./missionPlan.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { loadDustCover } from "./walkTerrain.ts";
 
@@ -26,17 +26,17 @@ async function permitted(sensor: PermissionConstructor | undefined) {
 const magnitude = (a: DeviceMotionEventAcceleration | null) =>
   a && a.x !== null && a.y !== null && a.z !== null && [a.x, a.y, a.z].every(Number.isFinite) ? Math.hypot(a.x, a.y, a.z) : null;
 
-function trackFor(legs: readonly PlannedLeg[], weighted: boolean) {
+function trackFor(legs: readonly PlannedLeg[], choice: RouteChoice) {
   return buildWalkTrack(legs.flatMap(({ result }) => {
-    const route = selectedLeg(result, weighted);
+    const route = selectedLeg(result, choice);
     return route?.points.map((point, i) => ({ point, elevation: route.elevationsM[i] ?? null })) ?? [];
   }));
 }
 
 export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: boolean,
   legs: PlannedLeg[], grid: LayerEntry | undefined, slope: number, blocked: LatLon | null,
-  weighted: boolean, routeSpeed: number, dustLayer: LayerEntry | undefined, observations: EnvironmentObservation[]) {
-  const track = useMemo(() => trackFor(legs, weighted), [legs, weighted]);
+  choice: RouteChoice, routeSpeed: number, dustLayer: LayerEntry | undefined, observations: EnvironmentObservation[]) {
+  const track = useMemo(() => trackFor(legs, choice), [legs, choice]);
   const eligible = !!lander && !!stops.length && track.length > 1 && legs.every(({ result }) => result?.status === "ok");
   const liveEligible = eligible && meters(lander, track[0].point) < 0.05
     && legs.every(({ result }) => result?.status === "ok" && !result.terrain.regional)
@@ -74,7 +74,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     void loadDustCover(dustLayer).then((sample) => { if (live) dust.current = sample; }, () => {});
     return () => { live = false; dust.current = null; };
   }, [session, dustLayer]);
-  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, blocked, weighted]);
+  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, blocked, choice]);
 
   function announce(id: CueId, critical = false) {
     const now = Date.now();
@@ -166,7 +166,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       announce(failure.status === "ok" ? "terrain" : "unavailable", true);
       return;
     }
-    const nextTrack = trackFor(results, weighted);
+    const nextTrack = trackFor(results, choice);
     if (nextTrack.length < 2) {
       setMessage("The planner returned no walkable distance from your current position.");
       announce("unavailable", true);
@@ -181,13 +181,13 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     // Compare against a solver-verified connection to a vertex on the previous route.
     // Both alternatives start at this fix and visit the same remaining stops.
     const connector = request.rejoin && solverResults.at(-1)?.result;
-    const connectorPath = connector?.status === "ok" && !connector.terrain.regional ? selectedLeg(connector, weighted) : null;
+    const connectorPath = connector?.status === "ok" && !connector.terrain.regional ? selectedLeg(connector, choice) : null;
     const baseline = request.rejoin && connectorPath ? request.rejoin.remaining + connectorPath.distanceKm * 1000 : null;
-    const distance = results.reduce((sum, { result }) => sum + selectedLeg(result, weighted)!.distanceKm * 1000, 0);
+    const distance = results.reduce((sum, { result }) => sum + selectedLeg(result, choice)!.distanceKm * 1000, 0);
     const shorter = shorterFromSamePosition(distance, baseline);
     setMessage(shorter ? "Shorter route found." : "Route updated through your remaining stops.");
     announce(shorter ? "shorter" : "updated", true);
-  }, [request, solverResults, requestedLegs.length, session, weighted]);
+  }, [request, solverResults, requestedLegs.length, session, choice]);
 
   useEffect(() => {
     if (!session || paused || !lander) return;

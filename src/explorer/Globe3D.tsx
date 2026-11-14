@@ -891,16 +891,38 @@ export function Globe3D(props: Globe3DProps) {
     if (!st || !paths.length) return;
     const lines = paths.flatMap((leg, index) => {
       const back = leg.returning;
-      const localLift = activeDetail ? (closeRegion === "wildcat" ? 0.7 : 5) : 150;
-      const geometry = new LineGeometry().setPositions(leg.points.flatMap((p) => surfaceRef.current(p, localLift * (back ? 1.4 : 1)).toArray()));
+      const localLift = closeRegion === "wildcat" ? 0.7 : 5;
+      const positions: number[] = [];
+      const detail = activeDetail?.uv;
+      const stepDeg = detail ? Math.min((detail.z - detail.x) * 360, (detail.w - detail.y) * 180) / 256 : 0.1;
+      for (let i = 0; i < leg.points.length; i++) {
+        const to = leg.points[i], from = leg.points[i - 1];
+        if (from) {
+          const dLon = lonDelta(from.lon, to.lon);
+          const inside = detail && [from, to].some(({ lat, lon }) => {
+            const u = (lon + 180) / 360, v = (lat + 90) / 180;
+            return u >= detail.x && u <= detail.z && v >= detail.y && v <= detail.w;
+          });
+          const step = inside ? stepDeg : 0.1;
+          const count = Math.min(2048, Math.ceil(Math.max(Math.abs(dLon), Math.abs(to.lat - from.lat)) / step));
+          for (let j = 1; j < count; j++) {
+            const point = { lat: from.lat + (to.lat - from.lat) * j / count, lon: wrapLon(from.lon + dLon * j / count) };
+            const lift = activeDetail?.sample(point) != null ? localLift : 150;
+            positions.push(...surfaceRef.current(point, lift * (back ? 1.4 : 1)).toArray());
+          }
+        }
+        const lift = activeDetail?.sample(to) != null ? localLift : 150;
+        positions.push(...surfaceRef.current(to, lift * (back ? 1.4 : 1)).toArray());
+      }
+      const geometry = new LineGeometry().setPositions(positions);
       const dash = Math.max(0.0000008, leg.distanceKm / (MARS_RADIUS_KM * 28));
       return [true, false].map((outline) => {
-        const material = new LineMaterial({ color: outline ? "#0b1724" : back ? "#fff" : leg.preview ? "#ffe689" : "#69d5ff",
+        const material = new LineMaterial({ color: outline ? "#0b1724" : back ? "#fff" : leg.preview ? "#ffe689" : leg.color ?? "#69d5ff",
           linewidth: back ? outline ? 4.4 : 2.6 : outline ? 8 : 5, transparent: true, toneMapped: false,
           dashed: back, dashSize: dash, gapSize: dash * 0.8, depthWrite: false });
         const line = new Line2(geometry, material);
         line.userData.ignoreHit = outline || leg.preview;
-        if (outline) line.computeLineDistances();
+        if (back) line.computeLineDistances();
         line.renderOrder = 20 + (back ? paths.length : index) * 2 + (outline ? 0 : 1);
         return line;
       });

@@ -387,6 +387,12 @@
   .explorer .explorer__brand-title { white-space:nowrap; }
   .explorer .map-route { max-width:calc(100% - 74px); }
   .explorer .map-route__actions .btn { padding-inline:.48rem; }
+  .explorer__workspace .stage:has(.map-route) .flight-tools:not(.flight-tools--flying) {
+    left:auto; right:10px; justify-content:flex-end; bottom:180px;
+  }
+  .explorer__workspace:has(.explorer__sidebar:not([hidden])) .stage:has(.map-route) .flight-tools:not(.flight-tools--flying) {
+    bottom:calc(var(--explorer-sheet-height,35%) + 132px);
+  }
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .route-tools { bottom:calc(var(--explorer-sheet-height,35%) + 8px); }
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .route-quick-menu {
     top:clamp(115px, var(--route-menu-y), calc(100% - var(--explorer-sheet-height,35%) - 114px));

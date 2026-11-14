@@ -5,11 +5,12 @@ export type Endpoint = LatLon & { name?: string; precision?: Precision; uncertai
 export type Stop = { point: Endpoint; scienceMinutes: number };
 export const MAX_STOPS = 12;
 
-export const PLAN_DATA_VERSION = "mola-jezero-gale-4";
+export const PLAN_DATA_VERSION = "mars-trek-terrain-5";
+export type RouteChoice = "shortest" | "balanced" | "lower-terrain";
 export interface MissionOptions { speed: number; stop: number; budget: number; reserve: number; departure: string; rover: boolean; roverSpeed: number; roverSlope: number; }
 interface PlanSettings {
   data: string; start: Endpoint; slope: number; weighted: boolean; mission: MissionOptions;
-  position?: Endpoint; blocked?: Endpoint;
+  position?: Endpoint; blocked?: Endpoint; choice?: RouteChoice;
 }
 export type Plan = PlanSettings & ({ version: 1; end: Endpoint } | { version: 2; stops: Stop[]; returnToLander: boolean });
 export type SavedPlan = { id: string; name: string; plan: Plan };
@@ -42,6 +43,7 @@ export function readPlan(raw: string | null): Plan | null {
       && Array.isArray(p.stops) && p.stops.length > 0 && p.stops.length <= MAX_STOPS && p.stops.every(validStop)))
       && typeof p.data === "string" && p.data.length > 0 && p.data.length <= 80 && validPoint(p.start)
       && bounded(p.slope, 1, 89) && typeof p.weighted === "boolean" && validMission(p.mission)
+      && (p.choice === undefined || ["shortest", "balanced", "lower-terrain"].includes(p.choice))
       && (p.position === undefined || validPoint(p.position)) && (p.blocked === undefined || validPoint(p.blocked)) ? p : null;
   } catch { return null; }
 }

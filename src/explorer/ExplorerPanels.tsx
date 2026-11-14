@@ -234,7 +234,7 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
   const filter = layerFilters.find((item) => item.name === category) ?? layerFilters[0];
   const showOverview = terms.length === 0 && category === "All";
   const search = (value: string) => terms.every((term) => value.toLowerCase().includes(term));
-  const showSlope = category === "All" && search("calculated local slope terrain elevation steepness hazards wildcat ridge gale");
+  const showSlope = category === "All" && search("calculated local roughness slope terrain elevation steepness hazards wildcat ridge gale");
   const baseCandidates = manifest.layers.filter((l) => isImageLayer(l) && l.group === "terrain" && l.global && !l.hasTransparency && l.treatment !== "false-color");
   const base = baseCandidates.find((l) => l.id === basemapId);
   const numeric = manifest.layers.filter((l) => !isImageLayer(l));

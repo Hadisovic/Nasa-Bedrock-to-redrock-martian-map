@@ -81,18 +81,42 @@ export function nearWildcat(point: LatLon, padding = 0) {
     yM <= northM + padding && yM >= northM - height * pixelSizeM - padding;
 }
 
+async function loadWildcatImagery() {
+  const [{ decodeJezeroRaster }, { default: imageryUrl }] = await Promise.all([
+    import("../contracts/jezero.ts"), import("../../data/mars/jezero/imagery.tif?url"),
+  ]);
+  const response = await fetch(imageryUrl);
+  if (!response.ok) throw Error("Wildcat Ridge imagery file unavailable.");
+  const imagery = await decodeJezeroRaster(await response.arrayBuffer(), "imagery");
+  const canvas = document.createElement("canvas");
+  canvas.width = imagery.layout.width;
+  canvas.height = imagery.layout.height;
+  const ctx = canvas.getContext("2d")!;
+  const rgba = ctx.createImageData(canvas.width, canvas.height);
+  for (let i = 0; i < imagery.grayscaleDn.length; i++) {
+    const value = imagery.grayscaleDn[i];
+    rgba.data.set([value, value, value, value === imagery.noDataDn ? 0 : 255], i * 4);
+  }
+  ctx.putImageData(rgba, 0, 0);
+  return { canvas, rgba };
+}
+
+let wildcatImagery: ReturnType<typeof loadWildcatImagery> | undefined;
+export function wildcatImage() {
+  return wildcatImagery ??= loadWildcatImagery().catch((error) => { wildcatImagery = undefined; throw error; });
+}
+
 export async function loadWildcatTerrain(): Promise<SurfaceTerrain> {
-  const [{ decodeJezeroRaster }, { default: elevationUrl }, { default: imageryUrl }] = await Promise.all([
-    import("../contracts/jezero.ts"), import("../../data/mars/jezero/elevation.tif?url"), import("../../data/mars/jezero/imagery.tif?url"),
+  const [{ decodeJezeroRaster }, { default: elevationUrl }] = await Promise.all([
+    import("../contracts/jezero.ts"), import("../../data/mars/jezero/elevation.tif?url"),
   ]);
   const read = async (url: string) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error("Wildcat Ridge terrain file unavailable.");
     return response.arrayBuffer();
   };
-  const [elevation, imagery] = await Promise.all([
-    read(elevationUrl).then((bytes) => decodeJezeroRaster(bytes, "elevation")),
-    read(imageryUrl).then((bytes) => decodeJezeroRaster(bytes, "imagery")),
+  const [elevation, { canvas, rgba }] = await Promise.all([
+    read(elevationUrl).then((bytes) => decodeJezeroRaster(bytes, "elevation")), wildcatImage(),
   ]);
   const { layout, elevationsM } = elevation.terrain;
   const eastM = layout.westM + layout.width * layout.pixelSizeM;
@@ -134,16 +158,6 @@ export async function loadWildcatTerrain(): Promise<SurfaceTerrain> {
   geometry.setIndex(covered);
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
-  const canvas = document.createElement("canvas");
-  canvas.width = imagery.layout.width;
-  canvas.height = imagery.layout.height;
-  const ctx = canvas.getContext("2d")!;
-  const rgba = ctx.createImageData(canvas.width, canvas.height);
-  for (let i = 0; i < imagery.grayscaleDn.length; i++) {
-    const value = imagery.grayscaleDn[i];
-    rgba.data.set([value, value, value, value === imagery.noDataDn ? 0 : 255], i * 4);
-  }
-  ctx.putImageData(rgba, 0, 0);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;

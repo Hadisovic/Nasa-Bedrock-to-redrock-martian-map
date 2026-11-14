@@ -1,7 +1,7 @@
-import { lonDelta, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import type { DirectionalRoute, GlobalRouteLeg } from "./globalRouting.ts";
-import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
+import { estimateLegMinutes } from "./routeAssessment.ts";
+import type { Endpoint, MissionOptions, RouteChoice, Stop } from "./missionPlan.ts";
 import { validMission, validStop } from "./missionPlan.ts";
 
 export interface Leg {
@@ -12,7 +12,12 @@ export interface Leg {
   toStop: number | null;
 }
 export type PlannedLeg = Leg & { result: DirectionalRoute | null };
-export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean };
+export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean; color?: string };
+export const routeChoices = [
+  { id: "balanced", label: "Balanced · recommended", color: "#69d5ff" },
+  { id: "shortest", label: "Shortest feasible", color: "#ffc184" },
+  { id: "lower-terrain", label: "Lower terrain cost", color: "#a7f48c" },
+] as const;
 
 export function itineraryLegs(start: Endpoint | null, stops: readonly Stop[], returning: boolean, position?: LatLon): Leg[] {
   if (!start || !stops.length) return [];
@@ -27,30 +32,31 @@ export function itineraryLegs(start: Endpoint | null, stops: readonly Stop[], re
 export const legKey = (leg: Leg, slope: number, blocked: LatLon | null) =>
   JSON.stringify([leg.from.lat, leg.from.lon, leg.to.lat, leg.to.lon, slope, blocked?.lat ?? null, blocked?.lon ?? null]);
 
-export const selectedLeg = (route: DirectionalRoute | null, weighted: boolean): GlobalRouteLeg | null =>
-  route?.status === "ok" ? (weighted ? route.alternative ?? route.shortest : route.shortest) : null;
+export const selectedLeg = (route: DirectionalRoute | null, choice: RouteChoice | boolean): GlobalRouteLeg | null => {
+  if (route?.status !== "ok") return null;
+  if (choice === "shortest" || choice === false) return route.shortest;
+  if (choice === "lower-terrain" || choice === true) return route.alternative ?? route.balanced ?? route.shortest;
+  return route.balanced ?? route.shortest;
+};
 
-export function summarizeItinerary(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, weighted: boolean) {
-  const complete = legs.length > 0 && legs.every(({ result }) => result?.status === "ok");
-  const regional = legs.some(({ result }) => result?.status === "ok" && result.terrain.regional);
-  const distanceKm = legs.reduce((sum, { result }) => sum + (selectedLeg(result, weighted)?.distanceKm ?? 0), 0);
-  const science = stops.every(validStop) ? stops.reduce((sum, stop) => sum + stop.scienceMinutes, 0) : null;
-  const travel = complete && !regional && validMission(mission) ? distanceKm * 1000 / (mission.rover ? mission.roverSpeed : mission.speed) / 60 : null;
-  const remaining = travel != null && science != null && legs.at(-1)?.returning ? mission.budget - mission.reserve - science - travel : null;
-  return { complete, regional, distanceKm, science, travel, remaining };
+export function availableChoices(legs: readonly PlannedLeg[]) {
+  return routeChoices.filter(({ id }) => id === "balanced" || legs.some(({ result }) => result?.status === "ok" &&
+    (id === "shortest" ? result.balanced : result.alternative)));
 }
 
-/** Small quadratic fillets for display only. Preserve endpoints and interpolate across the seam. */
-export function roundRouteCorners(points: readonly LatLon[]) {
-  const interpolate = (a: LatLon, b: LatLon, t: number) => ({
-    lat: a.lat + (b.lat - a.lat) * t,
-    lon: wrapLon(a.lon + lonDelta(a.lon, b.lon) * t),
-  });
-  return points.flatMap((point, index) => {
-    const before = points[index - 1], after = points[index + 1];
-    if (!before || !after || (before.lat === point.lat && before.lon === point.lon)
-      || (after.lat === point.lat && after.lon === point.lon)) return [point];
-    const a = interpolate(point, before, 0.14), b = interpolate(point, after, 0.14);
-    return [a, interpolate(interpolate(a, point, 0.5), interpolate(point, b, 0.5), 0.5), b];
-  });
+export function legsForChoice(legs: readonly PlannedLeg[], choice: RouteChoice | boolean) {
+  return legs.flatMap(({ result }) => selectedLeg(result, choice) ?? []);
+}
+
+export function summarizeItinerary(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, choice: RouteChoice | boolean) {
+  const complete = legs.length > 0 && legs.every(({ result }) => result?.status === "ok");
+  const regional = legs.some(({ result }) => result?.status === "ok" && result.terrain.regional);
+  const selected = legsForChoice(legs, choice);
+  const distanceKm = selected.reduce((sum, leg) => sum + leg.distanceKm, 0);
+  const science = stops.every(validStop) ? stops.reduce((sum, stop) => sum + stop.scienceMinutes, 0) : null;
+  const speed = mission.rover ? mission.roverSpeed : mission.speed;
+  const travel = complete && !regional && validMission(mission)
+    ? selected.reduce((sum, leg) => sum + estimateLegMinutes(leg, speed), 0) : null;
+  const remaining = travel != null && science != null && legs.at(-1)?.returning ? mission.budget - mission.reserve - science - travel : null;
+  return { complete, regional, distanceKm, science, travel, remaining };
 }

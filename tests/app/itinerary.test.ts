@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { itineraryLegs, legKey, roundRouteCorners, summarizeItinerary } from "../../src/explorer/itinerary.ts";
+import { itineraryLegs, legKey, summarizeItinerary } from "../../src/explorer/itinerary.ts";
 import type { PlannedLeg } from "../../src/explorer/itinerary.ts";
 import { defaultMission, PLAN_DATA_VERSION, planReturns, planStops, readPlan } from "../../src/explorer/missionPlan.ts";
 import type { Plan } from "../../src/explorer/missionPlan.ts";
@@ -77,10 +77,6 @@ test("directional local paths match the proven outbound solver and keep exact en
   assert.equal(roundTrip.status, "available");
   assert.deepEqual(leg.shortest, roundTrip.shortest.outbound);
   assert.ok(leg.alternative);
-  const geometry = [{ lat: 2, lon: 179 }, { lat: 3, lon: -179 }, { lat: 4, lon: -178 }];
-  const rounded = roundRouteCorners(geometry);
-  assert.deepEqual(rounded[0], geometry[0]);
-  assert.deepEqual(rounded.at(-1), geometry.at(-1));
-  assert.equal(geometry.length, 3);
-  assert.ok(rounded.every((point) => Math.abs(point.lon) > 175));
+  assert.deepEqual(leg.shortest.geometry[0], habitat);
+  assert.deepEqual(leg.shortest.geometry.at(-1), destination);
 });

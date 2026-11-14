@@ -9,7 +9,7 @@ import { CatalogPanel, EMPTY_FILTER, EvidenceCard, GlobalLayersPanel, SearchBox 
 import type { LayerState } from "./ExplorerPanels.tsx";
 import { Directions, MapRouteControls, routeStartId, stopId } from "./Directions.tsx";
 import type { Pick } from "./Directions.tsx";
-import { itineraryLegs, roundRouteCorners, selectedLeg, summarizeItinerary } from "./itinerary.ts";
+import { availableChoices, itineraryLegs, routeChoices, selectedLeg, summarizeItinerary } from "./itinerary.ts";
 import type { MapLeg } from "./itinerary.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { GlobeMap2D } from "./GlobeMap2D.tsx";
@@ -19,6 +19,7 @@ import type { GlobeMarker, GlobeOverlay, GlobeView, OverlayFeature, RouteMapPoin
 import { zoomForPrecision } from "./types.ts";
 import { nasaInsignia } from "./nasaMark.ts";
 import { nearGale } from "./galeLayout.ts";
+import type { RouteChoice } from "./missionPlan.ts";
 import { defaultMission, MAX_STOPS, planReturns, planStops, readPlan, PLAN_DATA_VERSION, validMission, validStop } from "./missionPlan.ts";
 import type { Endpoint, Plan, Stop } from "./missionPlan.ts";
 import { SavedRoutes } from "./SavedRoutes.tsx";
@@ -29,7 +30,7 @@ import { marsAt, marsSun } from "./marsTime.ts";
 import { droneCenter, droneSites } from "./droneCoverage.ts";
 import { listSavedDroneWindows } from "./dronePacks.ts";
 import type { SavedDronePack } from "./dronePacks.ts";
-import { terrainSlopeOverlays } from "./slopeLayer.ts";
+import { terrainHazardOverlays } from "./slopeLayer.ts";
 import { ExplorerHelp } from "./ExplorerHelp.tsx";
 import { useEarthWalk } from "./useEarthWalk.ts";
 import { EarthWalkControls, EarthWalkSetup } from "./EarthWalkPanel.tsx";
@@ -100,6 +101,9 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [showCoverage, setShowCoverage] = useState(false);
   const [savedDronePacks, setSavedDronePacks] = useState<SavedDronePack[]>([]);
   const [showSlope, setShowSlope] = useState(false);
+  const [showRoughness, setShowRoughness] = useState(false);
+  const [roughnessLayers, setRoughnessLayers] = useState<GlobeOverlay[]>([]);
+  const [roughnessLoading, setRoughnessLoading] = useState(false);
   const [slopeLayers, setSlopeLayers] = useState<GlobeOverlay[]>([]);
   const [slopeLoading, setSlopeLoading] = useState(false);
   const [preferredPanelWidth, setPreferredPanelWidth] = useState(400);
@@ -116,7 +120,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [returning, setReturning] = useState(() => planReturns(initial.plan));
   const [pick, setPick] = useState<Pick | null>(null);
   const [slope, setSlope] = useState(initial.plan?.slope ?? 15);
-  const [weighted, setWeighted] = useState(initial.plan?.weighted ?? false);
+  const [choice, setChoice] = useState<RouteChoice>(initial.plan?.choice ??
+    (initial.plan ? initial.plan.weighted ? "lower-terrain" : "shortest" : "balanced"));
   const [mission, setMission] = useState(() => initial.plan?.mission ?? defaultMission());
   const [savedTerrain, setSavedTerrain] = useState(initial.plan?.data ?? PLAN_DATA_VERSION);
   const [retry, setRetry] = useState(0);
@@ -131,12 +136,21 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     let live = true;
     setSlopeLoading(true);
     const timer = window.setTimeout(() => {
-      void terrainSlopeOverlays(activeSlope).then((layers) => {
+      void terrainHazardOverlays(activeSlope, "slope").then((layers) => {
         if (live) { setSlopeLayers(layers); setSlopeLoading(false); }
       });
     }, 230);
     return () => { live = false; window.clearTimeout(timer); };
   }, [showSlope, activeSlope]);
+  useEffect(() => {
+    if (!showRoughness || roughnessLayers.length) return;
+    let live = true;
+    setRoughnessLoading(true);
+    void terrainHazardOverlays(0, "roughness").then((layers) => {
+      if (live) { setRoughnessLayers(layers); setRoughnessLoading(false); }
+    });
+    return () => { live = false; };
+  }, [showRoughness]);
   const [solar, setSolar] = useState(false);
   const [utc, setUtc] = useState(Date.now);
   const [current, setCurrent] = useState<Position | null>(() => initial.plan?.position ? makePosition(initial.plan.position, "manual") : null);
@@ -221,7 +235,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     .map((l) => {
       const f = overlayFeatures[l.id];
       return { entry: l, image: overlayImages[l.id] as HTMLImageElement, opacity: layerState[l.id].opacity, features: Array.isArray(f) ? f : undefined };
-    }), ...(showSlope ? slopeLayers : [])], [manifest, layerState, overlayImages, overlayFeatures, basemapEntry, showSlope, slopeLayers]);
+    }), ...(showSlope ? slopeLayers : []), ...(showRoughness ? roughnessLayers : [])],
+    [manifest, layerState, overlayImages, overlayFeatures, basemapEntry, showSlope, slopeLayers, showRoughness, roughnessLayers]);
   const failedLayers = useMemo(() => new Set(Object.entries(overlayImages).filter(([, v]) => v === "error").map(([k]) => k)), [overlayImages]);
 
   const catalogMarkers: GlobeMarker[] = useMemo(() => {
@@ -234,24 +249,27 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const grid = manifest?.layers.find((l) => l.id === "mola-elevation");
   const legRequests = useMemo(() => itineraryLegs(start, stops, returning, origin?.point), [start, stops, returning, origin]);
   const legs = useItinerary(legRequests, grid, activeSlope, blocked, retry);
+  const choices = availableChoices(legs);
+  const selectedChoice = choices.some(({ id }) => id === choice) ? choice : "balanced";
   const [earthWalkSetupOpen, setEarthWalkSetupOpen] = useState(false);
-  const earthWalk = useEarthWalk(mission.rover ? null : start, stops, returning, legs, grid, activeSlope, blocked, weighted, mission.speed,
+  const earthWalk = useEarthWalk(mission.rover ? null : start, stops, returning, legs, grid, activeSlope, blocked, selectedChoice, mission.speed,
     manifest?.layers.find((layer) => layer.id === "tes-dust-cover"), data?.environment ?? []);
-  const routeSummary = summarizeItinerary(legs, stops, mission, weighted);
+  const routeSummary = summarizeItinerary(legs, stops, mission, selectedChoice);
+  const routeColor = routeChoices.find(({ id }) => id === selectedChoice)?.color;
   const resolvedLegs = useMemo(() => legs.flatMap((leg) => {
-    const path = selectedLeg(leg.result, weighted);
+    const path = selectedLeg(leg.result, selectedChoice);
     return path ? [path] : [];
-  }), [legs, weighted]);
+  }), [legs, selectedChoice]);
   const visibleLegs = earthWalk.planned ?? legs;
   const paths = useMemo<MapLeg[]>(() => visibleLegs.flatMap((leg) => {
-    const path = selectedLeg(leg.result, weighted);
-    return path ? [{ points: roundRouteCorners(path.points), returning: leg.returning, distanceKm: path.distanceKm }] : [];
-  }), [visibleLegs, weighted]);
+    const path = selectedLeg(leg.result, selectedChoice);
+    return path ? [{ points: path.points, returning: leg.returning, distanceKm: path.distanceKm, color: routeColor }] : [];
+  }), [visibleLegs, selectedChoice, routeColor]);
   const replayPoints = useMemo(() => routeSummary.complete && !routeSummary.regional
     ? resolvedLegs.flatMap((leg, index) => index ? leg.points.slice(1) : leg.points) : [], [resolvedLegs, routeSummary.complete, routeSummary.regional]);
   const previewResult = previewLeg == null ? null : legs[previewLeg]?.result;
   const suggestion = previewResult && previewResult.status !== "ok" ? previewResult.suggestion : undefined;
-  const mapPaths = useMemo(() => suggestion ? [...paths, { points: roundRouteCorners(suggestion.preview.points),
+  const mapPaths = useMemo(() => suggestion ? [...paths, { points: suggestion.preview.points,
     distanceKm: suggestion.preview.distanceKm, returning: false, preview: true }] : paths, [paths, suggestion]);
 
   useEffect(() => { if (pick !== null || !paths.length) setRouteMenu(null); }, [pick, paths.length, mode, flySignal]);
@@ -290,11 +308,11 @@ export function Explorer({ onHome }: { onHome: () => void }) {
 
   const tiles = useMemo(() => tileSourceFrom(manifest, basemapEntry), [manifest, basemapEntry]);
   const displayedPlan: Plan | null = useMemo(() => start && stops.length && stops.every(validStop) && validMission(mission) && slope >= 1 && slope <= 89
-    ? { version: 2, data: PLAN_DATA_VERSION, start, stops, returnToLander: returning, slope, weighted, mission, position: origin?.point, blocked: blocked ?? undefined }
-    : null, [start, stops, returning, slope, weighted, mission, origin, blocked]);
+    ? { version: 2, data: PLAN_DATA_VERSION, start, stops, returnToLander: returning, slope, weighted: choice !== "shortest", choice, mission, position: origin?.point, blocked: blocked ?? undefined }
+    : null, [start, stops, returning, slope, choice, mission, origin, blocked]);
   const loadPlan = (plan: Plan) => {
     resetNavigation(); setPick(null); setStart(plan.start); setStops(planStops(plan)); setReturning(planReturns(plan));
-    setSlope(plan.slope); setWeighted(plan.weighted); setPreviewLeg(null);
+    setSlope(plan.slope); setChoice(plan.choice ?? (plan.weighted ? "lower-terrain" : "shortest")); setPreviewLeg(null);
     if (plan.position) {
       const position = makePosition(plan.position, "manual");
       setCurrent(position); setOrigin(position);
@@ -306,7 +324,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     loadPlan({ version: 2, data: PLAN_DATA_VERSION,
       start: { lat: CREW_LANDING.lat, lon: CREW_LANDING.lon, name: "Wildcat Ridge lander" },
       stops: [{ point: { ...WILDCAT_LATLON, name: "Berry Hollow" }, scienceMinutes: 0 }],
-      returnToLander: false, slope: 15, weighted: false, mission: { ...mission, rover: false } });
+      returnToLander: false, slope: 15, weighted: false, choice: "balanced", mission: { ...mission, rover: false } });
   };
   const centerEarthWalk = (point: LatLon) => {
     setMode("3d");
@@ -697,7 +715,11 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                       <label><input type="checkbox" checked={showSlope} onChange={(e) => setShowSlope(e.target.checked)} /> Calculated local slope</label>
                       {showSlope && <p className="muted small">{slopeLoading ? "Calculating from the terrain grids…" : slopeLayers.length
                         ? `Mount Sharp and Wildcat Ridge. Red: at least one adjoining step over ${activeSlope}°. Amber: approaching that limit. Teal: below it. Gray: no known adjoining step.`
-                        : "No local elevation pack is available."} A red cell may still have a shallower approach.</p>}
+                        : "No local elevation pack is available."} A red cell may still have a shallower approach. Source: NASA/USGS elevation. Outside the crops: unknown.</p>}
+                      <label><input type="checkbox" checked={showRoughness} onChange={(e) => setShowRoughness(e.target.checked)} /> Calculated local roughness</label>
+                      {showRoughness && <p className="muted small">{roughnessLoading ? "Calculating local roughness…"
+                        : roughnessLayers.length ? "Wildcat Ridge only. Local relief index (0–1), calculated from the 1 m HiRISE elevation grid. Teal: below 0.33. Amber: 0.33–0.65. Red: 0.66 and above. Gray and outside the crop: unknown."
+                        : "Wildcat Ridge elevation is unavailable."}</p>}
                     </div>}
                     basemapId={basemapEntry?.id ?? manifest.basemap} setBasemapId={setBasemapId} failed={failedLayers}
                     retryLayer={(id) => {
@@ -737,7 +759,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               }}
               setScience={(index, scienceMinutes) => setStops((previous) => previous.map((stop, order) => index === order ? { ...stop, scienceMinutes } : stop))}
               legs={legs} slope={slope} setSlope={setSlope} fit={fit}
-              weighted={weighted} setWeighted={setWeighted} mission={mission} setMission={setMission}
+              choice={selectedChoice} setChoice={setChoice} mission={mission} setMission={setMission}
               retry={() => setRetry((n) => n + 1)} preview={previewLeg} setPreview={(index) => {
                 setPreviewLeg(index);
                 const result = index == null ? null : legs[index]?.result;
