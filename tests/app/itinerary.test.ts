@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { itineraryLegs, legKey, summarizeItinerary } from "../../src/explorer/itinerary.ts";
+import * as itinerary from "../../src/explorer/itinerary.ts";
+import { assessLeg } from "../../src/explorer/routeAssessment.ts";
 import type { PlannedLeg } from "../../src/explorer/itinerary.ts";
 import { defaultMission, PLAN_DATA_VERSION, planReturns, planStops, readPlan } from "../../src/explorer/missionPlan.ts";
 import type { Plan } from "../../src/explorer/missionPlan.ts";
@@ -12,6 +14,69 @@ const start = { lat: 0, lon: 1, name: "Lander" };
 const a = { point: { lat: 2, lon: 3, precision: "approximate" as const, uncertaintyM: 140 }, scienceMinutes: 5 };
 const b = { point: { lat: 4, lon: 5 }, scienceMinutes: 11 };
 const mission = defaultMission();
+
+const flatPath = (via = 0) => assessLeg([{ lat: 0, lon: 0 }, { lat: via, lon: .001 }, { lat: 0, lon: .002 }], [0, 0, 0], 15);
+const planned = (balanced = false, lower = false): PlannedLeg[] => [{ ...itineraryLegs(start, [a], false)[0], result: {
+  status: "ok", terrain: { label: "Test", spacingM: 1, regional: false }, shortest: flatPath(),
+  balanced: balanced ? flatPath(.0001) : undefined, alternative: lower ? flatPath(.0002) : undefined,
+} }];
+
+test("shortest stays selectable when only lower terrain is distinct", () => {
+  assert.deepEqual(itinerary.availableChoices(planned(false, true)).map(({ id }) => id), ["shortest", "lower-terrain"]);
+});
+
+test("coincident objectives give one shortest recommended choice, including cloned geometry", () => {
+  const legs = planned();
+  assert.equal(legs[0].result?.status, "ok");
+  if (legs[0].result?.status !== "ok") return;
+  legs[0].result.balanced = structuredClone(legs[0].result.shortest);
+  legs[0].result.alternative = structuredClone(legs[0].result.shortest);
+  assert.deepEqual(itinerary.availableChoices(legs).map(({ id }) => id), ["shortest"]);
+});
+
+test("every distinct solver path is mapped verbatim, with selected path drawn last", () => {
+  const legs = planned(true, true);
+  const paths = itinerary.mapLegsForChoices(legs, "balanced");
+  assert.equal(paths.length, 3);
+  assert.deepEqual(paths.map(({ choice }) => choice), ["shortest", "lower-terrain", "balanced"]);
+  assert.deepEqual(paths.map(({ selected }) => selected), [false, false, true]);
+  for (const path of paths) assert.equal(path.points, itinerary.selectedLeg(legs[0].result, path.choice!)!.points);
+  assert.deepEqual(paths.map(({ color }) => color), ["#ffc184", "#a7f48c", "#69d5ff"]);
+});
+
+test("shared legs are not duplicated and a distinct return still offers a choice", () => {
+  const legs = [...planned(), { ...planned(true, true)[0], returning: true }];
+  assert.equal(itinerary.availableChoices(legs).length, 3);
+  const paths = itinerary.mapLegsForChoices(legs, "lower-terrain");
+  assert.equal(paths.length, 4);
+  assert.equal(paths.filter(({ selected }) => selected).length, 2);
+  assert.equal(paths.filter(({ returning }) => returning).length, 3);
+  assert.deepEqual(itinerary.mapLegsForChoices([{ ...legs[0], result: { status: "no-route", detail: "Blocked" } }], "shortest"), []);
+});
+
+test("choice restoration retains the requested objective while calculations use an available choice", () => {
+  for (const choice of ["shortest", "balanced", "lower-terrain"] as const) {
+    const input: Plan = { version: 2, data: PLAN_DATA_VERSION, start, stops: [a], returnToLander: true,
+      slope: 15, weighted: choice !== "shortest", choice, mission };
+    assert.equal(readPlan(JSON.stringify(input))?.choice, choice);
+    const legs = planned(true, true);
+    const summary = summarizeItinerary(legs, [a], mission, choice);
+    const selected = itinerary.selectedLeg(legs[0].result, choice)!;
+    assert.equal(summary.distanceKm, selected.distanceKm);
+    assert.equal(summary.travel, selected.assessment!.equivalentDistanceKm * 1000 / mission.speed / 60);
+  }
+  assert.equal(itinerary.effectiveChoice(planned(), "balanced"), "shortest");
+  assert.equal(itinerary.effectiveChoice(planned(true), "lower-terrain"), "balanced");
+});
+
+test("a replanned return counts only unvisited science and does not invent an unused mission budget", () => {
+  const leg = { ...planned()[0], returning: true };
+  const summary = summarizeItinerary([leg], [a, b], mission, "shortest", { nextStop: 1, at: 1000 });
+  assert.equal(summary.science, b.scienceMinutes);
+  assert.equal(summary.remaining, null);
+  assert.ok(summary.travel! > 0);
+  assert.equal(summarizeItinerary([leg], [a, b], mission, "shortest", { nextStop: 2, at: 2000 }).science, 0);
+});
 
 test("itinerary builds one directional leg per pair, including the optional return", () => {
   const plan = itineraryLegs(start, [a, b], true);

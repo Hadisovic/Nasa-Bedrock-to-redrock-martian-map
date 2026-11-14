@@ -1,0 +1,200 @@
+{
+  "wildcat": {
+    "version": 2,
+    "data": "mars-trek-terrain-5",
+    "start": {
+      "lat": 18.455690972861863,
+      "lon": 77.40794456514794,
+      "name": "Habitat A (hypothetical)"
+    },
+    "stops": [
+      {
+        "point": {
+          "lat": 18.45864728,
+          "lon": 77.40592495,
+          "name": "Sol 502 Berry Hollow"
+        },
+        "scienceMinutes": 0
+      }
+    ],
+    "returnToLander": true,
+    "slope": 15,
+    "weighted": true,
+    "choice": "balanced",
+    "mission": {
+      "speed": 0.7,
+      "stop": 30,
+      "budget": 180,
+      "reserve": 30,
+      "departure": "2026-11-14T19:47",
+      "rover": false,
+      "roverSpeed": 1.2,
+      "roverSlope": 10
+    }
+  },
+  "gale": {
+    "version": 2,
+    "data": "mars-trek-terrain-5",
+    "start": {
+      "lat": -4.686822735632989,
+      "lon": 137.38425230762405,
+      "name": "Gale test start"
+    },
+    "stops": [
+      {
+        "point": {
+          "lat": -4.734060429235711,
+          "lon": 137.43149000122676,
+          "name": "Gale test destination"
+        },
+        "scienceMinutes": 0
+      }
+    ],
+    "returnToLander": false,
+    "slope": 15,
+    "weighted": true,
+    "choice": "balanced",
+    "mission": {
+      "speed": 0.7,
+      "stop": 30,
+      "budget": 180,
+      "reserve": 30,
+      "departure": "2026-11-14T19:47",
+      "rover": false,
+      "roverSpeed": 1.2,
+      "roverSlope": 10
+    }
+  },
+  "global": {
+    "version": 2,
+    "data": "mars-trek-terrain-5",
+    "start": {
+      "lat": -4.73,
+      "lon": 137.38,
+      "name": "Regional start"
+    },
+    "stops": [
+      {
+        "point": {
+          "lat": -10.6,
+          "lon": 140.1,
+          "name": "Regional destination"
+        },
+        "scienceMinutes": 0
+      }
+    ],
+    "returnToLander": false,
+    "slope": 15,
+    "weighted": true,
+    "choice": "balanced",
+    "mission": {
+      "speed": 0.7,
+      "stop": 30,
+      "budget": 180,
+      "reserve": 30,
+      "departure": "2026-11-14T19:47",
+      "rover": false,
+      "roverSpeed": 1.2,
+      "roverSlope": 10
+    }
+  },
+  "blocked": {
+    "version": 2,
+    "data": "mars-trek-terrain-5",
+    "start": {
+      "lat": 18.461663166981637,
+      "lon": 77.40753967063135,
+      "name": "Habitat C (hypothetical)"
+    },
+    "stops": [
+      {
+        "point": {
+          "lat": 18.45864728,
+          "lon": 77.40592495,
+          "name": "Sol 502 Berry Hollow"
+        },
+        "scienceMinutes": 0
+      }
+    ],
+    "returnToLander": false,
+    "slope": 4,
+    "weighted": true,
+    "choice": "balanced",
+    "mission": {
+      "speed": 0.7,
+      "stop": 30,
+      "budget": 180,
+      "reserve": 30,
+      "departure": "2026-11-14T19:47",
+      "rover": false,
+      "roverSpeed": 1.2,
+      "roverSlope": 10
+    }
+  },
+  "coincident": {
+    "version": 2,
+    "data": "mars-trek-terrain-5",
+    "start": {
+      "lat": 18.455690972861863,
+      "lon": 77.40794456514794,
+      "name": "Habitat A (hypothetical)"
+    },
+    "stops": [
+      {
+        "point": {
+          "lat": 18.455691972861864,
+          "lon": 77.40794456514794,
+          "name": "Same fine cell test"
+        },
+        "scienceMinutes": 0
+      }
+    ],
+    "returnToLander": false,
+    "slope": 15,
+    "weighted": true,
+    "choice": "balanced",
+    "mission": {
+      "speed": 0.7,
+      "stop": 30,
+      "budget": 180,
+      "reserve": 30,
+      "departure": "2026-11-14T19:47",
+      "rover": false,
+      "roverSpeed": 1.2,
+      "roverSlope": 10
+    }
+  },
+  "trek": {
+    "version": 2,
+    "data": "mars-trek-terrain-5",
+    "start": {
+      "lat": -11.9,
+      "lon": -70,
+      "name": "Valles test start"
+    },
+    "stops": [
+      {
+        "point": {
+          "lat": -11.8,
+          "lon": -69.8,
+          "name": "Valles test destination"
+        },
+        "scienceMinutes": 0
+      }
+    ],
+    "returnToLander": false,
+    "slope": 15,
+    "weighted": true,
+    "choice": "balanced",
+    "mission": {
+      "speed": 0.7,
+      "stop": 30,
+      "budget": 180,
+      "reserve": 30,
+      "departure": "2026-11-14T19:47",
+      "rover": false,
+      "roverSpeed": 1.2,
+      "roverSlope": 10
+    }
+  }
+}

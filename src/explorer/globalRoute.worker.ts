@@ -34,7 +34,7 @@ const unproject = (point: ReturnType<typeof project>) => {
   return { lat, lon };
 };
 
-async function localRoute(source: TerrainGrid, start: LatLon, end: LatLon, slope: number, terrainInfo: LegTerrain,
+export async function localRoute(source: TerrainGrid, start: LatLon, end: LatLon, slope: number, terrainInfo: LegTerrain,
   blocked: LatLon | null): Promise<DirectionalRoute> {
   const { planDirectionalLeg, nearestConnectedPoint } = await import("../analysis/routing.ts");
   const cell = blocked && cellAt(source.layout, project(blocked));
@@ -93,7 +93,7 @@ function loadGrid(url: string, width: number, height: number) {
   return request;
 }
 
-async function calculate({ start, end, slope, url, width, height, base, blocked }: LegRequest): Promise<DirectionalRoute> {
+export async function calculate({ start, end, slope, url, width, height, base, blocked }: LegRequest): Promise<DirectionalRoute> {
   if (insideMarswalkCoverage(start) && insideMarswalkCoverage(end)) {
     const terrain = await (jezero ??= loadJezeroTerrain().catch((error) => { jezero = undefined; throw error; }));
     return localRoute(terrain, start, end, slope,
@@ -121,7 +121,7 @@ async function calculate({ start, end, slope, url, width, height, base, blocked 
   return routeGlobalLeg(grid, start, end, slope, blocked ?? undefined);
 }
 
-self.onmessage = async ({ data }: MessageEvent<LegRequest>) => {
+if (typeof self !== "undefined") self.onmessage = async ({ data }: MessageEvent<LegRequest>) => {
   let result: DirectionalRoute;
   try { result = await calculate(data); }
   catch {

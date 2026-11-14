@@ -5,7 +5,7 @@ import type { CatalogEvent } from "./catalog.ts";
 import { MAX_STOPS, validMission } from "./missionPlan.ts";
 import type { Endpoint, MissionOptions, RouteChoice, Stop } from "./missionPlan.ts";
 import { availableChoices, legsForChoice, selectedLeg, summarizeItinerary } from "./itinerary.ts";
-import type { PlannedLeg } from "./itinerary.ts";
+import type { NavigationProgress, PlannedLeg } from "./itinerary.ts";
 import { marsAt } from "./marsTime.ts";
 import { estimateLegMinutes } from "./routeAssessment.ts";
 import type { LegTerrain } from "./globalRouting.ts";
@@ -21,8 +21,9 @@ const labelPoint = (point: Endpoint) => point.name ?? formatLatLon(point, 4);
 const terrainName = ({ label, spacingM, regional }: LegTerrain) =>
   `${label} · ${spacingM < 1000 ? `${Number(spacingM.toPrecision(2))} m` : `~${(spacingM / 1000).toFixed(1)} km`}${regional ? " · regional estimate" : ""}`;
 
-export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart }: {
+export function MapRouteControls({ pick, legs, summary, remainingRoute = false, onCancel, onDetails, onFit, onStart }: {
   pick: Pick | null; legs: readonly PlannedLeg[]; summary: ReturnType<typeof summarizeItinerary>;
+  remainingRoute?: boolean;
   onCancel: () => void; onDetails: () => void; onFit: () => void; onStart?: () => void;
 }) {
   if (pick === null && !legs.length) return null;
@@ -34,7 +35,7 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
   return <div className="map-route">
     <div role="status" className="map-route__status">
       {picking ? <><strong>{title}</strong><span>Use the map, a site flag, or search.</span></> : <>
-        <strong>{summary.complete ? `${distance(summary.distanceKm)} ${legs.at(-1)?.returning ? "round trip" : "one way"}`
+        <strong>{summary.complete ? `${distance(summary.distanceKm)} ${remainingRoute ? "remaining" : legs.at(-1)?.returning ? "round trip" : "one way"}`
           : pending ? "Calculating legs…" : "Itinerary incomplete"}</strong>
         {summary.regional && <span>Includes regional terrain</span>}
       </>}
@@ -87,12 +88,12 @@ function EndpointField({ label, point, active, events, onPick, onSelect }: {
 }
 
 export function Directions({ start, stops, returning, setReturning, pick, setPick, clearStart, clearRoute, remove, move, swap, setScience,
-  legs, slope, setSlope, fit, choice, setChoice, mission, setMission, accept, preview, setPreview, retry, extra,
+  legs, progress, slope, setSlope, fit, choice, setChoice, mission, setMission, accept, preview, setPreview, retry, extra,
   events, selectEndpoint, onDemo, onStart, onSave, walking, liveEligible }: {
   start: Endpoint | null; stops: Stop[]; returning: boolean; setReturning: (value: boolean) => void;
   pick: Pick | null; setPick: (pick: Pick | null) => void; clearStart: () => void; clearRoute: () => void; remove: (index: number) => void;
   move: (index: number, offset: number) => void; swap: () => void; setScience: (index: number, minutes: number) => void;
-  legs: PlannedLeg[]; slope: number; setSlope: (value: number) => void; fit: () => void;
+  legs: PlannedLeg[]; progress?: NavigationProgress | null; slope: number; setSlope: (value: number) => void; fit: () => void;
   choice: RouteChoice; setChoice: (value: RouteChoice) => void; mission: MissionOptions; setMission: (value: MissionOptions) => void;
   accept: (index: number, endpoint: "start" | "end", point: Endpoint) => void;
   preview: number | null; setPreview: (index: number | null) => void; retry: () => void; extra: React.ReactNode;
@@ -101,12 +102,13 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
   liveEligible: boolean;
 }) {
   const { rover, departure, budget } = mission;
-  const totals = summarizeItinerary(legs, stops, mission, choice);
+  const totals = summarizeItinerary(legs, stops, mission, choice, progress);
   const selected = legsForChoice(legs, choice);
   const hasResult = selected.length > 0;
   const choices = availableChoices(legs);
   const shortest = legsForChoice(legs, "shortest");
-  const approach = legs.some(({ result }) => result?.status === "ok" && result.balanced);
+  const approach = choices.some(({ id }) => id === "balanced");
+  const choiceLabel = (id: RouteChoice, label: string) => id === "shortest" && !approach ? "Shortest feasible · recommended" : label;
   const climb = selected.reduce((sum, leg) => sum + leg.climbM, 0);
   const descent = selected.reduce((sum, leg) => sum + (leg.assessment?.descentM ?? 0), 0);
   const steep = selected.reduce((sum, leg) => sum + (leg.assessment?.steepDistanceKm ?? 0), 0);
@@ -117,7 +119,7 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
   const availableEvents = events.filter((event) => event.location);
   const arrivals: { time: number; point: Endpoint; returning: boolean }[] = [];
   if (totals.travel != null && totals.science != null) {
-    let time = Date.parse(departure + "Z");
+    let time = progress?.at ?? Date.parse(departure + "Z");
     const speed = rover ? mission.roverSpeed : mission.speed;
     for (const leg of legs) {
       time += estimateLegMinutes(selectedLeg(leg.result, choice)!, speed) * 60_000;
@@ -193,17 +195,20 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
       <div className="directions__route-summary">
         <div><h3>{totals.complete ? totals.travel !== null ? minutes(totals.travel) : distance(totals.distanceKm)
           : legs.some(({ result }) => result && result.status !== "ok") ? "Route unavailable" : "Finding route…"}</h3>
-          {totals.complete && <span className="small">{totals.travel !== null ? `${distance(totals.distanceKm)} · ` : ""}{returning ? "Round trip" : "One way"}</span>}</div>
+          {totals.complete && <span className="small">{totals.travel !== null ? `${distance(totals.distanceKm)} · ` : ""}{progress ? "Remaining route" : returning ? "Round trip" : "One way"}</span>}</div>
       </div>
       {totals.regional && <p className="small muted">Regional route · Live Earth Walk is available at Wildcat Ridge.</p>}
-      {hasResult && <div className="mission-row">
+      {hasResult && <div className="mission-row route-choices" role="group" aria-label="Route choice">
         {choices.map(({ id, label, color }) => <button key={id} type="button" className="btn btn--small"
           aria-pressed={choice === id} onClick={() => setChoice(id)} style={{ borderColor: color }}>
-          {id === "balanced" && !approach ? "Shortest feasible · recommended" : label}
+          <span className="route-choice-dot" style={{ background: color }} aria-hidden="true" />{choiceLabel(id, label)}
         </button>)}
         <button type="button" className="btn btn--small" onClick={fit}>Fit route</button>
         <button type="button" className="btn btn--small" onClick={onSave}>Save</button>
       </div>}
+      {hasResult && !approach && <p className="small muted">The balanced recommendation shares the shortest feasible path.
+        {choices.length === 1 ? " No additional distinct path met the terrain improvement and detour thresholds; this is a shared result, not a routing failure." : " The lower terrain-cost path is a distinct option."}</p>}
+      {hasResult && <p className="small muted">All distinct options remain on the map. The selected route is thicker; dashed lines return to the lander.</p>}
       {totals.complete && <>
         <h4>Route Assessment</h4>
         <p>{approach
@@ -211,21 +216,22 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
           : "The shortest feasible itinerary is recommended because the other paths did not improve the combined planning estimate enough."}</p>
         {choices.length > 1 && <ul className="itinerary-legs" aria-label="Compare available routes">
           {choices.map(({ id, label }) => {
-            const candidate = summarizeItinerary(legs, stops, mission, id);
+            const candidate = summarizeItinerary(legs, stops, mission, id, progress);
             const penaltyKm = legsForChoice(legs, id).reduce((sum, leg) => sum + (leg.assessment?.terrainCostKm ?? 0), 0);
-            return <li key={id}><strong>{id === "balanced" && !approach ? "Shortest feasible · recommended" : label}</strong>
+            return <li key={id}><strong>{choiceLabel(id, label)}</strong>
               <small>{distance(candidate.distanceKm)}{candidate.travel != null && ` · ${minutes(candidate.travel)}`}
                 {` · ${distance(penaltyKm)} terrain allowance`}</small></li>;
           })}
         </ul>}
         <dl>
           <div><dt>Distance</dt><dd>{distance(totals.distanceKm)}</dd></div>
+          <div><dt>Estimated terrain effort allowance</dt><dd>{distance(selected.reduce((sum, leg) => sum + (leg.assessment?.terrainCostKm ?? 0), 0))}</dd></div>
           <div><dt>Ascent / descent</dt><dd>{Math.round(climb)} m / {Math.round(descent)} m</dd></div>
           <div><dt>Steepest measured step</dt><dd>{Math.max(...selected.map((leg) => leg.maxSlopeDeg)).toFixed(1)}° of {limit}° limit</dd></div>
           <div><dt>Distance at or above {(limit * 0.55).toFixed(1)}°</dt><dd>{distance(steep)}</dd></div>
           <div><dt>Longest such stretch within a leg</dt>
             <dd>{distance(Math.max(...selected.map((leg) => leg.assessment?.longestSteepRunKm ?? 0)))}</dd></div>
-          {choice !== "shortest" && approach && <div><dt>Extra distance over shortest</dt>
+          {choice !== "shortest" && <div><dt>Extra distance over shortest</dt>
             <dd>{distance(Math.max(0, totals.distanceKm - shortest.reduce((sum, leg) => sum + leg.distanceKm, 0)))}</dd></div>}
         </dl>
         {totals.regional && <p className="small muted">Regional terrain cannot resolve walking or driving conditions. Travel time and resource margin require finer coverage.</p>}
@@ -238,7 +244,7 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
         </details>
         {totals.travel != null && <dl>
           <div><dt>{rover ? "Estimated driving time" : "Estimated walking time"}</dt><dd>{minutes(totals.travel)}</dd></div>
-          {totals.science != null && <div><dt>Total science time</dt><dd>{minutes(totals.science)}</dd></div>}
+          {totals.science != null && <div><dt>{progress ? "Remaining science time" : "Total science time"}</dt><dd>{minutes(totals.science)}</dd></div>}
           {totals.remaining != null && <div><dt>Time after reserve</dt><dd className={totals.remaining < 0 ? "error" : ""}>{minutes(Math.abs(totals.remaining))} {totals.remaining < 0 ? "short" : "left"}</dd></div>}
         </dl>}
       </>}

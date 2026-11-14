@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bearingDeg, greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
-import { buildWalkTrack, deviationTracker, locateOnWalk, marsFromEarth, orderedStopDistances, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix } from "./earthWalk.ts";
+import { deviationTracker, locateOnWalk, marsFromEarth, orderedStopDistances, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, trackFor, usableFix } from "./earthWalk.ts";
 import type { EarthFix, WalkMode, WalkPose, WalkTrack } from "./earthWalk.ts";
 import { cueText, missionAudio } from "./walkAudio.ts";
 import type { CueId } from "./walkAudio.ts";
@@ -9,13 +9,15 @@ import { insideMarswalkCoverage } from "./catalog.ts";
 import type { EnvironmentObservation, LayerEntry } from "./catalog.ts";
 import { itineraryLegs, selectedLeg } from "./itinerary.ts";
 import type { Leg, PlannedLeg } from "./itinerary.ts";
+import type { NavigationProgress } from "./itinerary.ts";
 import type { Endpoint, RouteChoice, Stop } from "./missionPlan.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { loadDustCover } from "./walkTerrain.ts";
 
 type PermissionConstructor = { requestPermission?: () => Promise<"granted" | "denied"> };
 type Session = { mode: WalkMode; motion: boolean; tilt: boolean; stride: number };
-type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null };
+type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null;
+  choiceChange?: boolean; resume?: boolean };
 const emptyLegs: PlannedLeg[] = [];
 const meters = (a: LatLon, b: LatLon) => greatCircleKm(a, b) * 1000;
 async function permitted(sensor: PermissionConstructor | undefined) {
@@ -25,13 +27,6 @@ async function permitted(sensor: PermissionConstructor | undefined) {
 }
 const magnitude = (a: DeviceMotionEventAcceleration | null) =>
   a && a.x !== null && a.y !== null && a.z !== null && [a.x, a.y, a.z].every(Number.isFinite) ? Math.hypot(a.x, a.y, a.z) : null;
-
-function trackFor(legs: readonly PlannedLeg[], choice: RouteChoice) {
-  return buildWalkTrack(legs.flatMap(({ result }) => {
-    const route = selectedLeg(result, choice);
-    return route?.points.map((point, i) => ({ point, elevation: route.elevationsM[i] ?? null })) ?? [];
-  }));
-}
 
 export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: boolean,
   legs: PlannedLeg[], grid: LayerEntry | undefined, slope: number, blocked: LatLon | null,
@@ -48,6 +43,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const [cue, setCue] = useState<CueId | null>(null);
   const [request, setRequest] = useState<Replan | null>(null);
   const [planned, setPlanned] = useState<PlannedLeg[] | null>(null);
+  const [progress, setProgress] = useState<NavigationProgress | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [nextStop, setNextStop] = useState<string | null>(null);
@@ -63,6 +59,8 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const requestedLegs = useMemo<Leg[]>(() => request && lander
     ? itineraryLegs(lander, stops.slice(request.next), returning, request.from).concat(
       request.next === stops.length && returning ? [{ from: request.from, to: lander, returning: true, fromStop: null, toStop: null }] : [])
+      .map((leg) => ({ ...leg, fromStop: leg.fromStop === null ? null : leg.fromStop + request.next,
+        toStop: leg.toStop === null ? null : leg.toStop + request.next }))
     : emptyLegs, [request, lander, stops, returning]);
   const solverLegs = useMemo(() => request?.rejoin
     ? [...requestedLegs, { from: request.from, to: request.rejoin.point, returning: false, fromStop: null, toStop: null }]
@@ -74,7 +72,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     void loadDustCover(dustLayer).then((sample) => { if (live) dust.current = sample; }, () => {});
     return () => { live = false; dust.current = null; };
   }, [session, dustLayer]);
-  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, blocked, choice]);
+  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, blocked]);
 
   function announce(id: CueId, critical = false) {
     const now = Date.now();
@@ -102,6 +100,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     setCue(null);
     setRequest(null);
     setPlanned(null);
+    setProgress(null);
     setRemaining(null);
     setAccuracy(null);
     setNextStop(null);
@@ -109,6 +108,18 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   }
 
   useEffect(() => { stop(); }, [planKey]);
+  // A route-objective change preserves the active session and replans from the
+  // actual crew position. Never jump sideways to a newly selected polyline.
+  useEffect(() => {
+    const s = state.current;
+    if (!session || !s.point || s.arrived) return;
+    s.pending = true;
+    setPaused(true);
+    update(false);
+    setMessage("Route choice changed. Recalculating from your position…");
+    setRequest({ from: s.point, next: s.next, rejoin: null, choiceChange: true,
+      resume: request?.choiceChange ? request.resume : !paused });
+  }, [choice]);
   useEffect(() => () => { attempt.current++; audio.current?.dispose(); }, []);
 
   async function start(mode: WalkMode, stride: number, tiltEnabled: boolean) {
@@ -160,14 +171,18 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     s.retryAt = Date.now() + 8000;
     setRequest(null);
     if (s.arrived || s.next !== request.next) return;
-    const failure = results.find(({ result }) => result?.status !== "ok" || result.terrain.regional)?.result;
+    setProgress({ nextStop: request.next, at: Date.now() });
+    const failure = results.find(({ result }) => result?.status !== "ok" ||
+      (result.terrain.regional && session.mode !== "Recorded Walk"))?.result;
     if (failure) {
+      if (request.choiceChange) setPlanned(results);
       setMessage(failure.status === "ok" ? "Detailed terrain unavailable ahead." : failure.detail);
       announce(failure.status === "ok" ? "terrain" : "unavailable", true);
       return;
     }
     const nextTrack = trackFor(results, choice);
     if (nextTrack.length < 2) {
+      if (request.choiceChange) setPlanned(results);
       setMessage("The planner returned no walkable distance from your current position.");
       announce("unavailable", true);
       return;
@@ -177,6 +192,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     s.stopDistances = [...s.stopDistances.slice(0, s.next),
       ...orderedStopDistances(nextTrack, stops.slice(s.next).map(({ point }) => point))];
     setPlanned(results);
+    if (request.choiceChange && request.resume) setPaused(false);
     setRemaining(Math.max(0, nextTrack.at(-1)!.metres - s.metres));
     // Compare against a solver-verified connection to a vertex on the previous route.
     // Both alternatives start at this fix and visit the same remaining stops.
@@ -356,11 +372,13 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   }, [session, pose?.point, observations]);
 
   function recordedSpeed(metres: number) { return Math.max(1.8, Number.isFinite(routeSpeed) ? routeSpeed : 0, metres / 38); }
+  const canResume = !request && (!planned || (planned.every(({ result }) => result?.status === "ok") && trackFor(planned, choice).length > 1));
   return { eligible, liveEligible, session, paused, pose, message, cue: cue && cueText(cue), remaining, accuracy, nextStop, planned, starting,
+    canResume, progress,
     playbackSpeed: recordedSpeed((session ? state.current.track : track).at(-1)?.metres ?? 0),
     start, stop, recenter: () => { state.current.neutral = null; state.current.tilt = 0; update(false); },
     togglePause: () => {
-      if (state.current.arrived) return;
+      if (state.current.arrived || (paused && !canResume)) return;
       if (!paused) update(false);
       else void audio.current?.resume()?.catch(() => {});
       setPaused(!paused);

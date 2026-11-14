@@ -1,0 +1,106 @@
+
+> marswalk@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 177 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                    1.66 kB │ gzip:   0.64 kB
+dist/assets/workbench-latin-full-normal-CnQQZgje.woff2             4.76 kB
+dist/assets/inter-vietnamese-400-normal-DMkecbls.woff2             4.97 kB
+dist/assets/inter-vietnamese-600-normal-Cc8MFFhd.woff2             5.10 kB
+dist/assets/inter-vietnamese-700-normal-DlLaEgI2.woff2             5.10 kB
+dist/assets/inter-greek-ext-400-normal-DGGRlc-M.woff2              5.26 kB
+dist/assets/inter-greek-ext-600-normal-DRtmH8MT.woff2              5.43 kB
+dist/assets/inter-greek-ext-700-normal-qfdV9bQt.woff2              5.44 kB
+dist/assets/inter-vietnamese-400-normal-Bbgyi5SW.woff              6.50 kB
+dist/assets/inter-vietnamese-700-normal-BZaoP0fm.woff              6.63 kB
+dist/assets/inter-vietnamese-600-normal-BuLX-rYi.woff              6.64 kB
+dist/assets/inter-greek-ext-400-normal-KugGGMne.woff               7.06 kB
+dist/assets/inter-greek-ext-600-normal-B8X0CLgF.woff               7.21 kB
+dist/assets/inter-greek-ext-700-normal-BoQ6DsYi.woff               7.21 kB
+dist/assets/route.worker-BHro5BJX.js                               7.32 kB
+dist/assets/inter-cyrillic-400-normal-obahsSVq.woff2               7.71 kB
+dist/assets/inter-greek-400-normal-B4URO6DV.woff2                  7.77 kB
+dist/assets/inter-cyrillic-700-normal-CjBOestx.woff2               7.90 kB
+dist/assets/inter-greek-700-normal-C3JjAnD8.woff2                  7.92 kB
+dist/assets/inter-greek-600-normal-plRanbMR.woff2                  7.94 kB
+dist/assets/inter-cyrillic-600-normal-CWCymEST.woff2               7.97 kB
+dist/assets/archivo-black-latin-ext-400-normal--j5WRK12.woff       8.78 kB
+dist/assets/inter-cyrillic-400-normal-HOLc17fK.woff                9.78 kB
+dist/assets/inter-cyrillic-700-normal-DrXBdSj3.woff                9.91 kB
+dist/assets/inter-greek-400-normal-q2sYcFCs.woff                   9.92 kB
+dist/assets/inter-cyrillic-600-normal-4D_pXhcN.woff                9.93 kB
+dist/assets/inter-greek-700-normal-BUv2fZ6O.woff                   9.98 kB
+dist/assets/inter-greek-600-normal-BZpKdvQh.woff                  10.03 kB
+dist/assets/inter-cyrillic-ext-400-normal-BQZuk6qB.woff2          10.23 kB
+dist/assets/inter-cyrillic-ext-600-normal-Dfes3d0z.woff2          10.48 kB
+dist/assets/inter-cyrillic-ext-700-normal-BjwYoWNd.woff2          10.49 kB
+dist/assets/archivo-black-latin-400-normal-HW9MwEcM.woff          13.00 kB
+dist/assets/inter-cyrillic-ext-400-normal-DQukG94-.woff           13.33 kB
+dist/assets/inter-cyrillic-ext-700-normal-LO58E6JB.woff           13.40 kB
+dist/assets/inter-cyrillic-ext-600-normal-Bcila6Z-.woff           13.46 kB
+dist/assets/archivo-black-latin-ext-400-normal-DQAASfvW.woff2     14.33 kB
+dist/assets/archivo-black-latin-400-normal-BTVu2TQR.woff2         18.60 kB
+dist/assets/arrived-B4Y-Nqij.wav                                  19.49 kB
+dist/assets/inter-latin-400-normal-C38fXH4l.woff2                 23.66 kB
+dist/assets/inter-latin-700-normal-Yt3aPRUw.woff2                 24.35 kB
+dist/assets/inter-latin-600-normal-LgqL8muc.woff2                 24.45 kB
+dist/assets/updated-ia0peCB8.wav                                  29.07 kB
+dist/assets/unavailable-D0qQOO4J.wav                              30.13 kB
+dist/assets/inter-latin-400-normal-CyCys3Eg.woff                  30.69 kB
+dist/assets/inter-latin-600-normal-CiBQ2DWP.woff                  31.26 kB
+dist/assets/inter-latin-700-normal-BLAVimhd.woff                  31.32 kB
+dist/assets/space-astronaut-DiOc69B5.glb                          32.36 kB
+dist/assets/right-CT586__9.wav                                    32.41 kB
+dist/assets/left-BwkbOyTv.wav                                     33.29 kB
+dist/assets/slope-cMDH4Zi9.wav                                    34.79 kB
+dist/assets/shorter-_XkNBkCV.wav                                  34.98 kB
+dist/assets/inter-latin-ext-400-normal-C1nco2VV.woff2             35.00 kB
+dist/assets/inter-latin-ext-700-normal-Ca8adRJv.woff2             36.24 kB
+dist/assets/inter-latin-ext-600-normal-D2bJ5OIk.woff2             36.26 kB
+dist/assets/inter-latin-ext-400-normal-77YHD8bZ.woff              47.56 kB
+dist/assets/inter-latin-ext-700-normal-TidjK2hL.woff              48.63 kB
+dist/assets/inter-latin-ext-600-normal-CIVaiw4L.woff              48.66 kB
+dist/assets/terrain-aOVQGMVC.wav                                  51.25 kB
+dist/assets/dust-Coy_lP5Z.wav                                     60.68 kB
+dist/assets/redrock-lander-DLFPLIlI.glb                           74.62 kB
+dist/assets/temperature-C1qK6kNj.wav                             193.90 kB
+dist/assets/globalRoute.worker-D8XQEoJU.js                       320.51 kB
+dist/assets/elevation--ZsicH8_.tif                               349.98 kB
+dist/assets/martian-map-home-m5d3e2Ym.png                      1,332.23 kB
+dist/assets/imagery-B3OfQovS.tif                               1,631.73 kB
+dist/assets/martian-map-cinematic-M0fePxQf.jpg                 2,473.42 kB
+dist/assets/index-Bntyrmqr.css                                    72.54 kB │ gzip:  16.03 kB
+dist/assets/contracts-FNTlr9nl.js                                  0.03 kB │ gzip:   0.05 kB
+dist/assets/raw-A-vJRPpa.js                                        0.11 kB │ gzip:   0.12 kB
+dist/assets/deflate-xctFNSCS.js                                    0.17 kB │ gzip:   0.16 kB
+dist/assets/packbits-DCimUQ1T.js                                   0.34 kB │ gzip:   0.25 kB
+dist/assets/coordinates-KZ7g_hqE.js                                0.69 kB │ gzip:   0.39 kB
+dist/assets/rolldown-runtime-XKyaHtl9.js                           0.72 kB │ gzip:   0.42 kB
+dist/assets/webimage-zQMH-_zR.js                                   0.93 kB │ gzip:   0.52 kB
+dist/assets/basedecoder-BuG7fe0q.js                                1.29 kB │ gzip:   0.70 kB
+dist/assets/lzw-D2FslT4L.js                                        1.44 kB │ gzip:   0.82 kB
+dist/assets/Bench-D2oWiovF.js                                      4.00 kB │ gzip:   1.60 kB
+dist/assets/LiveHome-CQF2MjfC.js                                   4.44 kB │ gzip:   2.05 kB
+dist/assets/galeTerrain-X6LX-Fo9.js                                5.10 kB │ gzip:   2.19 kB
+dist/assets/Map3D-BQkp4thG.js                                      6.44 kB │ gzip:   3.18 kB
+dist/assets/globals-Bg5xiAy0.js                                    6.90 kB │ gzip:   2.43 kB
+dist/assets/jpeg-BQPyzJDi.js                                      10.79 kB │ gzip:   4.04 kB
+dist/assets/environment-CJTwNDYv.js                               40.68 kB │ gzip:   4.45 kB
+dist/assets/pako.esm-FY_AaR6l.js                                  46.54 kB │ gzip:  14.78 kB
+dist/assets/jezero-Cb4DwHHo.js                                    54.93 kB │ gzip:  18.19 kB
+dist/assets/manifest-I34U7Zd1.js                                  56.08 kB │ gzip:  13.26 kB
+dist/assets/Globe3D-Yo_c3GON.js                                   62.08 kB │ gzip:  22.26 kB
+dist/assets/zstd-i4Jwubnx.js                                      81.02 kB │ gzip:  32.69 kB
+dist/assets/lerc-DNUtl91Q.js                                      96.98 kB │ gzip:  37.92 kB
+dist/assets/events-CZ68AUBo.js                                   189.30 kB │ gzip:  24.51 kB
+dist/assets/three.core-C14EC2oz.js                               258.71 kB │ gzip:  68.04 kB
+dist/assets/markers-Kz4DIa2e.js                                  420.97 kB │ gzip: 102.52 kB
+dist/assets/index-D0wyeiPo.js                                    431.33 kB │ gzip: 138.34 kB
+
+[INEFFECTIVE_DYNAMIC_IMPORT] data/mars/jezero/elevation.tif?url is dynamically imported by src/explorer/galeTerrain.ts, src/explorer/slopeLayer.ts but also statically imported by src/App.tsx, src/bench/Bench.tsx, dynamic import will not move module into another chunk.
+
+✓ built in 726ms

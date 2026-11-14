@@ -291,7 +291,8 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
     if (paths.length) {
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      for (const { points, returning, preview, color } of paths) {
+      for (const { points, returning, preview, color, selected = true } of paths) {
+        ctx.globalAlpha = selected ? 1 : 0.8;
         ctx.beginPath();
         let lastX = Infinity;
         for (const point of points) {
@@ -303,13 +304,14 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
         const dash = returning ? [7, 7] : [];
         ctx.setLineDash(dash);
         ctx.strokeStyle = "#0b1724";
-        ctx.lineWidth = returning ? 4 : 8;
+        ctx.lineWidth = selected ? 8 : 4.5;
         ctx.stroke();
-        ctx.strokeStyle = returning ? "#fff" : preview ? "#ffe689" : color ?? "#69d5ff";
-        ctx.lineWidth = returning ? 2.6 : 5;
+        ctx.strokeStyle = preview ? "#ffe689" : color ?? "#69d5ff";
+        ctx.lineWidth = selected ? 5 : 2.5;
         ctx.stroke();
       }
       ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     }
   }, [basemap, overlays, markers, view, size, tiles, tileTick, project, selectedId, paths, sunPoint, closeToWildcat, wildcat, site]);
 

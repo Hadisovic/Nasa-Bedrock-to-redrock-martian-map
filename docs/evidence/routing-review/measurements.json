@@ -1,0 +1,194 @@
+{
+  "base": "696c1ece77ef41c9109e78673cefc49b78674aa9",
+  "scenarios": [
+    {
+      "name": "wildcat",
+      "terrain": {
+        "label": "Wildcat Ridge HiRISE",
+        "spacingM": 1,
+        "regional": false
+      },
+      "choices": [
+        {
+          "choice": "shortest",
+          "distanceM": 441.5160916270969,
+          "estimatedMinutes": 12.234463789448734,
+          "terrainAllowanceM": 72.33138752974993,
+          "climbM": 21.735107421875,
+          "descentM": 21.735107421875,
+          "maxSlopeDeg": 14.875682000239713,
+          "steepDistanceM": 111.99558510905739,
+          "roughnessCoverage": [
+            1,
+            1
+          ],
+          "legs": [
+            {
+              "distanceM": 220.7580458135482,
+              "climbM": 20.9267578125,
+              "descentM": 0.808349609375
+            },
+            {
+              "distanceM": 220.75804581354868,
+              "climbM": 0.808349609375,
+              "descentM": 20.9267578125
+            }
+          ]
+        },
+        {
+          "choice": "balanced",
+          "distanceM": 441.51643408029986,
+          "estimatedMinutes": 11.978268858523126,
+          "terrainAllowanceM": 61.57085797767141,
+          "climbM": 20.248046875,
+          "descentM": 20.248046875,
+          "maxSlopeDeg": 14.841460311859077,
+          "steepDistanceM": 95.72562935345192,
+          "roughnessCoverage": [
+            1,
+            1
+          ],
+          "legs": [
+            {
+              "distanceM": 220.75817508205964,
+              "climbM": 20.17578125,
+              "descentM": 0.057373046875
+            },
+            {
+              "distanceM": 220.7582589982402,
+              "climbM": 0.072265625,
+              "descentM": 20.190673828125
+            }
+          ]
+        },
+        {
+          "choice": "lower-terrain",
+          "distanceM": 452.8992880061014,
+          "estimatedMinutes": 12.15855093505191,
+          "terrainAllowanceM": 57.75985126607877,
+          "climbM": 20.229248046875,
+          "descentM": 20.229248046875,
+          "maxSlopeDeg": 14.661135442724973,
+          "steepDistanceM": 86.4557172892135,
+          "roughnessCoverage": [
+            1,
+            1
+          ],
+          "legs": [
+            {
+              "distanceM": 232.14102900786122,
+              "climbM": 20.156982421875,
+              "descentM": 0.03857421875
+            },
+            {
+              "distanceM": 220.7582589982402,
+              "climbM": 0.072265625,
+              "descentM": 20.190673828125
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gale",
+      "terrain": {
+        "label": "Gale Crater terrain",
+        "spacingM": 20,
+        "regional": false
+      },
+      "choices": [
+        {
+          "choice": "shortest",
+          "distanceM": 4091.3241127769497,
+          "estimatedMinutes": 115.65207184695957,
+          "terrainAllowanceM": 766.0629047953513,
+          "climbM": 380.577880859375,
+          "descentM": 20.451416015625,
+          "maxSlopeDeg": 14.92961292175638,
+          "steepDistanceM": 877.1342287161597,
+          "roughnessCoverage": [
+            null
+          ],
+          "legs": [
+            {
+              "distanceM": 4091.3241127769497,
+              "climbM": 380.577880859375,
+              "descentM": 20.451416015625
+            }
+          ]
+        },
+        {
+          "choice": "lower-terrain",
+          "distanceM": 4498.545241972661,
+          "estimatedMinutes": 119.68702185566218,
+          "terrainAllowanceM": 528.3096759651504,
+          "climbM": 365.137939453125,
+          "descentM": 5.011474609375,
+          "maxSlopeDeg": 13.819955590728366,
+          "steepDistanceM": 308.94151448366785,
+          "roughnessCoverage": [
+            null
+          ],
+          "legs": [
+            {
+              "distanceM": 4498.545241972661,
+              "climbM": 365.137939453125,
+              "descentM": 5.011474609375
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "global",
+      "terrain": {
+        "label": "Global MOLA (equatorial spacing)",
+        "spacingM": 14818.674380826556,
+        "regional": true,
+        "source": "https://trek.nasa.gov/mars/TrekWS/rest/cat/abstract?label=mola128_mola64_merge_90Nto90S_SimpleC_clon0"
+      },
+      "choices": [
+        {
+          "choice": "shortest",
+          "distanceM": 429971.28453581134,
+          "estimatedMinutes": null,
+          "terrainAllowanceM": 7658.215010356352,
+          "climbM": 7767,
+          "descentM": 3141.75,
+          "maxSlopeDeg": 6.899022029841118,
+          "steepDistanceM": 0,
+          "roughnessCoverage": [
+            null
+          ],
+          "legs": [
+            {
+              "distanceM": 429971.28453581134,
+              "climbM": 7767,
+              "descentM": 3141.75
+            }
+          ]
+        },
+        {
+          "choice": "lower-terrain",
+          "distanceM": 430337.4024188696,
+          "estimatedMinutes": null,
+          "terrainAllowanceM": 3851.8362048446456,
+          "climbM": 6337.5,
+          "descentM": 1712.25,
+          "maxSlopeDeg": 3.889477547949704,
+          "steepDistanceM": 0,
+          "roughnessCoverage": [
+            null
+          ],
+          "legs": [
+            {
+              "distanceM": 430337.4024188696,
+              "climbM": 6337.5,
+              "descentM": 1712.25
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

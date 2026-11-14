@@ -56,8 +56,8 @@ export function compareLegs(shortest: GlobalRouteLeg, balanced?: GlobalRouteLeg,
   const recommended = balanced?.assessment && improvesCost(balanced.assessment.equivalentDistanceKm,
     shortest.assessment.equivalentDistanceKm) && balanced.distanceKm <= shortest.distanceKm * 1.25 ? balanced : shortest;
   // Require both a relative and distance-scaled gain to suppress trivial detours.
-  const reduction = recommended.assessment!.terrainCostKm - (alternative?.assessment?.terrainCostKm ?? Infinity);
-  const lower = alternative && reduction > Math.max(recommended.assessment!.terrainCostKm * 0.01, shortest.distanceKm * 0.005) &&
+  const lower = alternative && (alternative.assessment?.terrainCostKm ?? Infinity) < recommended.assessment!.terrainCostKm -
+    Math.max(recommended.assessment!.terrainCostKm * 0.01, shortest.distanceKm * 0.005) &&
     alternative.distanceKm <= shortest.distanceKm * 1.25 ? alternative : undefined;
   return { shortest, balanced: recommended === shortest ? undefined : recommended, alternative: lower };
 }

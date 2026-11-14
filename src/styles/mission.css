@@ -355,6 +355,9 @@
 .itinerary-number { display:inline-grid; place-items:center; flex:none; min-width:25px; height:25px; padding:0 4px;
   border:1px solid #ffd9bd; border-radius:50%; font-size:.8rem; font-weight:750; color:#fff5ec; background:#8f4025; }
 .gpin .itinerary-number { box-shadow:0 1px 5px #000b; }
+.route-choices .btn { display:inline-flex; align-items:center; gap:.35rem; }
+.route-choice-dot { display:inline-block; width:.55rem; height:.55rem; border-radius:50%; flex:none; }
+.route-choices .btn[aria-pressed=true] { outline:2px solid currentColor; outline-offset:2px; }
 .itinerary-stop__actions { margin:.24rem 0 0 1.9rem; }
 .itinerary-stop__actions summary, .itinerary-leg-details summary { cursor:pointer; color:#e2e8f2; font-size:.8rem; }
 .itinerary-stop__actions summary span { color:var(--muted); }

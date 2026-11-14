@@ -14,6 +14,7 @@ import type { SurfaceTerrain } from "./galeTerrain.ts";
 import { nearGale } from "./galeLayout.ts";
 import { MarkerButton } from "./MarkerButton.tsx";
 import { MapControls } from "./MapControls.tsx";
+import { RocketIcon } from "./icons.tsx";
 import { imageBounds } from "./catalog.ts";
 import { DroneControls, droneMoveForKey } from "./DroneControls.tsx";
 import type { DroneMove } from "./DroneControls.tsx";
@@ -891,6 +892,7 @@ export function Globe3D(props: Globe3DProps) {
     if (!st || !paths.length) return;
     const lines = paths.flatMap((leg, index) => {
       const back = leg.returning;
+      const selected = leg.selected !== false;
       const localLift = closeRegion === "wildcat" ? 0.7 : 5;
       const positions: number[] = [];
       const detail = activeDetail?.uv;
@@ -917,13 +919,14 @@ export function Globe3D(props: Globe3DProps) {
       const geometry = new LineGeometry().setPositions(positions);
       const dash = Math.max(0.0000008, leg.distanceKm / (MARS_RADIUS_KM * 28));
       return [true, false].map((outline) => {
-        const material = new LineMaterial({ color: outline ? "#0b1724" : back ? "#fff" : leg.preview ? "#ffe689" : leg.color ?? "#69d5ff",
-          linewidth: back ? outline ? 4.4 : 2.6 : outline ? 8 : 5, transparent: true, toneMapped: false,
+        const material = new LineMaterial({ color: outline ? "#0b1724" : leg.preview ? "#ffe689" : leg.color ?? "#69d5ff",
+          linewidth: selected ? outline ? 8 : 5 : outline ? 4.5 : 2.5,
+          opacity: selected ? 1 : 0.8, transparent: true, toneMapped: false,
           dashed: back, dashSize: dash, gapSize: dash * 0.8, depthWrite: false });
         const line = new Line2(geometry, material);
         line.userData.ignoreHit = outline || leg.preview;
         if (back) line.computeLineDistances();
-        line.renderOrder = 20 + (back ? paths.length : index) * 2 + (outline ? 0 : 1);
+        line.renderOrder = 20 + index * 2 + (outline ? 0 : 1);
         return line;
       });
     });
@@ -1137,6 +1140,7 @@ export function Globe3D(props: Globe3DProps) {
                 onSelect={() => onSelect(cluster.members[0].id)}
                 onRoute={cluster.members[0].kind === "flag" ? () => onRoute(cluster.members[0].id) : undefined}>
                 {cluster.members[0].order && <span className="itinerary-number">{cluster.members[0].order}</span>}
+                {cluster.members[0].kind === "rocket" && <RocketIcon size={30} />}
               </MarkerButton>
             )}
           </div>

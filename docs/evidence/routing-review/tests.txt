@@ -1,0 +1,73 @@
+
+> marswalk@0.1.0 test
+> node --test tests/contracts/*.test.ts tests/app/*.test.ts
+
+✔ A* costs match an independent Dijkstra reference on random grids (97.5658ms)
+✔ direction-dependent costs: downhill counts half the penalty of uphill (0.2775ms)
+✔ hand-calculated distance and time on a flat 3-cell row (0.8576ms)
+✔ real Wildcat Ridge route: speed changes time and margin, not distance (260.0041ms)
+✔ Earth offsets are mapped 1:1, including a longitude seam crossing (4.1143ms)
+✔ GPS rejects weak, stale and out-of-order fixes (0.4912ms)
+✔ reroute requires sustained deviation outside accuracy and a fair distance comparison (0.5008ms)
+✔ route matching at a return crossing stays within the current leg (1.7281ms)
+✔ step detector ignores constant gravity and debounces peaks (0.4316ms)
+✔ terrain cues distinguish a mapped slope from missing elevation (0.465ms)
+✔ Mars24 prime meridian matches NASA's worked example and noon follows the subsolar point (4.004ms)
+✔ the nearest suggestion cannot cross an unknown wall or choose a disconnected point (5.9161ms)
+✔ shared routes require matching terrain and valid planning limits (2.7259ms)
+✔ longitudes wrap at the 180° seam (1.3835ms)
+✔ globe vectors round-trip and agree with the equirectangular basemap (0.8873ms)
+✔ clustering groups nearby markers and keeps distant ones apart (0.9196ms)
+✔ view clamps to the poles and wraps longitude (0.7109ms)
+✔ search matches titles, aliases, missions and sols (1.6019ms)
+✔ global routes cross the longitude seam by the short edge (6.0601ms)
+✔ global routes reject missing elevation and enforce the slope limit (0.8011ms)
+✔ a sufficiently steep detour earns a distinct recommendation and obeys the slope limit (25.9004ms)
+✔ bundled MOLA data supports finite routes outside Jezero and near the pole (31.0964ms)
+✔ shortest stays selectable when only lower terrain is distinct (3.8021ms)
+✔ coincident objectives give one shortest recommended choice, including cloned geometry (0.7156ms)
+✔ every distinct solver path is mapped verbatim, with selected path drawn last (1.0508ms)
+✔ shared legs are not duplicated and a distinct return still offers a choice (0.7347ms)
+✔ choice restoration retains the requested objective while calculations use an available choice (1.7309ms)
+✔ a replanned return counts only unvisited science and does not invent an unused mission budget (0.4432ms)
+✔ itinerary builds one directional leg per pair, including the optional return (0.8259ms)
+✔ a failed middle leg keeps measured legs and suppresses whole-itinerary timing (0.6471ms)
+✔ one-way share inputs retain order, location uncertainty and per-stop science (0.6348ms)
+✔ directional local paths match the proven outbound solver and keep exact endpoints (4.5962ms)
+✔ routing reproduces the shared fixture outcomes (5.0088ms)
+✔ mission timing follows the shared contract and can go negative (1.7322ms)
+✔ calculated slope matches the independently verified waypoint step (119.0418ms)
+✔ sourced pins sit inside the crop and the depot is out of range (0.9134ms)
+✔ the three demonstration scenarios produce go, no-go and no-route (320.767ms)
+✔ assessment sums the actual geometry across the longitude seam and reverses elevation changes (2.0795ms)
+✔ comparison enforces inclusive 25% detour and strict 1% equivalent-distance improvement (0.6899ms)
+✔ lower terrain requires both meaningful thresholds and cannot exceed the detour cap (0.3626ms)
+✔ roughness removes a plane, is restricted to fine data and reports missing neighborhoods (2.5527ms)
+✔ flat ground gives a straight available round trip (4.7999ms)
+✔ unknown terrain is excluded and never treated as flat (0.8949ms)
+✔ missing endpoint elevation, outside coverage and bad input are unavailable (0.4045ms)
+✔ a walled endpoint is blocked and a cliff band gives no route (1.5906ms)
+✔ the slope penalty can choose a distinct, gentler round trip (1.1015ms)
+✔ routing is deterministic and the real Wildcat Ridge scenario is reachable (381.8457ms)
+✔ endpoints in the same cell give a zero-length leg (0.5541ms)
+✔ real Wildcat Habitat A / Sol 502 routes preserve constraints, alternatives and directional return metrics (540.3098ms)
+ℹ [{"choice":"shortest","distanceM":441.5160916270969,"allowanceM":72.33138752974993,"climbM":21.735107421875,"descentM":21.735107421875,"maxSlope":14.875682000239713},{"choice":"balanced","distanceM":441.51643408029986,"allowanceM":61.57085797767141,"climbM":20.248046875,"descentM":20.248046875,"maxSlope":14.841460311859077},{"choice":"lower-terrain","distanceM":452.8992880061014,"allowanceM":57.75985126607877,"climbM":20.229248046875,"descentM":20.229248046875,"maxSlope":14.661135442724973}]
+✔ difficult terrain detours around a steep barrier and unknown cells without cutting corners (1.444ms)
+✔ real Gale source is 20 m, cached, and a loaded blocked fine grid never falls back (154.0648ms)
+ℹ {"scenario":"Gale 20 m","distanceM":4091.3241127769497,"allowanceM":766.0629047953513,"maxSlope":14.92961292175638}
+✔ Mars Trek crop loads, preserves effective spacing, caches and falls back offline to regional MOLA (151.1291ms)
+✔ real global MOLA routes are explicitly regional and suppress detailed travel estimates (28.1655ms)
+ℹ {"scenario":"Global MOLA","distanceKm":429.9712845358113,"maxSlope":6.899022029841118,"spacingM":14818.674380826556}
+✔ usable fixtures carry two different complete round trips and separate mission timing (2.0021ms)
+✔ missing terrain, no route and coincident candidates are distinguishable (0.4486ms)
+✔ Jezero rasters align at the verified Sol 502 waypoint (320.3789ms)
+✔ projection round-trips and raster edges use north-west inclusive indexing (0.3999ms)
+✔ a different raster is rejected instead of being given the wrong alignment (6.3616ms)
+ℹ tests 58
+ℹ suites 0
+ℹ pass 58
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1575.5798

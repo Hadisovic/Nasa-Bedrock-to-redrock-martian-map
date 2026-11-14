@@ -9,7 +9,7 @@ import { CatalogPanel, EMPTY_FILTER, EvidenceCard, GlobalLayersPanel, SearchBox 
 import type { LayerState } from "./ExplorerPanels.tsx";
 import { Directions, MapRouteControls, routeStartId, stopId } from "./Directions.tsx";
 import type { Pick } from "./Directions.tsx";
-import { availableChoices, itineraryLegs, routeChoices, selectedLeg, summarizeItinerary } from "./itinerary.ts";
+import { effectiveChoice, itineraryLegs, mapLegsForChoices, selectedLeg, summarizeItinerary } from "./itinerary.ts";
 import type { MapLeg } from "./itinerary.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { GlobeMap2D } from "./GlobeMap2D.tsx";
@@ -249,22 +249,17 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const grid = manifest?.layers.find((l) => l.id === "mola-elevation");
   const legRequests = useMemo(() => itineraryLegs(start, stops, returning, origin?.point), [start, stops, returning, origin]);
   const legs = useItinerary(legRequests, grid, activeSlope, blocked, retry);
-  const choices = availableChoices(legs);
-  const selectedChoice = choices.some(({ id }) => id === choice) ? choice : "balanced";
   const [earthWalkSetupOpen, setEarthWalkSetupOpen] = useState(false);
-  const earthWalk = useEarthWalk(mission.rover ? null : start, stops, returning, legs, grid, activeSlope, blocked, selectedChoice, mission.speed,
+  const earthWalk = useEarthWalk(mission.rover ? null : start, stops, returning, legs, grid, activeSlope, blocked, choice, mission.speed,
     manifest?.layers.find((layer) => layer.id === "tes-dust-cover"), data?.environment ?? []);
-  const routeSummary = summarizeItinerary(legs, stops, mission, selectedChoice);
-  const routeColor = routeChoices.find(({ id }) => id === selectedChoice)?.color;
-  const resolvedLegs = useMemo(() => legs.flatMap((leg) => {
+  const visibleLegs = earthWalk.planned ?? legs;
+  const selectedChoice = effectiveChoice(visibleLegs, choice);
+  const routeSummary = summarizeItinerary(visibleLegs, stops, mission, selectedChoice, earthWalk.progress);
+  const resolvedLegs = useMemo(() => visibleLegs.flatMap((leg) => {
     const path = selectedLeg(leg.result, selectedChoice);
     return path ? [path] : [];
-  }), [legs, selectedChoice]);
-  const visibleLegs = earthWalk.planned ?? legs;
-  const paths = useMemo<MapLeg[]>(() => visibleLegs.flatMap((leg) => {
-    const path = selectedLeg(leg.result, selectedChoice);
-    return path ? [{ points: path.points, returning: leg.returning, distanceKm: path.distanceKm, color: routeColor }] : [];
-  }), [visibleLegs, selectedChoice, routeColor]);
+  }), [visibleLegs, selectedChoice]);
+  const paths = useMemo<MapLeg[]>(() => mapLegsForChoices(visibleLegs, selectedChoice), [visibleLegs, selectedChoice]);
   const replayPoints = useMemo(() => routeSummary.complete && !routeSummary.regional
     ? resolvedLegs.flatMap((leg, index) => index ? leg.points.slice(1) : leg.points) : [], [resolvedLegs, routeSummary.complete, routeSummary.regional]);
   const previewResult = previewLeg == null ? null : legs[previewLeg]?.result;
@@ -343,8 +338,12 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     const width = stage?.clientWidth ?? 600, height = stage?.clientHeight ?? 500;
     const sidePanel = workspace.current?.querySelector<HTMLElement>(".explorer__sidebar:not([hidden])");
     const desktop = width > 760;
-    const visibleWidth = sidePanel && desktop ? Math.max(width / 2, sidePanel.offsetLeft) : width;
-    const topInset = Math.min(125, height * .22);
+    // Fit the route into the unobscured mobile map, beside the existing clock
+    // and above the Directions sheet, without moving either control.
+    const clockWidth = !desktop && sidePanel ? stage?.querySelector<HTMLElement>(".mars-clock")?.clientWidth ?? 0 : 0;
+    const visibleWidth = sidePanel && desktop ? Math.max(width / 2, sidePanel.offsetLeft)
+      : Math.max(width / 2, width - (clockWidth ? clockWidth + 16 : 0));
+    const topInset = Math.min(desktop ? 125 : 180, height * .25);
     const bottomInset = sidePanel && !desktop ? sidePanel.clientHeight : Math.min(95, height * .16);
     const visibleHeight = Math.max(height * .25, height - topInset - bottomInset);
     const minSpan = localView ? 0.0005 : 0.05;
@@ -357,7 +356,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   }, [flyTo]);
   const pointsToFit = useMemo(() => [start, ...stops.map(({ point }) => point)].filter((point): point is Endpoint => !!point),
     [start, stops]);
-  const fit = () => fitPoints([...pointsToFit, ...resolvedLegs.flatMap((leg) => leg.points)], !routeSummary.regional);
+  const fit = () => fitPoints([...pointsToFit, ...paths.flatMap((leg) => leg.points)], !routeSummary.regional);
   // Fit after coordinates change. Science and timing edits keep the current camera.
   const lastFitted = useRef("");
   const fitKey = JSON.stringify(pointsToFit.map(({ lat, lon }) => [lat, lon]));
@@ -608,7 +607,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             if (earthWalk.pose) centerEarthWalk(earthWalk.pose.point);
           }} />
           {!routeToolsOpen && !earthWalk.session && (pick !== null || !panelOpen || tab !== "marswalk") &&
-            <MapRouteControls pick={pick} legs={legs} summary={routeSummary}
+            <MapRouteControls pick={pick} legs={visibleLegs} summary={routeSummary} remainingRoute={!!earthWalk.progress}
               onCancel={() => setPick(null)} onDetails={showRouteDetails} onFit={fit}
               onStart={earthWalk.eligible ? () => setEarthWalkSetupOpen(true) : undefined} />}
           {routeMenu && !routeToolsOpen && <div className="route-quick-menu" role="group" aria-label="Route actions"
@@ -758,7 +757,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                 resetNavigation(); setStart(stops[0].point); replaceStop(0, start); setPick(null);
               }}
               setScience={(index, scienceMinutes) => setStops((previous) => previous.map((stop, order) => index === order ? { ...stop, scienceMinutes } : stop))}
-              legs={legs} slope={slope} setSlope={setSlope} fit={fit}
+              legs={visibleLegs} progress={earthWalk.progress} slope={slope} setSlope={setSlope} fit={fit}
               choice={selectedChoice} setChoice={setChoice} mission={mission} setMission={setMission}
               retry={() => setRetry((n) => n + 1)} preview={previewLeg} setPreview={(index) => {
                 setPreviewLeg(index);

@@ -3,6 +3,7 @@ import type { DirectionalRoute, GlobalRouteLeg } from "./globalRouting.ts";
 import { estimateLegMinutes } from "./routeAssessment.ts";
 import type { Endpoint, MissionOptions, RouteChoice, Stop } from "./missionPlan.ts";
 import { validMission, validStop } from "./missionPlan.ts";
+import { lonDelta } from "./geo.ts";
 
 export interface Leg {
   from: Endpoint;
@@ -12,10 +13,12 @@ export interface Leg {
   toStop: number | null;
 }
 export type PlannedLeg = Leg & { result: DirectionalRoute | null };
-export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean; color?: string };
+export type NavigationProgress = { nextStop: number; at: number };
+export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean; color?: string;
+  choice?: RouteChoice; selected?: boolean };
 export const routeChoices = [
-  { id: "balanced", label: "Balanced · recommended", color: "#69d5ff" },
   { id: "shortest", label: "Shortest feasible", color: "#ffc184" },
+  { id: "balanced", label: "Balanced · recommended", color: "#69d5ff" },
   { id: "lower-terrain", label: "Lower terrain cost", color: "#a7f48c" },
 ] as const;
 
@@ -40,23 +43,62 @@ export const selectedLeg = (route: DirectionalRoute | null, choice: RouteChoice 
 };
 
 export function availableChoices(legs: readonly PlannedLeg[]) {
-  return routeChoices.filter(({ id }) => id === "balanced" || legs.some(({ result }) => result?.status === "ok" &&
-    (id === "shortest" ? result.balanced : result.alternative)));
+  const distinct: (typeof routeChoices[number])[] = [];
+  if (!legs.some(({ result }) => result?.status === "ok")) return distinct;
+  for (const option of routeChoices) {
+    if (!distinct.some(({ id }) => legs.every(({ result }) =>
+      samePath(selectedLeg(result, id), selectedLeg(result, option.id))))) distinct.push(option);
+  }
+  return distinct;
+}
+
+/** Equality is geographic, independent of object identity or the longitude convention. */
+export function samePath(a: GlobalRouteLeg | null, b: GlobalRouteLeg | null) {
+  if (!a || !b) return a === b;
+  return a.points.length === b.points.length && a.points.every((point, index) =>
+    Math.abs(point.lat - b.points[index].lat) < 1e-10 && Math.abs(lonDelta(point.lon, b.points[index].lon)) < 1e-10);
+}
+
+export function effectiveChoice(legs: readonly PlannedLeg[], requested: RouteChoice): RouteChoice {
+  const choices = availableChoices(legs);
+  return choices.some(({ id }) => id === requested) ? requested
+    : choices.some(({ id }) => id === "balanced") ? "balanced" : "shortest";
+}
+
+/** Share one set of original valid vertices between both maps. Collapse shared legs,
+ * draw all alternatives first, then emphasize the selected itinerary on top. */
+export function mapLegsForChoices(legs: readonly PlannedLeg[], choice: RouteChoice): MapLeg[] {
+  const options = availableChoices(legs);
+  const selected = effectiveChoice(legs, choice);
+  const priority = [...options].sort((a, b) => Number(b.id === selected) - Number(a.id === selected));
+  return legs.flatMap((leg) => {
+    const paths: MapLeg[] = [];
+    for (const option of priority) {
+      const path = selectedLeg(leg.result, option.id);
+      if (!path || paths.some((existing) => samePath({ ...path, points: existing.points }, path))) continue;
+      paths.push({ points: path.points, distanceKm: path.distanceKm, returning: leg.returning,
+        choice: option.id, color: option.color, selected: option.id === selected });
+    }
+    return paths;
+  }).sort((a, b) => Number(a.selected) - Number(b.selected));
 }
 
 export function legsForChoice(legs: readonly PlannedLeg[], choice: RouteChoice | boolean) {
   return legs.flatMap(({ result }) => selectedLeg(result, choice) ?? []);
 }
 
-export function summarizeItinerary(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, choice: RouteChoice | boolean) {
+export function summarizeItinerary(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, choice: RouteChoice | boolean,
+  progress?: NavigationProgress | null) {
   const complete = legs.length > 0 && legs.every(({ result }) => result?.status === "ok");
   const regional = legs.some(({ result }) => result?.status === "ok" && result.terrain.regional);
   const selected = legsForChoice(legs, choice);
   const distanceKm = selected.reduce((sum, leg) => sum + leg.distanceKm, 0);
-  const science = stops.every(validStop) ? stops.reduce((sum, stop) => sum + stop.scienceMinutes, 0) : null;
+  const remainingStops = progress ? stops.slice(progress.nextStop) : stops;
+  const science = remainingStops.every(validStop) ? remainingStops.reduce((sum, stop) => sum + stop.scienceMinutes, 0) : null;
   const speed = mission.rover ? mission.roverSpeed : mission.speed;
   const travel = complete && !regional && validMission(mission)
     ? selected.reduce((sum, leg) => sum + estimateLegMinutes(leg, speed), 0) : null;
-  const remaining = travel != null && science != null && legs.at(-1)?.returning ? mission.budget - mission.reserve - science - travel : null;
+  // Playback and sensor time do not establish mission consumables already spent.
+  const remaining = !progress && travel != null && science != null && legs.at(-1)?.returning ? mission.budget - mission.reserve - science - travel : null;
   return { complete, regional, distanceKm, science, travel, remaining };
 }

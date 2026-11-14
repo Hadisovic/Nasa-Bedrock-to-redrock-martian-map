@@ -89,7 +89,8 @@ export function EarthWalkControls({ walk, speed, recenter, exit }: { walk: Walk;
       {walk.cue && <div>Mission Control · {walk.cue}</div>}
     </div>}
     <div className="mission-row">
-      {!walk.arrived && <button type="button" className="btn btn--small" onClick={walk.togglePause}>{walk.paused ? "Resume" : "Pause"}</button>}
+      {!walk.arrived && <button type="button" className="btn btn--small" disabled={walk.paused && !walk.canResume}
+        onClick={walk.togglePause}>{walk.paused ? "Resume" : "Pause"}</button>}
       <button type="button" className="btn btn--small" onClick={recenter}>Recenter</button>
       <button type="button" className="btn btn--small" disabled={!walk.cue} onClick={walk.repeat}>Repeat last cue</button>
       <button type="button" className="btn btn--small earth-walk-controls__exit" onClick={exit}>Exit route</button>

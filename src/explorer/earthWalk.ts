@@ -1,5 +1,8 @@
 import { bearingDeg, greatCircleKm, lonDelta, MARS_RADIUS_KM, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
+import { selectedLeg } from "./itinerary.ts";
+import type { PlannedLeg } from "./itinerary.ts";
+import type { RouteChoice } from "./missionPlan.ts";
 
 const radians = Math.PI / 180;
 const earthRadiusM = 6_371_008.8;
@@ -53,6 +56,13 @@ export function buildWalkTrack(points: readonly RoutePoint[]) {
 }
 
 export type WalkTrack = ReturnType<typeof buildWalkTrack>;
+
+export function trackFor(legs: readonly PlannedLeg[], choice: RouteChoice) {
+  return buildWalkTrack(legs.flatMap(({ result }) => {
+    const route = selectedLeg(result, choice);
+    return route?.points.map((point, i) => ({ point, elevation: route.elevationsM[i] ?? null })) ?? [];
+  }));
+}
 
 export function sampleWalk(track: WalkTrack, metres: number) {
   const last = track.length - 1;
