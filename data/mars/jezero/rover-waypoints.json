@@ -1,0 +1,356 @@
+{
+  "source": "https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json",
+  "retrieved": "2026-11-13",
+  "description": "Perseverance localized positions inside the Wildcat Ridge crop, in travel order.",
+  "credit": "NASA/JPL-Caltech",
+  "limitations": [
+    "Rover body positions from localization, not instrument or sample footprints.",
+    "Elevations are the feed's geoid values and can differ slightly from the HiRISE grid."
+  ],
+  "waypoints": [
+    {
+      "rmc": "24_3900",
+      "sol": 436,
+      "longitude_east_deg": 77.40846432,
+      "latitude_planetocentric_deg": 18.45598091,
+      "elevation_geoid_m": -2543.231934,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "24_4232",
+      "sol": 437,
+      "longitude_east_deg": 77.40874595,
+      "latitude_planetocentric_deg": 18.45710164,
+      "elevation_geoid_m": -2539.995117,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "24_4308",
+      "sol": 439,
+      "longitude_east_deg": 77.40885123,
+      "latitude_planetocentric_deg": 18.45731155,
+      "elevation_geoid_m": -2539.058594,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "24_4358",
+      "sol": 439,
+      "longitude_east_deg": 77.40888074,
+      "latitude_planetocentric_deg": 18.45738915,
+      "elevation_geoid_m": -2538.755127,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "24_4412",
+      "sol": 441,
+      "longitude_east_deg": 77.40890722,
+      "latitude_planetocentric_deg": 18.45763848,
+      "elevation_geoid_m": -2536.414307,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "24_4470",
+      "sol": 441,
+      "longitude_east_deg": 77.40881368,
+      "latitude_planetocentric_deg": 18.45764262,
+      "elevation_geoid_m": -2536.002686,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "24_4516",
+      "sol": 441,
+      "longitude_east_deg": 77.40866415,
+      "latitude_planetocentric_deg": 18.45766456,
+      "elevation_geoid_m": -2535.614014,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "25_0",
+      "sol": 441,
+      "longitude_east_deg": 77.40857967,
+      "latitude_planetocentric_deg": 18.45766138,
+      "elevation_geoid_m": -2535.629883,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "25_94",
+      "sol": 443,
+      "longitude_east_deg": 77.40810055,
+      "latitude_planetocentric_deg": 18.45758854,
+      "elevation_geoid_m": -2536.147217,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "25_214",
+      "sol": 443,
+      "longitude_east_deg": 77.40746956,
+      "latitude_planetocentric_deg": 18.45752717,
+      "elevation_geoid_m": -2535.996338,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "25_294",
+      "sol": 448,
+      "longitude_east_deg": 77.40714133,
+      "latitude_planetocentric_deg": 18.45761876,
+      "elevation_geoid_m": -2534.589111,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "25_446",
+      "sol": 448,
+      "longitude_east_deg": 77.40633801,
+      "latitude_planetocentric_deg": 18.45744513,
+      "elevation_geoid_m": -2535.580322,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_0",
+      "sol": 449,
+      "longitude_east_deg": 77.40630146,
+      "latitude_planetocentric_deg": 18.45750967,
+      "elevation_geoid_m": -2534.77832,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_96",
+      "sol": 455,
+      "longitude_east_deg": 77.40627698,
+      "latitude_planetocentric_deg": 18.45789036,
+      "elevation_geoid_m": -2530.026611,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_160",
+      "sol": 456,
+      "longitude_east_deg": 77.40650296,
+      "latitude_planetocentric_deg": 18.45795715,
+      "elevation_geoid_m": -2528.697754,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "26_218",
+      "sol": 456,
+      "longitude_east_deg": 77.4064976,
+      "latitude_planetocentric_deg": 18.45801694,
+      "elevation_geoid_m": -2527.391846,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_282",
+      "sol": 460,
+      "longitude_east_deg": 77.40644329,
+      "latitude_planetocentric_deg": 18.45809645,
+      "elevation_geoid_m": -2526.647705,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "26_470",
+      "sol": 460,
+      "longitude_east_deg": 77.40609259,
+      "latitude_planetocentric_deg": 18.45851434,
+      "elevation_geoid_m": -2524.211182,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_522",
+      "sol": 461,
+      "longitude_east_deg": 77.40614657,
+      "latitude_planetocentric_deg": 18.45860783,
+      "elevation_geoid_m": -2523.912109,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "26_630",
+      "sol": 461,
+      "longitude_east_deg": 77.40614454,
+      "latitude_planetocentric_deg": 18.4586918,
+      "elevation_geoid_m": -2523.304199,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_694",
+      "sol": 464,
+      "longitude_east_deg": 77.4059739,
+      "latitude_planetocentric_deg": 18.45871915,
+      "elevation_geoid_m": -2522.729736,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "26_756",
+      "sol": 464,
+      "longitude_east_deg": 77.40601278,
+      "latitude_planetocentric_deg": 18.45879356,
+      "elevation_geoid_m": -2522.083252,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_850",
+      "sol": 474,
+      "longitude_east_deg": 77.40609995,
+      "latitude_planetocentric_deg": 18.4588559,
+      "elevation_geoid_m": -2521.59082,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_1004",
+      "sol": 477,
+      "longitude_east_deg": 77.40616768,
+      "latitude_planetocentric_deg": 18.45889532,
+      "elevation_geoid_m": -2520.852539,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_1110",
+      "sol": 501,
+      "longitude_east_deg": 77.40603023,
+      "latitude_planetocentric_deg": 18.45872741,
+      "elevation_geoid_m": -2522.76416,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "26_1154",
+      "sol": 501,
+      "longitude_east_deg": 77.40595178,
+      "latitude_planetocentric_deg": 18.45869497,
+      "elevation_geoid_m": -2522.827881,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_1222",
+      "sol": 502,
+      "longitude_east_deg": 77.40592495,
+      "latitude_planetocentric_deg": 18.45864728,
+      "elevation_geoid_m": -2523.167969,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_1652",
+      "sol": 535,
+      "longitude_east_deg": 77.40732773,
+      "latitude_planetocentric_deg": 18.45835024,
+      "elevation_geoid_m": -2525.520752,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_2018",
+      "sol": 536,
+      "longitude_east_deg": 77.4085763,
+      "latitude_planetocentric_deg": 18.45821603,
+      "elevation_geoid_m": -2526.466309,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_2142",
+      "sol": 537,
+      "longitude_east_deg": 77.40884856,
+      "latitude_planetocentric_deg": 18.45821029,
+      "elevation_geoid_m": -2526.742676,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "26_2216",
+      "sol": 538,
+      "longitude_east_deg": 77.40867746,
+      "latitude_planetocentric_deg": 18.45795842,
+      "elevation_geoid_m": -2531.444572,
+      "note": "Interpolated"
+    },
+    {
+      "rmc": "26_2548",
+      "sol": 538,
+      "longitude_east_deg": 77.40865142,
+      "latitude_planetocentric_deg": 18.45682814,
+      "elevation_geoid_m": -2540.948975,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "32_2340",
+      "sol": 694,
+      "longitude_east_deg": 77.40878417,
+      "latitude_planetocentric_deg": 18.45722377,
+      "elevation_geoid_m": -2539.437256,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_0",
+      "sol": 695,
+      "longitude_east_deg": 77.40880429,
+      "latitude_planetocentric_deg": 18.45739106,
+      "elevation_geoid_m": -2538.486084,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_212",
+      "sol": 698,
+      "longitude_east_deg": 77.40863038,
+      "latitude_planetocentric_deg": 18.45788655,
+      "elevation_geoid_m": -2532.342285,
+      "note": "Interpolated"
+    },
+    {
+      "rmc": "33_262",
+      "sol": 698,
+      "longitude_east_deg": 77.40864336,
+      "latitude_planetocentric_deg": 18.45796415,
+      "elevation_geoid_m": -2531.415039,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_366",
+      "sol": 700,
+      "longitude_east_deg": 77.4087634,
+      "latitude_planetocentric_deg": 18.45810853,
+      "elevation_geoid_m": -2528.163818,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_402",
+      "sol": 702,
+      "longitude_east_deg": 77.40869551,
+      "latitude_planetocentric_deg": 18.45821443,
+      "elevation_geoid_m": -2526.576416,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_430",
+      "sol": 706,
+      "longitude_east_deg": 77.40869434,
+      "latitude_planetocentric_deg": 18.45821856,
+      "elevation_geoid_m": -2526.405029,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_580",
+      "sol": 707,
+      "longitude_east_deg": 77.40854413,
+      "latitude_planetocentric_deg": 18.45862182,
+      "elevation_geoid_m": -2522.91333,
+      "note": "Mid-drive localization"
+    },
+    {
+      "rmc": "33_612",
+      "sol": 707,
+      "longitude_east_deg": 77.40845696,
+      "latitude_planetocentric_deg": 18.45864154,
+      "elevation_geoid_m": -2522.816895,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_1756",
+      "sol": 708,
+      "longitude_east_deg": 77.4058418,
+      "latitude_planetocentric_deg": 18.46007456,
+      "elevation_geoid_m": -2509.566162,
+      "note": "End-of-drive localization"
+    },
+    {
+      "rmc": "33_2864",
+      "sol": 709,
+      "longitude_east_deg": 77.40293429,
+      "latitude_planetocentric_deg": 18.46167105,
+      "elevation_geoid_m": -2496.769775,
+      "note": "End-of-drive localization"
+    }
+  ]
+}

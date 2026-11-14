@@ -1,0 +1,74 @@
+{
+  "region": {
+    "name": "Wildcat Ridge, Hawksbill Gap, western Jezero delta",
+    "bounds_m": [
+      4588016,
+      1093936,
+      4588400,
+      1094320
+    ],
+    "bounds_order": [
+      "west",
+      "south",
+      "east",
+      "north"
+    ],
+    "projected_crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +R=3396190 +units=m +no_defs",
+    "geographic_coordinates": "Planetocentric latitude and east-positive longitude in degrees"
+  },
+  "elevation": {
+    "kind": "Numerical stereo topography",
+    "mission": "Mars Reconnaissance Orbiter",
+    "instrument": "HiRISE",
+    "catalog": "https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_hirise_dtm_mosaic",
+    "doi": "10.5066/P9REJ9JN",
+    "source_url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+    "source_bytes": 1839545409,
+    "file": "elevation.tif",
+    "spacing_m": 1,
+    "unit": "meters above the product's MOLA-derived delta geoid",
+    "no_data": -3.4028226550889045e+38
+  },
+  "imagery": {
+    "kind": "Orthorectified optical imagery",
+    "mission": "Mars Reconnaissance Orbiter",
+    "instrument": "HiRISE",
+    "catalog": "https://astrogeology.usgs.gov/search/map/Mars/Mars2020/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first",
+    "doi": "10.5066/P9QJDP48",
+    "source_url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+    "source_bytes": 7358523457,
+    "file": "imagery.tif",
+    "spacing_m": 0.25,
+    "unit": "8-bit grayscale digital number",
+    "no_data": 0
+  },
+  "science": {
+    "kind": "In situ elemental and mineralogical measurements",
+    "mission": "Mars 2020 Perseverance",
+    "instrument": "Planetary Instrument for X-ray Lithochemistry (PIXL)",
+    "site": "Berry Hollow abrasion patch, Wildcat Ridge",
+    "scan_sols": {
+      "BH1": 505,
+      "BH2": 507
+    },
+    "archive": "https://doi.org/10.17189/1522645",
+    "study": "https://doi.org/10.1126/sciadv.adt3048",
+    "open_study": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12002120/",
+    "published_observation": {
+      "reference": "Figures 2 and 5 of Jones et al. (2025)",
+      "result": "PIXL diffraction identified anhydrite and gypsum in the Berry Hollow vein. The study reports approximately 45 percent anhydrite and 37 percent gypsum among the calcium-sulfate dehydration phases for BH2.",
+      "limitation": "These percentages describe the study's analysis of the BH2 scan. They do not describe the bulk rock, surrounding terrain, or the full crop."
+    },
+    "coverage": "Centimeter-scale abrasion patch; display as point evidence. The Sol 502 rover position locates the workspace approximately and does not give the instrument footprint.",
+    "rationale": "Investigate nearby fine-grained sedimentary rocks for evidence of how water interacted with the ancient delta. PIXL identified calcium sulfate phases in the Berry Hollow veins; the measured phases apply to that patch.",
+    "context": "https://science.nasa.gov/resource/sample-collection-and-rock-analysis-at-wildcat-ridge/",
+    "waypoint": {
+      "url": "https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json",
+      "rmc": "26_1222",
+      "sol": 502,
+      "longitude_east_deg": 77.40592495,
+      "latitude_planetocentric_deg": 18.45864728,
+      "elevation_geoid_m": -2523.167969
+    }
+  }
+}
