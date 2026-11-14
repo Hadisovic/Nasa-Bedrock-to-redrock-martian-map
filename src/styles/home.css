@@ -1,0 +1,124 @@
+.reference-home {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100dvh;
+  background: #000;
+}
+
+.reference-home__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+  transition: opacity 550ms ease;
+}
+
+.reference-home__surroundings {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, #060b1b33, transparent 40%, #1c0f130d 70%, #2e160e28),
+    url("../../public/images/martian-map-home.png") center / cover no-repeat;
+  transform: scale(1.06);
+  filter: blur(13px) brightness(0.63);
+}
+
+.reference-home__scene {
+  position: relative;
+  display: block;
+  width: min(100vw, 133.3333dvh);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+@media (max-aspect-ratio: 5/4) {
+  .reference-home__surroundings {
+    background:
+      url("../../public/images/martian-map-home.png") center top / auto 195% no-repeat,
+      #10162a;
+    mask-image: linear-gradient(#000 0 44%, transparent 72%);
+  }
+  .reference-home__art::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(0deg, #431b1230, #060d1a85 66%, #060d1a),
+      url("../../public/images/martian-map-home.png") center bottom / auto 180% no-repeat;
+    filter: blur(10px) brightness(0.65);
+    transform: scale(1.04);
+  }
+  .reference-home__scene { mask-image: linear-gradient(transparent, #000 6% 94%, transparent); }
+}
+
+@media (min-aspect-ratio: 7/5) {
+  .reference-home__scene { mask-image: linear-gradient(90deg, transparent, #000 4% 96%, transparent); }
+}
+
+.reference-home__scene img,
+.reference-home__canvas,
+.reference-home__lights,
+.reference-home__dust {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.reference-home__canvas { opacity: 0; }
+.reference-home__canvas.is-ready { opacity: 1; }
+.reference-home__lights circle { fill: #d7f4ff; opacity: 0; filter: drop-shadow(0 0 5px #62caff); animation: star-glint 3.8s ease-in-out infinite; }
+.reference-home__signal { fill: none; stroke: #efffff; stroke-width: 2.2; stroke-dasharray: 9 160; filter: drop-shadow(0 0 4px #63daff); animation: signal-travel 3.1s linear infinite; }
+.reference-home__scanner { fill: none; stroke: #b0f5ff; stroke-width: 1; opacity: 0; transform-box: fill-box; animation: holo-scan 5s ease-in-out infinite; }
+.reference-home__dust {
+  background: radial-gradient(ellipse at 88% 50%, #fc743a55, transparent 12%),
+    radial-gradient(ellipse at 78% 70%, #de59262b, transparent 25%);
+  mix-blend-mode: screen;
+  opacity: 0.18;
+  animation: drift 6s ease-in-out infinite alternate;
+}
+.is-launching .reference-home__dust { animation: launch-dust 550ms ease-out forwards; }
+@keyframes star-glint { 38%, 62% { opacity: 0; } 50% { opacity: 0.95; } }
+@keyframes signal-travel { from { stroke-dashoffset: 13; opacity: 0; } 15%, 78% { opacity: 0.95; } to { stroke-dashoffset: -115; opacity: 0; } }
+@keyframes holo-scan { 20% { opacity: 0; } 29% { opacity: 0.55; } 64%, 100% { transform: translateY(110px); opacity: 0; } }
+@keyframes drift { to { opacity: 0.39; transform: translateX(-1.5%); } }
+@keyframes launch-dust { to { opacity: 1; transform: scale(1.1) translateX(-2%); } }
+
+.reference-home__art.is-launching { opacity: 0; }
+.reference-home__art:focus-visible { outline: 3px solid #6bd6ff; outline-offset: -5px; }
+.reference-home__hint {
+  position: absolute;
+  inset-inline: 0;
+  bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 0.8rem));
+  padding-inline: 1rem;
+  color: #e6efff;
+  font-size: clamp(0.7rem, 1.55vw, 0.92rem);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 4px #060915, 0 2px 12px #060915;
+  pointer-events: none;
+  animation: mission-hint 2.5s ease-in-out infinite;
+}
+@keyframes mission-hint {
+  0%, 100% { opacity: 0.76; transform: translateY(0); }
+  45% { opacity: 1; transform: translateY(-5px); }
+}
+.explorer-entry { height: 100dvh; min-height: 0; overflow: hidden; animation: explorer-fade-in 350ms ease both; }
+@keyframes explorer-fade-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-home__art { transition: none; }
+  .reference-home__hint { animation: none; }
+  .explorer-entry { animation: none; }
+  .reference-home__lights, .reference-home__dust { display: none; }
+}
