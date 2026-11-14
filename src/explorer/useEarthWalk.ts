@@ -37,7 +37,8 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   legs: PlannedLeg[], grid: LayerEntry | undefined, slope: number, blocked: LatLon | null,
   weighted: boolean, routeSpeed: number, dustLayer: LayerEntry | undefined, observations: EnvironmentObservation[]) {
   const track = useMemo(() => trackFor(legs, weighted), [legs, weighted]);
-  const eligible = !!lander && !!stops.length && track.length > 1 && meters(lander, track[0].point) < 0.05 && insideMarswalkCoverage(lander)
+  const eligible = !!lander && !!stops.length && track.length > 1 && legs.every(({ result }) => result?.status === "ok");
+  const liveEligible = eligible && meters(lander, track[0].point) < 0.05
     && legs.every(({ result }) => result?.status === "ok" && !result.terrain.regional)
     && track.every(({ point }) => insideMarswalkCoverage(point));
   const [session, setSession] = useState<Session | null>(null);
@@ -111,7 +112,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   useEffect(() => () => { attempt.current++; audio.current?.dispose(); }, []);
 
   async function start(mode: WalkMode, stride: number, tiltEnabled: boolean) {
-    if (!eligible || !lander || starting) return false;
+    if (!eligible || !lander || starting || (mode !== "Recorded Walk" && !liveEligible)) return false;
     if (mode !== "Recorded Walk" && !isSecureContext) {
       setMessage("Live sensors require HTTPS. Use Recorded Walk in this browser.");
       return false;
@@ -138,7 +139,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       setMessage("Motion access is unavailable. Enable it in browser settings or try Recorded Walk.");
       return false;
     }
-    state.current = { track, metres: 0, next: 0, point: lander, heading: sampleWalk(track, 0).heading,
+    state.current = { track, metres: 0, next: 0, point: track[0].point, heading: sampleWalk(track, 0).heading,
       tilt: 0, neutral: null, pending: false, retryAt: 0, arrived: false,
       stopDistances: orderedStopDistances(track, stops.map(({ point }) => point)) };
     lastCue.current = null;
@@ -237,7 +238,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
         announce("terrain");
         return;
       }
-      const id = routeCue(s.track, s.metres);
+      const id = liveEligible ? routeCue(s.track, s.metres) : "terrain";
       if (id && announce(id)) return;
       const sample = dust.current;
       if (sample) {
@@ -354,7 +355,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     return () => window.clearTimeout(timer);
   }, [session, pose?.point, observations]);
 
-  return { eligible, session, paused, pose, message, cue: cue && cueText(cue), remaining, accuracy, nextStop, planned, starting,
+  return { eligible, liveEligible, session, paused, pose, message, cue: cue && cueText(cue), remaining, accuracy, nextStop, planned, starting,
     start, stop, recenter: () => { state.current.neutral = null; state.current.tilt = 0; update(false); },
     togglePause: () => {
       if (state.current.arrived) return;

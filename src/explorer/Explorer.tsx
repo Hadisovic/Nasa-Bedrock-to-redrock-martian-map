@@ -234,7 +234,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const grid = manifest?.layers.find((l) => l.id === "mola-elevation");
   const legRequests = useMemo(() => itineraryLegs(start, stops, returning, origin?.point), [start, stops, returning, origin]);
   const legs = useItinerary(legRequests, grid, activeSlope, blocked, retry);
-  const earthWalk = useEarthWalk(start, stops, returning, legs, grid, activeSlope, blocked, weighted, mission.speed,
+  const [earthWalkSetupOpen, setEarthWalkSetupOpen] = useState(false);
+  const earthWalk = useEarthWalk(mission.rover ? null : start, stops, returning, legs, grid, activeSlope, blocked, weighted, mission.speed,
     manifest?.layers.find((layer) => layer.id === "tes-dust-cover"), data?.environment ?? []);
   const routeSummary = summarizeItinerary(legs, stops, mission, weighted);
   const resolvedLegs = useMemo(() => legs.flatMap((leg) => {
@@ -305,11 +306,11 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     loadPlan({ version: 2, data: PLAN_DATA_VERSION,
       start: { lat: CREW_LANDING.lat, lon: CREW_LANDING.lon, name: "Wildcat Ridge lander" },
       stops: [{ point: { ...WILDCAT_LATLON, name: "Berry Hollow" }, scienceMinutes: 0 }],
-      returnToLander: false, slope: 15, weighted: false, mission });
+      returnToLander: false, slope: 15, weighted: false, mission: { ...mission, rover: false } });
   };
   const centerEarthWalk = (point: LatLon) => {
     setMode("3d");
-    flyTo({ ...point, zoom: 110_000 });
+    flyTo({ ...point, zoom: earthWalk.liveEligible ? 110_000 : Math.max(8.2, Math.min(view.zoom, 4_000)) });
   };
   const fitPoints = useCallback((points: readonly LatLon[], localView: boolean) => {
     if (!points.length) return;
@@ -326,7 +327,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     const desktop = width > 760;
     const visibleWidth = sidePanel && desktop ? Math.max(width / 2, sidePanel.offsetLeft) : width;
     const topInset = Math.min(125, height * .22);
-    const bottomInset = sidePanel && !desktop ? Math.min(sheetHeight, height * .55) : Math.min(95, height * .16);
+    const bottomInset = sidePanel && !desktop ? sidePanel.clientHeight : Math.min(95, height * .16);
     const visibleHeight = Math.max(height * .25, height - topInset - bottomInset);
     const minSpan = localView ? 0.0005 : 0.05;
     const zoom = Math.min(localView ? 240_000 : 4_000,
@@ -335,7 +336,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     const shiftY = (topInset - bottomInset) / (2 * zoom);
     flyTo({ lat: Math.max(-89.9, Math.min(89.9, (north + south) / 2 + shiftY)),
       lon: wrapLon(centerLon + (east + west) / 2 + Math.min(65, shiftX)), zoom });
-  }, [flyTo, sheetHeight]);
+  }, [flyTo]);
   const pointsToFit = useMemo(() => [start, ...stops.map(({ point }) => point)].filter((point): point is Endpoint => !!point),
     [start, stops]);
   const fit = () => fitPoints([...pointsToFit, ...resolvedLegs.flatMap((leg) => leg.points)], !routeSummary.regional);
@@ -362,14 +363,16 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     setStops((previous) => previous.map((stop, order) => order === index ? { ...stop, point } : stop));
     setPreviewLeg(null);
   };
+  const selectEndpoint = (target: "start" | "add" | number, point: Endpoint) => {
+    if (target === "start") { resetNavigation(); setStart(point); }
+    else if (target === "add") addStop(point);
+    else replaceStop(target, point);
+    setPick(null);
+  };
   const choosePoint = (point: Endpoint) => {
     if (pick === "position") { const fix = makePosition(point, "manual"); setOrigin(fix); setCurrent(fix); setPick(null); return; }
     if (pick === "block") { setBlocked(point); if (current && start && greatCircleKm(current.point, start) > 1e-6) setOrigin(current); setPick(null); return; }
-    if (pick === "start") { resetNavigation(); setStart(point); setPick(stops.length ? null : "add"); }
-    if (pick === "add" || typeof pick === "number") {
-      if (pick === "add") addStop(point); else replaceStop(pick, point);
-      setPick(start ? null : "start");
-    }
+    if (pick !== null) selectEndpoint(pick, point);
   };
   const showRouteDetails = () => { setRouteMenu(null); setRouteToolsOpen(false); setTab("marswalk"); setPanelOpen(true); };
   const showRouteTools = () => { setRouteMenu(null); setRouteToolsOpen(true); };
@@ -544,7 +547,6 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           <button type="button" className="btn explorer-toolbar__directions" aria-pressed={panelOpen && tab === "marswalk"}
             onClick={() => {
               if (panelOpen && tab === "marswalk") setPick(null);
-              else if (!start && pick === null) setPick("start");
               openPanel("marswalk");
             }}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 18-8-8 18-2-8z" /></svg>
@@ -587,8 +589,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             earthWalk.recenter();
             if (earthWalk.pose) centerEarthWalk(earthWalk.pose.point);
           }} />
-          {!routeToolsOpen && !earthWalk.session && <MapRouteControls pick={pick} legs={legs} summary={routeSummary}
-            onCancel={() => setPick(null)} onDetails={showRouteDetails} onSave={showRouteTools} onFit={fit} />}
+          {!routeToolsOpen && !earthWalk.session && (pick !== null || !panelOpen || tab !== "marswalk") &&
+            <MapRouteControls pick={pick} legs={legs} summary={routeSummary}
+              onCancel={() => setPick(null)} onDetails={showRouteDetails} onFit={fit}
+              onStart={earthWalk.eligible ? () => setEarthWalkSetupOpen(true) : undefined} />}
           {routeMenu && !routeToolsOpen && <div className="route-quick-menu" role="group" aria-label="Route actions"
             style={{ "--route-menu-x": `${routeMenu.point.x}px`, "--route-menu-y": `${routeMenu.point.y}px` } as CSSProperties}
             onPointerEnter={cancelMenuClose} onPointerLeave={closeMenuSoon}>
@@ -609,7 +613,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           aria-label="Show panel" aria-expanded={false} aria-controls="explorer-panel" onClick={() => togglePanel(true)}>
           <span>{panelTitles[tab === "card" ? "catalog" : tab]}</span><span aria-hidden="true">‹</span>
         </button>}
-        <aside className="sidebar explorer__sidebar" id="explorer-panel" hidden={!panelOpen}>
+        <aside className={`sidebar explorer__sidebar${tab === "marswalk" ? " explorer__sidebar--directions" : ""}`} id="explorer-panel" hidden={!panelOpen}>
           <button type="button" ref={collapseButton} className="explorer__panel-handle"
             aria-label="Hide panel" aria-expanded={true} aria-controls="explorer-panel" onClick={() => togglePanel(false)}>
             <span>{panelTitles[tab === "card" ? "catalog" : tab]}</span><span aria-hidden="true">›</span>
@@ -713,6 +717,9 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                     }} />
               : <p className="muted panel-body">{data ? "The layer manifest is not bundled in this build; only the default basemap is shown." : "Loading…"}</p>)}
             {tab === "marswalk" && <Directions start={start} stops={stops} returning={returning} setReturning={(value) => { setReturning(value); setPreviewLeg(null); }}
+              events={events} selectEndpoint={selectEndpoint} onDemo={loadEarthWalkDemo} onSave={showRouteTools}
+              onStart={earthWalk.eligible && !earthWalk.session && pick === null ? () => setEarthWalkSetupOpen(true) : undefined}
+              walking={!!earthWalk.session} liveEligible={earthWalk.liveEligible}
               pick={pick} setPick={setPick} clearStart={() => { resetNavigation(); setStart(null); setPick("start"); }}
               clearRoute={() => { resetNavigation(); setStart(null); setStops([]); setPick(null); setRouteMenu(null); setPreviewLeg(null); }}
               remove={(index) => { setStops((previous) => previous.filter((_, order) => index !== order)); setPick(null); setPreviewLeg(null); }}
@@ -749,11 +756,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                 <Navigation route={routeSummary.complete && !routeSummary.regional ? resolvedLegs : []} returning={returning}
                   local={legs.some(({ result }) => result?.terrain && !result.terrain.regional)} fix={() => setPick("position")}
                   report={() => setPick("block")} clear={resetNavigation} block={blocked} position={setCurrent}
-                  recorded={(value) => { setCurrent(value); setOrigin(value); }}
-                  earthWalk={<EarthWalkSetup walk={earthWalk} demo={loadEarthWalkDemo} started={() => {
-                    if (start) centerEarthWalk(start);
-                    setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null);
-                  }} />} />
+                  recorded={(value) => { setCurrent(value); setOrigin(value); }} />
                 {current && <p className="small muted">{current.source} fix · {new Date(current.timestamp).toLocaleTimeString()} · uncertainty {current.uncertaintyM ?? "unknown"}
                   {start ? ` · ${(greatCircleKm(start, current.point) * 1000).toFixed(0)} m from lander, ${bearingDeg(start, current.point).toFixed(0)}°` : ""}</p>}
                 {localOffsets && <p className="small muted">From lander · {Math.round(localOffsets.eastM)} m east · {Math.round(localOffsets.northM)} m north
@@ -765,6 +768,11 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           <p className="sidebar__foot small muted">Centre {formatLatLon(view, 2)} · planetocentric, east longitude</p>
         </aside>
       </main>
+      <EarthWalkSetup walk={earthWalk} open={earthWalkSetupOpen} close={() => setEarthWalkSetupOpen(false)} started={() => {
+        setEarthWalkSetupOpen(false);
+        if (start) centerEarthWalk(start);
+        setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null);
+      }} />
     </div>
   );
 }
