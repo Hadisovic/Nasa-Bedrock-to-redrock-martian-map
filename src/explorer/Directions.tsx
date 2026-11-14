@@ -126,6 +126,19 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
         <button type="button" className="btn btn--small" aria-pressed={rover} onClick={() => setMission({ ...mission, rover: true })}>Rover</button>
       </div>
     </div>
+    <div className="directions__launch">
+      <button type="button" className="btn directions__start" disabled={!onStart}
+        aria-describedby={!onStart ? "directions-start-hint" : undefined} onClick={onStart}>Start route</button>
+      {!liveEligible && !walking && <button type="button" className="btn btn--small" onClick={onDemo}>Try Wildcat Ridge</button>}
+    </div>
+    {!onStart && <p id="directions-start-hint" className="small directions__start-hint">
+      {walking ? "A route is already running." : !start || !stops.length ? "Choose a start and destination to enable Start route."
+        : legs.some(({ result }) => !result) ? "Finding your route…"
+        : !totals.complete ? "Adjust your stops or check the route details below."
+        : rover ? "Switch to Walk to start navigation."
+        : pick !== null ? "Finish selecting a point on the map to start."
+        : "Choose a destination farther from the start."}
+    </p>}
     <div className="directions__fields">
       <div className="directions__waypoint directions__waypoint--start">
         <span aria-hidden="true" className="directions__dot" />
@@ -165,7 +178,6 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
           onClick={() => setAddingAt(stops.length)}>+ Add stop</button>}
         {adding && <button type="button" className="btn btn--small" onClick={() => { setAddingAt(null); if (pick === "add") setPick(null); }}>Cancel add stop</button>}
         {start && stops.length === 1 && <button type="button" className="btn btn--small" onClick={swap}>Swap</button>}
-        {!liveEligible && !walking && <button type="button" className="btn btn--small" onClick={onDemo}>Try Wildcat Ridge</button>}
       </div>
     </div>
     {started && <section className="directions__result" aria-label="Itinerary results" aria-live="polite">
@@ -173,7 +185,6 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
         <div><h3>{totals.complete ? totals.travel !== null ? minutes(totals.travel) : distance(totals.distanceKm)
           : legs.some(({ result }) => result && result.status !== "ok") ? "Route unavailable" : "Finding route…"}</h3>
           {totals.complete && <span className="small">{totals.travel !== null ? `${distance(totals.distanceKm)} · ` : ""}{returning ? "Round trip" : "One way"}</span>}</div>
-        {onStart && <button type="button" className="btn directions__start" onClick={onStart}>Start route</button>}
       </div>
       {totals.regional && <p className="small muted">Regional route · Live Earth Walk is available at Wildcat Ridge.</p>}
       {hasResult && <div className="mission-row">

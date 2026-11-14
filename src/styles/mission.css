@@ -223,6 +223,9 @@
   border-radius:999px; padding-inline:1.3rem; min-height:44px;
 }
 .explorer .btn.directions__start:hover, .earth-walk-setup .btn--primary:hover { background:#c3dafc; color:#092341; }
+.directions__launch { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:.65rem; }
+.directions__start-hint { margin:0 0 .65rem; color:#c3cede; }
+.explorer .btn.directions__start:disabled { background:#2d405a; border-color:#59708e; color:#d2dcea; opacity:1; cursor:default; }
 .explorer .directions__fields { display:grid; gap:.4rem; background:#111824; padding:.55rem; }
 .directions__waypoint { display:grid; grid-template-columns:20px minmax(0,1fr); align-items:start; gap:.3rem; }
 .directions__dot { width:10px; height:10px; border:2px solid #a8c7fa; border-radius:50%; justify-self:center; margin-top:19px; }
