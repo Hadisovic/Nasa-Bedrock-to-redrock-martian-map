@@ -99,10 +99,6 @@ export function RouteSettings({ legs, stops, mission, setMission, slope, setSlop
     ? [["Walk", arrival("walk")], ["Rover", arrival("rover")]] as const : [];
   return <>
     <fieldset className="directions__options"><legend>Travel assumptions</legend>
-      <label>Travel mode<select value={mission.rover ? "rover" : "walk"}
-        onChange={(event) => setMission({ ...mission, rover: event.target.value === "rover" })}>
-        <option value="walk">Walk</option><option value="rover">Rover</option>
-      </select></label>
       {number("Walking speed (m/s)", "speed", 0.1, 2, 0.1)}
       <label>Walking slope limit (°)<input type="number" min={1} max={89} value={Number.isFinite(slope) ? slope : ""}
         onChange={(event) => setSlope(event.target.valueAsNumber)} /></label>
@@ -111,7 +107,7 @@ export function RouteSettings({ legs, stops, mission, setMission, slope, setSlop
       {number("Available time (min)", "budget", 1, 10080)}
       {number("Return reserve (min)", "reserve", 0, mission.budget)}
     </fieldset>
-    {arrivals.some(([, values]) => values) && <details open><summary>Arrivals if leaving now</summary>
+    {arrivals.some(([, values]) => values) && <details><summary>Arrivals if leaving now</summary>
       {arrivals.map(([profile, values]) => values && <section key={profile}><h3>{profile}</h3><ol>
         {values.map(({ time, mars, point, returning }, index) => <li key={index}>
           <strong>{returning ? "Lander" : labelPoint(point)}</strong> · <time dateTime={new Date(time).toISOString()}>{new Date(time).toLocaleString()}</time>

@@ -55,6 +55,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
   const tileCache = useRef(new Map<string, HTMLImageElement | "error">());
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ pinch?: number; startX?: number; startY?: number; moved?: boolean }>({});
+  const tap = useRef<(RouteMapPoint & { touch: boolean }) | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
   const paintedView = useRef(view);
@@ -305,6 +306,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
 
   const onPointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0) return;
+    tap.current = null;
     if (pointers.current.size === 0) gesture.current = { startX: event.clientX, startY: event.clientY };
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -353,15 +355,21 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
   const release = (event: React.PointerEvent) => {
     if (event.type === "pointerup" && pointers.current.has(event.pointerId) && !gesture.current.moved) {
       const rect = host.current!.getBoundingClientRect();
-      const x = event.clientX - rect.left, y = event.clientY - rect.top;
-      const v = viewRef.current;
-      if (onPick) {
-        const lat = v.lat + (size.height / 2 - y) / v.zoom;
-        if (Math.abs(lat) <= 90) onPick(unproject(x, y, v));
-      } else props.onRouteClick?.(hitsRoute({ x, y }, event.pointerType === "touch" ? 25 : 11) ? { x, y } : null);
+      tap.current = { x: event.clientX - rect.left, y: event.clientY - rect.top, touch: event.pointerType === "touch" };
     }
     pointers.current.delete(event.pointerId);
     gesture.current.pinch = undefined;
+  };
+  const clickMap = (event: React.MouseEvent) => {
+    const point = tap.current;
+    tap.current = null;
+    if (!point || (event.target instanceof Element && event.target.closest("button"))) return;
+    const { x, y } = point;
+    const v = viewRef.current;
+    if (onPick) {
+      const lat = v.lat + (size.height / 2 - y) / v.zoom;
+      if (Math.abs(lat) <= 90) onPick(unproject(x, y, v));
+    } else props.onRouteClick?.(hitsRoute({ x, y }, point.touch ? 25 : 11) ? { x, y } : null);
   };
 
   useEffect(() => {
@@ -400,8 +408,8 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
   return (
     <div ref={host} className="map2d globe2d" tabIndex={0} role="application"
       aria-label="Flat, north-up map of the whole of Mars. Drag or use arrow keys to pan; it wraps at the 180° seam. Scroll, pinch or use plus and minus to zoom."
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={release} onPointerCancel={release}
-      onPointerLeave={() => { setHover(null); props.onRouteHover?.(null); }} onKeyDown={onKeyDown}>
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}
+      onPointerLeave={() => { setHover(null); props.onRouteHover?.(null); }} onKeyDown={onKeyDown} onClick={clickMap}>
       <canvas ref={canvas} className="map2d__canvas" aria-hidden="true" />
       {clusters.map((cluster) => {
         if (cluster.members.length > 1) {

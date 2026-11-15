@@ -104,6 +104,8 @@ test("reroute requires sustained deviation outside accuracy and a fair distance 
   assert.equal(deviation(18, 4, 9900), false);
   assert.equal(shorterFromSamePosition(70, null), false);
   assert.equal(shorterFromSamePosition(70, 90), true);
+  assert.equal(shorterFromSamePosition(384.7, 386.2, 2.8), false);
+  assert.equal(shorterFromSamePosition(384.7, 390, 2.8), true);
 });
 
 test("route matching at a return crossing stays within the current leg", () => {

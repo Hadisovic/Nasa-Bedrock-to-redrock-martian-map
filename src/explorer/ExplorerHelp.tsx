@@ -4,10 +4,10 @@ import { usePixelSound } from "../components/usePixelSound.ts";
 const steps = [
   { tab: "Map", text: "Explore the whole planet in 2D and 3D. Drag to explore and zoom in for detail." },
   { tab: "Discover", text: "Tap a flag to read about a mission. Use Layers to see the data behind the map." },
-  { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors gentler terrain, and dashes lead home. Pick a route before starting." },
+  { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors gentler terrain, and dashes lead home. One available path is selected automatically. Use Navigation tools to report a blocked cell on detailed terrain and recalculate around it." },
   { tab: "Save", text: "Tap the route for details or save options. Name it, share a link, or export a file." },
-  { tab: "Drone", text: "Fly over Wildcat Ridge and Mount Sharp. Hold the arrows to move, pinch or scroll to change altitude, and drag to look around. Landscape mode gives the controls more room." },
-  { tab: "Earth Walk", text: "On a phone or tablet, allow precise location and use a large open area. Earth GPS moves the simulation using your actual heading and your chosen distance scale. Recorded preview plays the route on desktop. Operational Mars navigation would need local sensors and positioning infrastructure." },
+  { tab: "Drone", text: "Interactive flight and local route playback cover two terrain packs: Wildcat Ridge and Mount Sharp. Additional areas need aligned NASA or USGS imagery and elevation. Hold arrows to fly, pinch or scroll for altitude, and tap a science flag to read about it." },
+  { tab: "Earth Walk", text: "On a phone or tablet, allow precise location and use an open area. Earth GPS maps your real movement and chosen scale onto Mars. On any device, replay the route as an astronaut or rover. Operational Mars navigation would need local sensors and positioning infrastructure." },
 ];
 
 export function ExplorerHelp({ home = false }: { home?: boolean }) {

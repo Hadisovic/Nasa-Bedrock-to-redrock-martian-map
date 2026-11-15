@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { bearingDeg, greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import { buildItineraryTrack, deviationTracker, earthGpsDevice, earthGpsScales, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix, walkDirection } from "./earthWalk.ts";
@@ -17,7 +17,7 @@ import { nearGale } from "./galeLayout.ts";
 type PermissionConstructor = { requestPermission?: () => Promise<"granted" | "denied"> };
 type Session = { mode: WalkMode; motion: boolean; tilt: boolean; stride: number; scale: number; rover: boolean };
 type StartOptions = { mode: WalkMode; stride?: number; tilt?: boolean; scale?: number; deviceNotices?: boolean; rover?: boolean };
-type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null; obstacle?: boolean; resume?: boolean };
+type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null; accuracyM?: number; obstacle?: boolean; resume?: boolean };
 const emptyLegs: PlannedLeg[] = [];
 const meters = (a: LatLon, b: LatLon) => greatCircleKm(a, b) * 1000;
 const detailedAt = (point: LatLon) => insideMarswalkCoverage(point) || nearGale(point);
@@ -73,6 +73,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const failedDetour = useRef<LatLon | null>(null);
   const audio = useRef<ReturnType<typeof missionAudio> | null>(null);
   const notices = useRef<ReturnType<typeof prepareRouteNotices> | null>(null);
+  const lastInstruction = useRef<string | undefined>(undefined);
   const attempt = useRef(0);
   const gps = useRef<{ anchor: EarthFix; moved: ReturnType<typeof gpsMovement> } | null>(null);
   const lastGpsFix = useRef(-Infinity);
@@ -110,6 +111,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     audio.current = null;
     notices.current?.close();
     notices.current = null;
+    lastInstruction.current = undefined;
     gps.current = null;
     lastGpsFix.current = -Infinity;
     setSession(null);
@@ -248,8 +250,10 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     const connectorPath = connector?.status === "ok" && !connector.terrain.regional ? selectedLeg(connector, weighted) : null;
     const baseline = request.rejoin && connectorPath ? request.rejoin.remaining + connectorPath.distanceKm * 1000 : null;
     const distance = results.reduce((sum, { result }) => sum + selectedLeg(result, weighted)!.distanceKm * 1000, 0);
-    const shorter = shorterFromSamePosition(distance, baseline);
-    const routeUpdate = shorter ? "Shorter route found." : weighted && baseline !== null && distance > baseline + 1
+    const spacing = Math.max(...results.map(({ result }) => result?.terrain?.spacingM ?? 0), connector ? connector.terrain?.spacingM ?? 0 : 0);
+    const marginM = Math.max(1, request.accuracyM ?? 0, spacing);
+    const shorter = shorterFromSamePosition(distance, baseline, marginM);
+    const routeUpdate = shorter ? "Shorter route found." : weighted && baseline !== null && distance > baseline + marginM
       ? "Lower slope cost route selected. It adds distance."
       : "Route updated through your remaining stops.";
     setMessage(routeUpdate);
@@ -271,6 +275,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     let watch: number | undefined;
     let lastMove = 0;
     let fixState: "waiting" | "locked" | "weak" | "denied" = "waiting";
+    let gaveRejoinDirection = false;
     const deviating = deviationTracker();
     let motionSeen = false;
     const detect = stepDetector();
@@ -372,6 +377,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       const accuracy = Math.hypot(fix.accuracy, position.anchor.accuracy) * session.scale;
       const offRoute = located.distance > Math.max(8, accuracy + 4);
       setOffRoute(offRoute);
+      if (!offRoute) gaveRejoinDirection = false;
       if (!offRoute && (changed || lockedNow)) {
         if (failedDetour.current || (detailed && !detailedAt(previous))) setMessage("Back on the planned route.");
         failedDetour.current = null;
@@ -388,7 +394,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
         announce("recalculating");
         const limit = s.stopDistances[s.next] ?? Infinity;
         const vertex = s.track.find(({ metres }) => metres >= located.metres && metres <= limit + 0.01);
-        setRequest({ from: point, next: s.next, rejoin: vertex
+        setRequest({ from: point, next: s.next, accuracyM: accuracy, rejoin: vertex
           ? { point: vertex.point, remaining: s.track.at(-1)!.metres - vertex.metres } : null });
       }
       if (offRoute && !s.pending && (changed || lockedNow)) {
@@ -397,7 +403,9 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
         setRemaining(null);
         if (detailed && !detailedAt(point)) setMessage("Outside the detailed terrain. No verified detour here.");
         else if (!detailed) setMessage("Off the regional route. Detailed detours are unavailable here.");
-        announce({ text: guidance.text, bearing: guidance.bearing }, false, "rejoin");
+        if (announce({ text: guidance.text, bearing: guidance.bearing }, !gaveRejoinDirection, "rejoin")) {
+          gaveRejoinDirection = true;
+        }
       }
     };
     const onMotion = (event: DeviceMotionEvent) => {
@@ -482,15 +490,17 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const guidance = session?.mode === "Outdoor" && hasFix && !progress.arrived && !paused
     ? offRoute ? rejoin : walkDirection(progress.track, progress.metres, progress.stopDistances[progress.next] ?? Infinity,
       nextStop ?? "destination", !detailed) : null;
-  useEffect(() => {
+  if (guidance) lastInstruction.current = guidance.text;
+  useLayoutEffect(() => {
     if (session?.mode !== "Outdoor" || paused || progress.arrived) return;
     const onVisibility = () => {
-      if (document.hidden) notices.current?.show(guidance?.text);
+      if (document.hidden) notices.current?.show(lastInstruction.current);
       else notices.current?.clear();
     };
     document.addEventListener("visibilitychange", onVisibility);
+    if (document.hidden) onVisibility();
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [session?.mode, paused, progress.arrived, guidance?.text]);
+  }, [session?.mode, paused, progress.arrived]);
   const maneuver = session && !paused && !offRoute && !progress.arrived && detailed && progress.track.length > 1
     ? nextManeuver(progress.track, progress.metres, progress.stopDistances[progress.next] ?? Infinity) : null;
   const upcoming = useMemo(() => {
@@ -508,13 +518,15 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   }, [!!maneuver, progress.track, progress.metres, progress.next, progress.stopDistances]);
   return { eligible, liveEligible, detailed, gpsAvailable, session, paused, pose, message, cue: cue && cueText(cue), remaining, accuracy, nextStop, planned, starting,
     maneuver, guidance, upcoming, muted, rover, obstacleHold,
+    crewElevation: session && !offRoute && progress.track.length > 1 ? sampleWalk(progress.track, progress.metres).elevation : null,
+    arrivalPoint: returning ? lander : stops.at(-1)?.point,
+    remainingScienceMinutes: stops.slice(progress.next).reduce((sum, stop) => sum + stop.scienceMinutes, 0),
     toggleMute: () => {
       mute.current = !mute.current;
       setMuted(mute.current);
       if (mute.current) audio.current?.stop();
       else void audio.current?.resume()?.catch(() => {});
     },
-    playbackSpeed: recordedSpeed((session ? state.current.track : track).at(-1)?.metres ?? 0),
     start, stop, recenter: () => { state.current.neutral = null; state.current.tilt = 0; update(false); },
     togglePause: () => {
       if (state.current.arrived || obstacleHold) return;

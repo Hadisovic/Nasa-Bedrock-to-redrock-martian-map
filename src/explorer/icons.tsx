@@ -1,4 +1,4 @@
-import { nasaInsignia } from "./nasaMark.ts";
+import { TeamBadge } from "./teamBadge.tsx";
 
 const flightPaths = {
   drone: "M8 9h8v6H8zM8 12H4m12 0h4M2 8h5m10 0h5M4 8v4m16-4v4m-9 3h2",
@@ -33,6 +33,14 @@ const navigationPaths = {
   start: "M4 11 20 4l-7 16-2.3-6.7L4 11Z",
   gps: "M12 2v4m0 12v4M2 12h4m12 0h4M12 5a7 7 0 1 0 0 14 7 7 0 1 0 0-14Zm0 5a2 2 0 1 0 0 4 2 2 0 1 0 0-4Z",
   astronaut: "M15 5a2 2 0 1 0-4 0 2 2 0 1 0 4 0ZM7 21l3-5 2-6m0 0 3 4h4m-7-4H9l-3 4m4 2 5 1 2 4",
+  close: "m6 6 12 12M18 6 6 18",
+  expand: "m5 9 7 7 7-7",
+  collapse: "m5 15 7-7 7 7",
+  sound: "M3 9v6h4l5 4V5L7 9H3Zm12 0a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10",
+  mute: "M3 9v6h4l5 4V5L7 9H3Zm12 1 5 5m0-5-5 5",
+  ahead: "M12 21V4m-6 6 6-6 6 6",
+  left: "M18 21v-7a4 4 0 0 0-4-4H4m5-5-5 5 5 5",
+  right: "M6 21v-7a4 4 0 0 1 4-4h10m-5-5 5 5-5 5",
 };
 
 export function NavigationIcon({ kind }: { kind: keyof typeof navigationPaths }) {
@@ -73,11 +81,8 @@ export function SourceFlag() {
 }
 export function MapFlag({ size = 24, color = "#ffcc80", nasaSource = false }: { size?: number; color?: string; nasaSource?: boolean }) {
   if (nasaSource) return <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
-    <path d="M4 25V3h23v17H4" fill={nasaInsignia ? "#f5f7fb" : "#153655"} stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
-    {nasaInsignia
-      ? <image href={nasaInsignia} x="5.5" y="3.5" width="20" height="16" />
-      : <><path d="M5 16.5h21" stroke="#e78759" /><text x="15.5" y="13.8" fill="#fff" textAnchor="middle"
-          fontFamily="sans-serif" fontSize="7.8" fontWeight="700">NASA</text></>}
+    <path d="M4 25V3h23v17H4" fill="#fff" stroke="#1d344f" strokeWidth="1.4" strokeLinejoin="round" />
+    <TeamBadge x={5} y={4} width={21} height={15} />
   </svg>;
   return <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
     <path d="M6 25V4h17l-4 6 4 6H6" fill={color} stroke="#111827" strokeWidth="3" strokeLinejoin="round" />
@@ -86,7 +91,5 @@ export function MapFlag({ size = 24, color = "#ffcc80", nasaSource = false }: { 
 }
 
 export function FlagCluster({ count }: { count: number }) {
-  return nasaInsignia
-    ? <span className="cluster-icon"><MapFlag size={33} nasaSource /><b>{count}</b></span>
-    : <span className="gpin__count">{count}</span>;
+  return <span className="cluster-icon"><MapFlag size={33} nasaSource /><b>{count}</b></span>;
 }

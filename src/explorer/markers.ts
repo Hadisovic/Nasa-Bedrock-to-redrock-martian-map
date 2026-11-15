@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import rocketUrl from "../assets/models/redrock-lander.glb?url";
-import { nasaInsignia } from "./nasaMark.ts";
+import { badgeBounds, badgeOutline, teamBadgeUrl } from "./teamBadge.tsx";
 
 /**
  * 3D marker meshes shared by the globe and the local terrain. Every marker is built with
@@ -69,43 +69,34 @@ export function disposeMarker(object: THREE.Object3D) {
 }
 
 export { TYPE_ACCENT } from "./accents.ts";
-let nasaSourceTexture: THREE.CanvasTexture | undefined;
-function nasaFlagTexture() {
-  if (nasaSourceTexture) return nasaSourceTexture;
+let teamSourceTexture: THREE.CanvasTexture | undefined;
+function teamFlagTexture() {
+  if (teamSourceTexture) return teamSourceTexture;
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 160;
   const ctx = canvas.getContext("2d")!;
-  const drawFlag = (color: string) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, 256, 160);
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 5;
-    ctx.strokeRect(2.5, 2.5, 251, 155);
-  };
-  drawFlag("#153655");
-  ctx.fillStyle = "#e78759";
-  ctx.fillRect(5, 129, 246, 9);
   ctx.fillStyle = "#fff";
-  ctx.font = "700 76px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("NASA", 128, 78);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#213551";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  nasaSourceTexture = texture;
-  if (nasaInsignia) {
-    const logo = new Image();
-    logo.crossOrigin = "anonymous";
-    logo.onload = () => {
-      const height = 150;
-      const width = height * logo.naturalWidth / logo.naturalHeight;
-      drawFlag("#f5f7fb");
-      ctx.drawImage(logo, (256 - width) / 2, (160 - height) / 2, width, height);
-      texture.needsUpdate = true;
-    };
-    logo.src = nasaInsignia;
-  }
+  teamSourceTexture = texture;
+  const logo = new Image();
+  logo.onload = () => {
+    const scale = (canvas.height - 14) / badgeBounds.height;
+    ctx.save();
+    ctx.translate((canvas.width - badgeBounds.width * scale) / 2, 7);
+    ctx.scale(scale, scale);
+    ctx.translate(-badgeBounds.x, -badgeBounds.y);
+    ctx.clip(new Path2D(badgeOutline));
+    ctx.drawImage(logo, 0, 0);
+    ctx.restore();
+    texture.needsUpdate = true;
+  };
+  logo.src = teamBadgeUrl;
   return texture;
 }
 
@@ -117,7 +108,7 @@ export function createRouteFlag(accent: string, nasaSource = false) {
   flag.add(pole);
   const face = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5),
     new THREE.MeshBasicMaterial({
-      map: nasaSource ? nasaFlagTexture() : null,
+      map: nasaSource ? teamFlagTexture() : null,
       color: nasaSource ? "#fff" : accent,
       side: THREE.DoubleSide,
       transparent: true,

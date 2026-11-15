@@ -76,8 +76,8 @@ export function deviationTracker() {
   };
 }
 
-export function shorterFromSamePosition(newDistance: number, verifiedRejoinDistance: number | null) {
-  return verifiedRejoinDistance !== null && newDistance + 1 < verifiedRejoinDistance;
+export function shorterFromSamePosition(newDistance: number, verifiedRejoinDistance: number | null, marginM = 1) {
+  return verifiedRejoinDistance !== null && newDistance + Math.max(1, marginM) < verifiedRejoinDistance;
 }
 
 export function buildWalkTrack(points: readonly RoutePoint[]) {
@@ -120,7 +120,9 @@ export function sampleWalk(track: WalkTrack, metres: number) {
   const t = Math.max(0, Math.min(1, (metres - a.metres) / (b.metres - a.metres)));
   const point = t === 0 ? a.point : t === 1 ? b.point : { lat: a.point.lat + (b.point.lat - a.point.lat) * t,
     lon: wrapLon(a.point.lon + lonDelta(a.point.lon, b.point.lon) * t) };
-  return { point, heading: bearingDeg(a.point, b.point), end };
+  const elevation = t === 0 ? a.elevation : t === 1 ? b.elevation : a.elevation !== null && b.elevation !== null
+    ? a.elevation + (b.elevation - a.elevation) * t : null;
+  return { point, heading: bearingDeg(a.point, b.point), end, elevation };
 }
 
 export function nextManeuver(track: WalkTrack, metres: number, legEnd: number) {

@@ -31,10 +31,15 @@ python3 -m http.server 8000 --directory dist --bind 127.0.0.1
 Opening `index.html` directly from disk (`file://`) is not supported, because the browser blocks
 the raster fetches.
 
-The team confirmed permission for the NASA insignia in the intro artwork, app header, and map flags.
-Both desktop intro images include the insignia. Production builds use the bundled SVG at
-`public/images/nasa-insignia.svg` for the header, mobile intro, and map flags. The production setting
-in `.env.production` also includes it in the core offline pack. See the [NASA Brand Guidelines](https://www.nasa.gov/nasa-brand-center/brand-guidelines/).
+The intro uses the orange Bedrock to Redrock badge in `public/images/martian-map-home-badge.png`.
+The header, white discovery flags, app icon and GPS notices use the blue badge in
+`public/images/martian-map-logo.png`. The offline pack includes both badges and the intro artwork.
+Mission imagery and data retain their original attribution.
+
+The desktop background in `public/images/martian-map-hero.png` was prepared with the built-in image editor.
+The edit prompt asked to remove only the round NASA insignia and red swoosh above the title and fill the
+spot with matching dark star field. It asked to preserve the original text, star field, scene,
+perspective, colors and 4:3 composition. The independent badge overlay uses the original supplied raster.
 
 ## Local testing milestone (current phase)
 

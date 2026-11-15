@@ -26,7 +26,7 @@
   pointer-events: none;
   background:
     linear-gradient(180deg, #060b1b33, transparent 40%, #1c0f130d 70%, #2e160e28),
-    url("../../public/images/martian-map-home.png") center / cover no-repeat;
+    url("../../public/images/martian-map-hero.png") center / cover no-repeat;
   transform: scale(1.06);
   filter: blur(13px) brightness(0.63);
 }
@@ -42,7 +42,7 @@
 @media (max-aspect-ratio: 5/4) {
   .reference-home__surroundings {
     background:
-      url("../../public/images/martian-map-home.png") center top / auto 195% no-repeat,
+      url("../../public/images/martian-map-hero.png") center top / auto 195% no-repeat,
       #10162a;
     mask-image: linear-gradient(#000 0 44%, transparent 72%);
   }
@@ -52,7 +52,7 @@
     inset: 0;
     background:
       linear-gradient(0deg, #431b1230, #060d1a85 66%, #060d1a),
-      url("../../public/images/martian-map-home.png") center bottom / auto 180% no-repeat;
+      url("../../public/images/martian-map-hero.png") center bottom / auto 180% no-repeat;
     filter: blur(10px) brightness(0.65);
     transform: scale(1.04);
   }

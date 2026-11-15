@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { HomeMotion } from "./HomeMotion.tsx";
-import { explorerBadge } from "../explorer/nasaMark.ts";
+import { TeamBadge } from "../explorer/teamBadge.tsx";
 import { ExplorerHelp } from "../explorer/ExplorerHelp.tsx";
+
+const homeBadge = import.meta.env.BASE_URL + "images/martian-map-home-badge.png";
 
 export function LiveHome({ onEnter }: { onEnter: () => void }) {
   const [leaving, setLeaving] = useState(false);
@@ -19,11 +21,12 @@ export function LiveHome({ onEnter }: { onEnter: () => void }) {
         else setLeaving(true);
       }}>
       <span className="mission-home__scene">
-        <img className="mission-home__art" src="./images/martian-map-cinematic.jpg" alt="" fetchPriority="high" />
+        <img className="mission-home__art" src="./images/martian-map-hero.png" alt="" fetchPriority="high" />
         <HomeMotion />
+        <TeamBadge className="mission-home__desktop-badge" source={homeBadge} />
       </span>
       <span className="mission-home__phone-title" aria-hidden="true">
-        <img src={explorerBadge} alt="" />
+        <TeamBadge className="mission-home__portrait-badge" source={homeBadge} />
         <small>Bedrock to Redrock</small>
         <img className="mission-home__phone-wordmark" src="./images/martian-map-title.png" alt="" />
       </span>

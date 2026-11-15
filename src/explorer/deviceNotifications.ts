@@ -65,7 +65,7 @@ export function prepareRouteNotices() {
       delivery?.abort();
       const controller = new AbortController();
       delivery = controller;
-      const body = instruction ? `${instruction.slice(0, 240)} Open Martian Map to continue live GPS.`
+      const body = instruction ? `Last confirmed: ${instruction.slice(0, 240)} Open Martian Map to continue live GPS.`
         : "Open Martian Map to resume live GPS and receive directions.";
       void worker.then(async (registration) => {
         if (!registration || closed || controller.signal.aborted || !document.hidden) return;
