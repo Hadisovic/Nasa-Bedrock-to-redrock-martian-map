@@ -29,6 +29,17 @@ export function RoverIcon() {
   </svg>;
 }
 
+const navigationPaths = {
+  start: "M4 11 20 4l-7 16-2.3-6.7L4 11Z",
+  gps: "M12 2v4m0 12v4M2 12h4m12 0h4M12 5a7 7 0 1 0 0 14 7 7 0 1 0 0-14Zm0 5a2 2 0 1 0 0 4 2 2 0 1 0 0-4Z",
+  astronaut: "M15 5a2 2 0 1 0-4 0 2 2 0 1 0 4 0ZM7 21l3-5 2-6m0 0 3 4h4m-7-4H9l-3 4m4 2 5 1 2 4",
+};
+
+export function NavigationIcon({ kind }: { kind: keyof typeof navigationPaths }) {
+  return <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor"
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={navigationPaths[kind]} /></svg>;
+}
+
 export function RocketIcon({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 12 14" shapeRendering="crispEdges" aria-hidden="true" focusable="false">

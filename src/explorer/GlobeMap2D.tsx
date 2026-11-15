@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { clampLat, clusterScreen, formatLatLon, lonDelta, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
-import { FlagCluster, MapFlag, RocketIcon } from "./icons.tsx";
+import { FlagCluster, MapFlag, RocketIcon, RoverIcon } from "./icons.tsx";
 import { MarkerButton } from "./MarkerButton.tsx";
 import { MapControls } from "./MapControls.tsx";
 import { Astronaut } from "../components/Astronaut.tsx";
@@ -27,6 +27,7 @@ export interface GlobeMap2DProps {
   tiles: TileSource | null;
   paths: readonly MapLeg[];
   switchView: () => void;
+  roverPreview?: boolean;
   mapActions?: React.ReactNode;
   onRouteClick?: (point: RouteMapPoint | null) => void;
   onRouteHover?: (point: RouteMapPoint | null) => void;
@@ -438,7 +439,8 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
               onRoute={m.kind === "flag" ? () => onRoute(m.id) : undefined}>
               {m.order ? <span className="itinerary-number">{m.order}</span>
                 : m.kind === "rocket" ? <span key={`${m.lat},${m.lon}`} className="map-rocket-landing"><RocketIcon size={Math.round(iconSize * 1.15)} /></span> :
-                m.kind === "crew" ? <Astronaut decorative className="crew-replay-icon" /> :
+                m.kind === "crew" ? (props.roverPreview ? <span className="map-crew-rover"><RoverIcon /></span>
+                  : <Astronaut decorative className="crew-replay-icon" />) :
                 <MapFlag size={m.kind === "flag" ? Math.max(36, iconSize) : iconSize} color={m.accent} nasaSource={m.kind === "flag"} />}
             </MarkerButton>
           </div>

@@ -21,7 +21,7 @@ import { globeSurface, loadGaleTerrain, loadWildcatTerrain, nearWildcat } from "
 import type { SurfaceTerrain } from "./galeTerrain.ts";
 import { nearGale } from "./galeLayout.ts";
 import { MarkerButton } from "./MarkerButton.tsx";
-import { FlightIcon, FlagCluster } from "./icons.tsx";
+import { FlightIcon, FlagCluster, RoverIcon } from "./icons.tsx";
 import { Astronaut } from "../components/Astronaut.tsx";
 import { MapControls } from "./MapControls.tsx";
 import { imageBounds } from "./catalog.ts";
@@ -102,6 +102,7 @@ export function Globe3D(props: Globe3DProps) {
   const geologyLabels = useRef<HTMLDivElement>(null);
   const crewSprite = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const [crewModelReady, setCrewModelReady] = useState(false);
   const earthPose = useRef(props.earthWalkPose);
   const earthAstronaut = useRef<Awaited<ReturnType<typeof loadEarthAstronaut>> | null>(null);
   const [detailImagery, setDetailImagery] = useState(false);
@@ -315,23 +316,26 @@ export function Globe3D(props: Globe3DProps) {
   const press = useRef<{ x: number; y: number; id: number } | null>(null);
   const landing = useRef<{ key: string; time: number } | null>(null);
   const hasEarthWalk = !!(drone ? flightWalk.pose : props.earthWalkPose);
-  const showCrewSprite = hasEarthWalk && !drone && !props.roverPreview &&
+  const handheldAstronaut = !drone && !props.roverPreview &&
     earthGpsDevice(navigator.userAgent, navigator.maxTouchPoints, matchMedia("(pointer: coarse)").matches);
+  const showCrewSprite = hasEarthWalk && !drone && (handheldAstronaut || !crewModelReady);
   useEffect(() => {
     const view = s.current;
-    if (!view || !hasEarthWalk || showCrewSprite) return;
+    setCrewModelReady(false);
+    if (!view || !hasEarthWalk || handheldAstronaut) return;
     let live = true;
     void loadEarthAstronaut(!drone && props.roverPreview).then((astronaut) => {
       if (!live) { astronaut.dispose(); return; }
       earthAstronaut.current = astronaut;
       view.scene.add(astronaut.model);
+      setCrewModelReady(true);
     }, () => { if (live) setNotice(props.roverPreview ? "The rover model could not load." : "The astronaut model could not load."); });
     return () => {
       live = false;
       earthAstronaut.current?.dispose();
       earthAstronaut.current = null;
     };
-  }, [ready, hasEarthWalk, props.roverPreview, !!drone, showCrewSprite]);
+  }, [ready, hasEarthWalk, props.roverPreview, !!drone, handheldAstronaut]);
 
   useEffect(() => {
     const element = host.current!;
@@ -1216,8 +1220,10 @@ export function Globe3D(props: Globe3DProps) {
           </div>
         ))}
       </div>
-      {showCrewSprite && <div ref={crewSprite} className={`map-crew-sprite${props.earthWalkPose?.moving ? " map-crew-sprite--moving" : ""}`}
-        role="img" aria-label="Simulated astronaut"><Astronaut decorative /></div>}
+      {showCrewSprite && <div ref={crewSprite}
+        className={`map-crew-sprite${!props.roverPreview && props.earthWalkPose?.moving ? " map-crew-sprite--moving" : ""}`}
+        role="img" aria-label={props.roverPreview ? "Simulated rover" : "Simulated astronaut"}>
+        {props.roverPreview ? <span className="map-crew-rover"><RoverIcon /></span> : <Astronaut decorative />}</div>}
       {geologyMap && flyingTour && <div className="flight-geology-labels" ref={geologyLabels} aria-label="Mapped geology">
         {flyingTour.geology.labels.map((unit, index) => <button key={unit.title} type="button" hidden
           data-lat={unit.lat} data-lon={unit.lon} style={{ "--unit-color": unit.color } as React.CSSProperties}
@@ -1274,7 +1280,7 @@ export function Globe3D(props: Globe3DProps) {
               setFlightStart(null); setFlightStops([]); setFlightPick(null);
             }}>Clear</button>
             <button type="button" className="btn btn--small" disabled={!flightWalk.eligible || !!flightFailure || !!flightWalk.session}
-              onClick={() => { void flightWalk.start("Recorded Walk", .7, false).then((started) => { if (started) setTourOpen(false); }); }}>Preview walk</button>
+              onClick={() => { void flightWalk.start({ mode: "Recorded Walk" }).then((started) => { if (started) setTourOpen(false); }); }}>Preview walk</button>
           </div>
           {flightLegs.some(({ result }) => !result) && <p role="status">Calculating route…</p>}
           {flightFailure && <p role="status">{flightFailure.status === "ok" ? "Choose a route inside the detailed terrain." : flightFailure.detail}</p>}

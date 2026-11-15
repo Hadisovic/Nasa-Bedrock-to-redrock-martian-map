@@ -15,7 +15,8 @@ import { useItinerary } from "./useItinerary.ts";
 import { nearGale } from "./galeLayout.ts";
 
 type PermissionConstructor = { requestPermission?: () => Promise<"granted" | "denied"> };
-type Session = { mode: WalkMode; motion: boolean; tilt: boolean; stride: number; scale: number };
+type Session = { mode: WalkMode; motion: boolean; tilt: boolean; stride: number; scale: number; rover: boolean };
+type StartOptions = { mode: WalkMode; stride?: number; tilt?: boolean; scale?: number; deviceNotices?: boolean; rover?: boolean };
 type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null; obstacle?: boolean; resume?: boolean };
 const emptyLegs: PlannedLeg[] = [];
 const meters = (a: LatLon, b: LatLon) => greatCircleKm(a, b) * 1000;
@@ -38,7 +39,7 @@ function trackFor(legs: readonly PlannedLeg[], weighted: boolean) {
 export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: boolean,
   legs: PlannedLeg[], grid: LayerEntry | undefined, slope: number, blocked: LatLon | null,
   weighted: boolean, routeSpeed: number, observations: EnvironmentObservation[], events: readonly CatalogEvent[],
-  rover: boolean, roverSuggestion: string | null) {
+  plannedRover: boolean, roverSuggestion: string | null) {
   const { track, stopDistances } = useMemo(() => trackFor(legs, weighted), [legs, weighted]);
   const eligible = !!lander && !!stops.length && track.length > 1 && legs.every(({ result }) => result?.status === "ok");
   const liveEligible = eligible && meters(lander, track[0].point) < 0.05;
@@ -47,6 +48,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     && track.every(({ point }) => detailedAt(point));
   const gpsAvailable = earthGpsDevice(navigator.userAgent, navigator.maxTouchPoints, matchMedia("(pointer: coarse)").matches);
   const [session, setSession] = useState<Session | null>(null);
+  const rover = session?.rover ?? plannedRover;
   const [paused, setPaused] = useState(false);
   const [obstacleHold, setObstacleHold] = useState(false);
   const lastObstacle = useRef(blocked);
@@ -85,7 +87,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     ? [...requestedLegs, { from: request.from, to: request.rejoin.point, returning: false, fromStop: null, toStop: null }]
     : requestedLegs, [request, requestedLegs]);
   const solverResults = useItinerary(solverLegs, grid, slope, blocked, 0);
-  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, weighted, rover]);
+  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, weighted, plannedRover]);
 
   function announce(id: WalkCue, critical = false, key = typeof id === "string" ? id : id.text) {
     const now = Date.now();
@@ -145,8 +147,8 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     setRequest({ from: crew.point, next: crew.next, rejoin: null, obstacle: true, resume: !paused || obstacleHold });
   }, [blocked]);
 
-  async function start(mode: WalkMode, stride: number, tiltEnabled: boolean, scale = 1, deviceNotices = false) {
-    if (!eligible || !lander || starting || (mode === "Outdoor" && (!liveEligible || !gpsAvailable)) || !earthGpsScales.some((ratio) => ratio === scale)) return false;
+  async function start({ mode, stride = .7, tilt: tiltEnabled = false, scale = 1, deviceNotices = false, rover = plannedRover }: StartOptions) {
+    if (!eligible || !lander || starting || session || (mode === "Outdoor" && (!liveEligible || !gpsAvailable)) || !earthGpsScales.some((ratio) => ratio === scale)) return false;
     if (mode !== "Recorded Walk" && !isSecureContext) {
       setMessage("Live sensors require HTTPS. Choose Recorded preview in this browser.");
       return false;
@@ -185,7 +187,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     failedDetour.current = null;
     setRemaining(track.at(-1)!.metres);
     setNextStop(stops[0].point.name ?? "Stop 1");
-    setSession({ mode, motion: motionGranted, tilt: tiltEnabled, stride, scale });
+    setSession({ mode, motion: motionGranted, tilt: tiltEnabled, stride, scale, rover });
     update(false);
     return true;
   }

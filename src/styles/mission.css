@@ -293,6 +293,8 @@
 .directions__fields .itinerary-stop__actions { margin:0 0 .1rem 1.55rem; }
 .directions__field-actions { margin-left:1.55rem; }
 .earth-walk-setup { width: min(420px, calc(100vw - 2rem)); }
+.earth-walk-setup .btn:disabled { opacity:.52; cursor:not-allowed; }
+.earth-walk-setup .btn--primary:hover:disabled { background:#a8c7fa; }
 .earth-walk-setup label { display:block; margin:.65rem 0; }
 .earth-walk-setup .mission-row { margin-top:.6rem; }
 .earth-walk-controls > strong { font-size:1.15rem; }
@@ -472,10 +474,18 @@
 .route-start-card h3 { font-size:1rem; }
 .route-start-card p, .route-start-card details { color:#d0dbea; font-size:.82rem; }
 .route-start-card .btn { min-height:44px; width:100%; justify-content:center; }
+.route-start-card .btn svg { flex:none; }
+.route-start-path p { margin:.45rem 0 .25rem; }
+.route-start-card--unavailable { background:#151d2a; }
+.route-start-card__previews { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.4rem; }
+.route-start-card fieldset { border:0; min-width:0; margin:0; padding:0; }
+.route-start-card fieldset:disabled { opacity:.6; }
 .route-start-card summary { cursor:pointer; padding-block:.3rem; }
 .route-start-card label:has(select) { display:grid; gap:.3rem; }
 .map-crew-sprite { position:absolute; inset:0 auto auto 0; z-index:3; pointer-events:none; }
 .map-crew-sprite svg { display:block; width:27px; height:44px; filter:drop-shadow(0 2px 3px #000); }
+.map-crew-rover { display:inline-flex; align-items:center; color:#fbdca8; }
+.map-crew-rover svg { width:32px; height:32px; filter:drop-shadow(0 2px 3px #000); }
 @media (prefers-reduced-motion:no-preference) {
   .map-crew-sprite--moving svg { animation:crew-step .22s ease-in-out infinite alternate; }
 }

@@ -16,7 +16,7 @@ import { GlobeMap2D } from "./GlobeMap2D.tsx";
 import { bearingDeg, formatLatLon, greatCircleKm, lonDelta, relativeToLander, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import type { GlobeMarker, GlobeOverlay, GlobeView, OverlayFeature, RouteMapPoint } from "./types.ts";
-import { fitPlanetZoom, zoomForPrecision } from "./types.ts";
+import { clampView, fitPlanetZoom, zoomForPrecision } from "./types.ts";
 import { explorerBadge, nasaInsignia } from "./nasaMark.ts";
 import { nearGale } from "./galeLayout.ts";
 import { defaultMission, MAX_STOPS, planReturns, planStops, readPlan, PLAN_DATA_VERSION, validMission, validStop } from "./missionPlan.ts";
@@ -252,6 +252,19 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     ? `${roverSuggestion ?? "This return plan exceeds your available time and reserve."} Before continuing, check oxygen, cooling, water, and power for the estimated trip.` : null;
   const earthWalk = useEarthWalk(start, stops, returning, legs, grid, activeSlope, blocked, weighted,
     mission.rover ? mission.roverSpeed : mission.speed, data?.environment ?? [], events, mission.rover, supplies);
+  useEffect(() => {
+    const pose = earthWalk.pose;
+    if (mode !== "2d" || !pose?.moving) return;
+    const stage = workspace.current?.querySelector(".stage");
+    if (!stage?.clientWidth || !stage.clientHeight) return;
+    const { clientWidth: width, clientHeight: height } = stage;
+    setView((previous) => {
+      const dx = Math.abs(lonDelta(previous.lon, pose.point.lon)) * previous.zoom;
+      const dy = Math.abs(pose.point.lat - previous.lat) * previous.zoom;
+      return dx > width * .37 || dy > height * .37
+        ? clampView({ ...previous, ...pose.point }, height) : previous;
+    });
+  }, [mode, earthWalk.pose]);
   const resolvedLegs = useMemo(() => legs.flatMap((leg) => {
     const path = selectedLeg(leg.result, weighted);
     return path ? [path] : [];
@@ -304,12 +317,12 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     ...stops.map(({ point }, index) => ({ ...point, id: stopId(index), kind: "destination" as const, order: index + 1,
       label: `Stop ${index + 1} · ${point.name ?? formatLatLon(point)}`, accent: "#FF9B63", flag: false })),
     ...(mode === "2d" && earthWalk.pose ? [{ ...earthWalk.pose.point, id: "live-crew", kind: "crew" as const,
-      label: mission.rover ? "Simulated rover" : "Simulated astronaut", accent: "#a7f48c", flag: false }] : []),
+      label: earthWalk.rover ? "Simulated rover" : "Simulated astronaut", accent: "#a7f48c", flag: false }] : []),
     ...(current && greatCircleKm(current.point, start ?? current.point) > 1e-7 ? [{ ...current.point, id: "crew-position", kind: "crew" as const, label: `Crew position · ${current.source}`, accent: "#A7F48C", flag: false }] : []),
     ...(blocked ? [{ ...blocked, id: "blocked-cell", kind: "destination" as const, label: "Reported blocked cell", accent: "#FF755A", flag: false }] : []),
     ...(suggestion ? [{ ...suggestion.point, id: "route-suggestion", kind: "destination" as const,
       label: "Suggested reachable point", accent: "#FFE689", flag: false }] : []),
-  ], [catalogMarkers, start, stops, current, blocked, showFlags, showCoverage, suggestion, mode, earthWalk.pose, mission.rover]);
+  ], [catalogMarkers, start, stops, current, blocked, showFlags, showCoverage, suggestion, mode, earthWalk.pose, earthWalk.rover]);
 
   const tiles = useMemo(() => tileSourceFrom(manifest, basemapEntry), [manifest, basemapEntry]);
   const displayedPlan: Plan | null = useMemo(() => start && stops.length && stops.every(validStop) && validMission(mission) && slope >= 1 && slope <= 89
@@ -332,7 +345,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
       returnToLander: false, slope: 15, weighted: false, mission: { ...mission, rover: false } });
   };
   const centerEarthWalk = (point: LatLon) => {
-    setMode("3d");
+    setMode(webglIssue ? "2d" : "3d");
     flyTo({ ...point, zoom: earthWalk.detailed ? (insideMarswalkCoverage(point) ? 110_000 : 12_000) : Math.max(8.2, Math.min(view.zoom, 4_000)) });
   };
   const fitPoints = useCallback((points: readonly LatLon[], localView: boolean) => {
@@ -679,7 +692,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           {basemap?.image && (threeD ? (
             <Suspense fallback={<div className="loading" role="status"><span className="spinner" aria-hidden="true" />Loading the 3D globe…</div>}>
               <Globe3D basemap={basemap.image} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
-                paths={mapPaths} switchView={switchView} mapActions={mapActions} earthWalkPose={earthWalk.pose} roverPreview={mission.rover}
+                paths={mapPaths} switchView={switchView} mapActions={mapActions} earthWalkPose={earthWalk.pose} roverPreview={earthWalk.rover}
                 tour={tour} routeGrid={grid} routeSlope={slope} routeSpeed={mission.speed} events={events} observations={data?.environment ?? []}
                 onFlightExit={() => exitDrone()}
                 sunPoint={subsolar} onPick={chooseOnMap} onRoute={planTo} elevationAt={elevationAt}
@@ -696,7 +709,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             <GlobeMap2D basemap={basemap.image} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
               paths={mapPaths} switchView={switchView} mapActions={mapActions} onPick={chooseOnMap} onRoute={planTo}
               onRouteClick={paths.length ? tapRoute : undefined} onRouteHover={paths.length ? hoverRoute : undefined}
-              view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current} tiles={tiles} elevationAt={elevationAt} />
+              view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current} tiles={tiles} elevationAt={elevationAt}
+              roverPreview={earthWalk.rover} />
           ))}
 
           <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
@@ -710,7 +724,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           {!routeToolsOpen && !earthWalk.session &&
             <MapRouteControls pick={pick} legs={legs} summary={routeSummary} comparison={comparison}
               onCancel={() => setPick(null)} onDetails={showRouteDetails} onFit={fit} onClear={clearRoute}
-              onStart={earthWalk.eligible && routeChoice !== null ? () => setEarthWalkSetupOpen(true) : undefined} />}
+              onStart={earthWalk.eligible ? () => setEarthWalkSetupOpen(true) : undefined} />}
           {routeMenu && !routeToolsOpen && <div className="route-quick-menu" role="group" aria-label="Route actions"
             style={{ "--route-menu-x": `${routeMenu.point.x}px`, "--route-menu-y": `${routeMenu.point.y}px` } as CSSProperties}
             onPointerEnter={cancelMenuClose} onPointerLeave={closeMenuSoon}>
@@ -890,9 +904,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
         <RouteAnalysis legs={legs} stops={stops} mission={mission} weighted={weighted} observations={data?.environment ?? []} />
       </dialog>
       <EarthWalkSetup walk={earthWalk} open={earthWalkSetupOpen} close={() => setEarthWalkSetupOpen(false)}
+        comparison={comparison} pathSelected={routeChoice !== null}
         started={() => {
         setEarthWalkSetupOpen(false);
-        if (start) centerEarthWalk(start);
+        if (legs[0]) centerEarthWalk(legs[0].from);
         setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null);
       }} />
     </div>

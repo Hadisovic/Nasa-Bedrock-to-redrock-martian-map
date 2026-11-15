@@ -7,7 +7,7 @@ import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
 import { routeColors, routeProfile, selectedLeg, summarizeItinerary } from "./itinerary.ts";
 import type { PlannedLeg } from "./itinerary.ts";
 import { marsAt } from "./marsTime.ts";
-import { RoverIcon } from "./icons.tsx";
+import { NavigationIcon, RoverIcon } from "./icons.tsx";
 
 export type Pick = "start" | "add" | "position" | "block" | number;
 export const routeStartId = "directions-start";
@@ -65,9 +65,7 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
     <div className="map-route__actions">
       {picking ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
         {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>
-          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-            <path d="M4 11 20 4l-7 16-2.3-6.7L4 11Z" />
-          </svg>
+          <NavigationIcon kind="start" />
           Start route
         </button>}
         {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}

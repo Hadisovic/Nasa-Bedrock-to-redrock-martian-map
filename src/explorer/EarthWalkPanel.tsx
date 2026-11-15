@@ -3,6 +3,7 @@ import { earthGpsScales } from "./earthWalk.ts";
 import type { nextManeuver, WalkMode } from "./earthWalk.ts";
 import { notificationsSupported, noticePreference, saveNoticePreference } from "./deviceNotifications.ts";
 import { formatLatLon } from "./geo.ts";
+import { NavigationIcon, RoverIcon } from "./icons.tsx";
 import type { useEarthWalk } from "./useEarthWalk.ts";
 
 type Walk = ReturnType<typeof useEarthWalk>;
@@ -42,11 +43,14 @@ function RouteMetrics({ metres, speed, paused = false, recorded = false, beforeS
   </dl>;
 }
 
-export function EarthWalkSetup({ walk, open, close, started }: {
-  walk: Walk; open: boolean; close: () => void; started: () => void;
+export function EarthWalkSetup({ walk, open, close, started, comparison, pathSelected }: {
+  walk: Walk; open: boolean; close: () => void; started: () => void; comparison: React.ReactNode; pathSelected: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const gpsAllowed = walk.liveEligible && walk.gpsAvailable && isSecureContext;
+  const gpsIssue = !walk.gpsAvailable ? "Live Earth GPS is available on a phone or tablet."
+    : !isSecureContext ? "Open the app over HTTPS to use live location."
+    : !navigator.geolocation ? "This browser does not provide live location."
+    : !walk.liveEligible ? "Earth GPS needs a route that starts at the lander." : null;
   const canNotify = notificationsSupported();
   const [tilt, setTilt] = useState(true);
   const [scale, setScale] = useState(1);
@@ -55,40 +59,52 @@ export function EarthWalkSetup({ walk, open, close, started }: {
     if (open && !dialog.current?.open) dialog.current?.showModal();
     if (!open && dialog.current?.open) dialog.current.close();
   }, [open]);
-  const launch = async (mode: WalkMode) => {
-    if (await walk.start(mode, .7, tilt && mode === "Outdoor", scale, notices)) started();
+  const launch = async (mode: WalkMode, rover?: boolean) => {
+    if (await walk.start({ mode, tilt: tilt && mode === "Outdoor", scale, deviceNotices: notices, rover })) started();
   };
-  const disabled = !walk.eligible || walk.starting || !!walk.session;
+  const disabled = !pathSelected || !walk.eligible || walk.starting || !!walk.session;
   return <dialog ref={dialog} className="project-dialog earth-walk-setup" aria-labelledby="earth-walk-title"
     onCancel={(event) => { if (walk.starting) event.preventDefault(); }} onClose={close}>
     <header><h2 id="earth-walk-title">Start route</h2>
       <button type="button" className="btn btn--small" aria-label="Close route setup" disabled={walk.starting} onClick={close}>×</button></header>
-    {gpsAllowed && <section className="route-start-card">
+    <div className="route-start-path">
+      {!pathSelected && <p className="small">Choose a path to continue.</p>}
+      {comparison}
+    </div>
+    <section className={`route-start-card${gpsIssue ? " route-start-card--unavailable" : ""}`}>
       <h3>Earth GPS Demo</h3>
-      <p>Move the astronaut by walking with this device. Allow precise location and start in an open area.</p>
-      <button type="button" className="btn btn--primary" disabled={disabled} onClick={() => void launch("Outdoor")}>Start GPS demo</button>
+      <p id="earth-gps-availability">{gpsIssue ?? "Use your movement to follow the route. Allow precise location and start in an open area."}</p>
+      <button type="button" className="btn btn--primary" disabled={disabled || !!gpsIssue} aria-describedby="earth-gps-availability"
+        onClick={() => void launch("Outdoor")}><NavigationIcon kind="gps" /> Start GPS demo</button>
       <details>
         <summary>GPS options</summary>
-        <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
-          {earthGpsScales.map((ratio) => <option key={ratio} value={ratio}>{ratio}× · {scaleLabel[ratio]}</option>)}
-        </select></label>
-        {scale > 1 && <p>The demo scales GPS uncertainty as well. Use 1× for short routes on detailed terrain.</p>}
-        <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
-        {canNotify
-          ? <label><input type="checkbox" checked={notices} onChange={(event) => {
-            setNotices(event.target.checked);
-            saveNoticePreference(event.target.checked);
-          }} /> Device notifications</label>
-          : <p>On iPhone or iPad, open the app from your Home Screen to receive notifications.</p>}
-        {canNotify && Notification.permission === "denied" && <p>Notifications are blocked in this site's settings.</p>}
-        <p>Live GPS and voice need the map open. If you switch away, the notification can show your last confirmed instruction.</p>
+        <fieldset disabled={!!gpsIssue}>
+          <legend className="sr-only">Earth GPS settings</legend>
+          <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
+            {earthGpsScales.map((ratio) => <option key={ratio} value={ratio}>{ratio}× · {scaleLabel[ratio]}</option>)}
+          </select></label>
+          {scale > 1 && <p>The demo scales GPS uncertainty as well. Use 1× for short routes on detailed terrain.</p>}
+          <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
+          {canNotify
+            ? <label><input type="checkbox" checked={notices} onChange={(event) => {
+              setNotices(event.target.checked);
+              saveNoticePreference(event.target.checked);
+            }} /> Device notifications</label>
+            : <p>On iPhone or iPad, open the app from your Home Screen to receive notifications.</p>}
+          {canNotify && Notification.permission === "denied" && <p>Notifications are blocked in this site's settings.</p>}
+          <p>Live GPS and voice need the map open. If you switch away, the notification can show your last confirmed instruction.</p>
+        </fieldset>
       </details>
-    </section>}
+    </section>
     <section className="route-start-card">
       <h3>Recorded preview</h3>
-      <p>Play the route on this device without sharing your location.</p>
-      <button type="button" className={`btn${gpsAllowed ? "" : " btn--primary"}`} disabled={disabled}
-        onClick={() => void launch("Recorded Walk")}>Start preview</button>
+      <p>Replay the chosen path as an astronaut or a rover. Playback runs without location access and keeps the current route assumptions.</p>
+      <div className="route-start-card__previews">
+        <button type="button" className={`btn${gpsIssue ? " btn--primary" : ""}`} disabled={disabled}
+          onClick={() => void launch("Recorded Walk", false)}><NavigationIcon kind="astronaut" /> Astronaut preview</button>
+        <button type="button" className="btn" disabled={disabled}
+          onClick={() => void launch("Recorded Walk", true)}><RoverIcon /> Rover preview</button>
+      </div>
     </section>
     {!walk.session && walk.message && <p role="status" className="small">{walk.message}</p>}
   </dialog>;
@@ -120,7 +136,8 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
     </header>
     <div className="navigation-hud__details" id="navigation-steps" hidden={collapsed}>
     {walk.nextStop && !walk.arrived && <strong>{walk.nextStop}</strong>}
-    <span className="small">{walk.rover ? "Rover preview" : modeLabel[walk.session.mode]}{walk.paused && !walk.arrived ? " · Paused" : ""}</span>
+    <span className="small">{preview && walk.rover ? "Rover preview" : modeLabel[walk.session.mode]}
+      {!preview && walk.rover ? " · Rover" : ""}{walk.paused && !walk.arrived ? " · Paused" : ""}</span>
     {!walk.detailed && <span className="small">Regional estimate · map overview</span>}
     {walk.session.mode === "Outdoor" && walk.accuracy !== null && <span className="small">GPS accuracy · ±{Math.round(walk.accuracy)} m</span>}
     {walk.session.mode === "Outdoor" && walk.pose && <span className="small">Simulated Mars position · {formatLatLon(walk.pose.point, 5)}</span>}
