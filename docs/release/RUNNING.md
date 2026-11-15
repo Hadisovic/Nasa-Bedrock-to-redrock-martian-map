@@ -90,14 +90,17 @@ Routine GPS voice prompts are bundled in the core offline pack. Nearby site cues
 observed catalog locations near the active leg. The phone's offline English voice reads the name,
 distance, and compass direction when available. The same message appears in the navigation panel.
 The app keeps Earth coordinates in the phone tab's memory and shares only the planned Mars coordinates.
-For a short indoor test, use **Recorded preview** to verify the camera, route, and voice. Earth GPS
-Demo waits for a reliable fix and is best tested outdoors in an open area.
+For a short indoor test, use **Recorded preview** to verify the camera, route, and voice. The preview
+shows modeled travel time and separate arrival and return dates where applicable. Its Walk or Rover
+recommendation compares the modeled trip times, planned science stops and time budget. With coarse MOLA,
+those figures are rough planning estimates and local passability remains unverified. Earth GPS Demo
+waits for a reliable fix and is best tested outdoors in an open area.
 
 The [Perseverance model](https://science.nasa.gov/resource/mars-perseverance-rover-3d-model/) is
 credited to NASA/JPL-Caltech. The app starts fetching it when the Start route dialog opens and reuses
 the download for 3D rover navigation. It is included in the offline app download. The flat map and the
 3D loading fallback use a rover marker. Rover estimates use user-entered speeds and limits and the selected route's
-measured slope. A suggestion requires a complete detailed round trip, a walking time over budget,
+measured slope. A spoken Earth GPS suggestion requires a complete detailed round trip, a walking time over budget,
 and a rover time within budget and reserve. The visual model represents Perseverance.
 
 ## Data reproduction

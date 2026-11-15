@@ -15,7 +15,7 @@ import { useItinerary } from "./useItinerary.ts";
 import { nearGale } from "./galeLayout.ts";
 
 type PermissionConstructor = { requestPermission?: () => Promise<"granted" | "denied"> };
-type Session = { mode: WalkMode; motion: boolean; tilt: boolean; stride: number; scale: number; rover: boolean };
+type Session = { mode: WalkMode; motion: boolean; tilt: boolean; stride: number; scale: number; rover: boolean; startedAt: number };
 type StartOptions = { mode: WalkMode; stride?: number; tilt?: boolean; scale?: number; deviceNotices?: boolean; rover?: boolean };
 type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null; accuracyM?: number; obstacle?: boolean; resume?: boolean };
 const emptyLegs: PlannedLeg[] = [];
@@ -189,7 +189,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     failedDetour.current = null;
     setRemaining(track.at(-1)!.metres);
     setNextStop(stops[0].point.name ?? "Stop 1");
-    setSession({ mode, motion: motionGranted, tilt: tiltEnabled, stride, scale, rover });
+    setSession({ mode, motion: motionGranted, tilt: tiltEnabled, stride, scale, rover, startedAt: Date.now() });
     update(false);
     return true;
   }
@@ -520,6 +520,10 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     maneuver, guidance, upcoming, muted, rover, obstacleHold,
     crewElevation: session && !offRoute && progress.track.length > 1 ? sampleWalk(progress.track, progress.metres).elevation : null,
     arrivalPoint: returning ? lander : stops.at(-1)?.point,
+    nextPoint: stops[progress.next]?.point ?? (returning ? lander : null),
+    nextIsReturn: returning && progress.next >= stops.length,
+    metresToNextStop: Math.max(0, (progress.stopDistances[progress.next] ?? progress.track.at(-1)?.metres ?? 0) - progress.metres),
+    travelledM: progress.metres,
     remainingScienceMinutes: stops.slice(progress.next).reduce((sum, stop) => sum + stop.scienceMinutes, 0),
     toggleMute: () => {
       mute.current = !mute.current;

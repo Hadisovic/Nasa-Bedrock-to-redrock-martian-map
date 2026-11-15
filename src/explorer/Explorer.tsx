@@ -9,7 +9,7 @@ import { CatalogPanel, EMPTY_FILTER, EvidenceCard, GlobalLayersPanel, SearchBox 
 import type { LayerState } from "./ExplorerPanels.tsx";
 import { Directions, MapRouteControls, RouteChoices, RouteSettings, routeStartId, stopId } from "./Directions.tsx";
 import type { Pick } from "./Directions.tsx";
-import { itineraryLegs, routeColors, routeProfile, roundRouteCorners, selectedLeg, suggestRover, summarizeItinerary } from "./itinerary.ts";
+import { itineraryLegs, previewTravelRecommendation, routeColors, routeProfile, roundRouteCorners, selectedLeg, suggestRover, summarizeItinerary } from "./itinerary.ts";
 import type { MapLeg } from "./itinerary.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { GlobeMap2D } from "./GlobeMap2D.tsx";
@@ -270,9 +270,14 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     return path ? [path] : [];
   }), [legs, weighted]);
   const visibleLegs = earthWalk.planned ?? legs;
-  const navigationProfile = earthWalk.session ? routeProfile(visibleLegs, mission, weighted, slope) : null;
-  const navigationSpeed = earthWalk.detailed && navigationProfile?.[earthWalk.rover ? "rover" : "walk"] != null
+  const recordedPreview = earthWalk.session?.mode === "Recorded Walk";
+  const navigationProfile = useMemo(() => earthWalk.session
+    ? routeProfile(visibleLegs, mission, weighted, slope, { regionalEstimate: recordedPreview }) : null,
+    [earthWalk.session, visibleLegs, mission, weighted, slope, recordedPreview]);
+  const navigationSpeed = (earthWalk.detailed || recordedPreview) && navigationProfile?.[earthWalk.rover ? "rover" : "walk"] != null
     ? earthWalk.rover ? mission.roverSpeed : mission.speed : null;
+  const previewRecommendation = recordedPreview && navigationProfile && !earthWalk.planned
+    ? previewTravelRecommendation(navigationProfile, stops, mission, returning) : null;
   const hasAlternative = visibleLegs.some(({ result }) => result?.status === "ok" && result.alternative);
   const selectedChoice = hasAlternative ? routeChoice : routeSummary.complete ? false : null;
   const routeGeometryKey = JSON.stringify([start?.lat, start?.lon, stops.map(({ point }) => [point.lat, point.lon]), returning, activeSlope, blocked]);
@@ -724,7 +729,9 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           ))}
 
           <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
-          <EarthWalkControls walk={earthWalk} speed={navigationSpeed} utc={utc}
+          <EarthWalkControls walk={earthWalk} speed={navigationSpeed} utc={utc} returning={returning}
+            preview={recordedPreview && navigationProfile ? { ...navigationProfile, recommendation: previewRecommendation,
+              scienceMinutes: routeSummary.science } : null}
             exit={() => { earthWalk.stop(); setPick(null); setTab("marswalk"); }}
             recenter={() => {
             earthWalk.recenter();

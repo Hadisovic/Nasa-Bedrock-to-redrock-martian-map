@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { itineraryLegs, legKey, roundRouteCorners, routeProfile, suggestRover, summarizeItinerary } from "../../src/explorer/itinerary.ts";
+import { itineraryLegs, legKey, previewTravelRecommendation, roundRouteCorners, routeProfile, suggestRover, summarizeItinerary } from "../../src/explorer/itinerary.ts";
 import type { PlannedLeg } from "../../src/explorer/itinerary.ts";
 import { defaultMission, PLAN_DATA_VERSION, planReturns, planStops, readPlan } from "../../src/explorer/missionPlan.ts";
 import type { Plan } from "../../src/explorer/missionPlan.ts";
@@ -59,6 +59,27 @@ test("a failed middle leg keeps measured legs and suppresses whole-itinerary tim
   assert.equal(suggestRover(results, [a, b], { ...tightBudget, budget: 62 }, false)?.startsWith("Consider a rover"), true);
   assert.equal(suggestRover(results, [a, b], { ...tightBudget, roverSlope: 6 }, false), null);
   assert.equal(suggestRover(regional, [a, b], tightBudget, false), null);
+});
+
+test("regional playback times use route distance and speeds without issuing a mission verdict", () => {
+  const region: PlannedLeg[] = itineraryLegs(start, [a], true).map((leg) => ({ ...leg, result: { status: "ok",
+    terrain: { label: "MOLA", spacingM: 14_800, regional: true },
+    shortest: { points: [leg.from, leg.to], distanceKm: 184.55, climbM: 10, maxSlopeDeg: 5, elevationsM: [5, 15] },
+  } }));
+  assert.equal(summarizeItinerary(region, [a], mission, false).remaining, null);
+  const profile = routeProfile(region, mission, false, 15, { regionalEstimate: true })!;
+  assert.equal(profile.regional, true);
+  assert.equal(profile.walk, 369_100 / mission.speed / 60);
+  assert.equal(profile.rover, 369_100 / mission.roverSpeed / 60);
+  assert.deepEqual(previewTravelRecommendation(profile, [a], mission, true), { mode: "Rover", withinBudget: false });
+  const slopeLimited = routeProfile(region, { ...mission, roverSlope: 4 }, false, 15, { regionalEstimate: true })!;
+  assert.equal(slopeLimited.rover, null);
+  assert.deepEqual(previewTravelRecommendation(slopeLimited, [a], mission, true), { mode: null, withinBudget: false });
+  const walkingPlan = { ...mission, budget: 10_080, reserve: 30 };
+  assert.deepEqual(previewTravelRecommendation(profile, [a], walkingPlan, true), { mode: "Walk", withinBudget: true });
+  const roverPlan = { ...mission, budget: 6_000, reserve: 30 };
+  assert.deepEqual(previewTravelRecommendation(profile, [a], roverPlan, true), { mode: "Rover", withinBudget: true });
+  assert.equal(routeProfile([{ ...region[0], result: null }, region[1]], mission, false, 15, { regionalEstimate: true }), null);
 });
 
 test("one-way share inputs retain order, location uncertainty and per-stop science", () => {

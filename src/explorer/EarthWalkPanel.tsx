@@ -7,9 +7,12 @@ import type { LatLon } from "./geo.ts";
 import { NavigationIcon, RoverIcon } from "./icons.tsx";
 import { marsAt } from "./marsTime.ts";
 import { preloadRoverModel } from "./roverAsset.ts";
+import type { previewTravelRecommendation } from "./itinerary.ts";
 import type { useEarthWalk } from "./useEarthWalk.ts";
 
 type Walk = ReturnType<typeof useEarthWalk>;
+type PreviewEstimate = { regional: boolean; walk: number | null; rover: number | null; scienceMinutes: number | null;
+  recommendation: ReturnType<typeof previewTravelRecommendation> };
 const modeLabel: Record<WalkMode, string> = {
   Outdoor: "Earth GPS Demo",
   "Indoor Steps": "Step-powered preview",
@@ -22,23 +25,40 @@ const scaleLabel: Record<(typeof earthGpsScales)[number], string> = {
   1000: "1 m becomes 1 km",
 };
 
-function RouteMetrics({ metres, speed, utc, scienceMinutes, destination, paused }: {
-  metres: number; speed: number | null; utc: number; scienceMinutes: number; destination?: LatLon | null; paused: boolean;
+function duration(seconds: number) {
+  const minutes = Math.ceil(seconds / 60);
+  if (seconds < 60) return `${Math.ceil(seconds)} sec`;
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours >= 24 ? `${Math.floor(hours / 24)} d ${hours % 24} hr` : `${hours} hr ${minutes % 60} min`;
+}
+
+function Arrival({ label, utc, point }: { label: string; utc: number; point?: LatLon | null }) {
+  const date = new Date(utc);
+  const mars = point ? marsAt(utc, point) : null;
+  return <div className="route-metrics__arrival"><dt>{label}</dt>
+    <dd><time dateTime={date.toISOString()}>{date.toLocaleString([], {
+      month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    })}</time>{mars && <small>Sol {mars.sol} · {mars.time} LTST</small>}</dd></div>;
+}
+
+function RouteMetrics({ walk, metres, speed, utc, returning, preview }: {
+  walk: Walk; metres: number; speed: number | null; utc: number; returning: boolean; preview: PreviewEstimate | null;
 }) {
-  const seconds = speed !== null && Number.isFinite(speed) && speed > 0 ? Math.ceil(metres / speed) : null;
-  const minutes = seconds === null ? null : Math.ceil(seconds / 60);
-  const duration = seconds === null || minutes === null ? "Unavailable" : seconds < 60 ? `${seconds} sec` : minutes >= 60
-    ? `${Math.floor(minutes / 60)} hr ${minutes % 60} min` : `${minutes} min`;
+  const seconds = speed !== null ? metres / speed : null;
   const distance = metres >= 1000 ? `${(metres / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km` : `${Math.round(metres)} m`;
-  const arrival = seconds === null || paused ? null : utc + seconds * 1000 + scienceMinutes * 60_000;
-  const mars = arrival !== null && destination ? marsAt(arrival, destination) : null;
+  // Accelerated playback advances the modeled trip clock, so the projected dates stay fixed as the preview moves.
+  const previewClock = preview && !walk.planned && walk.session && speed !== null && preview.scienceMinutes !== null
+    ? walk.session.startedAt + walk.travelledM / speed * 1000 + (preview.scienceMinutes - walk.remainingScienceMinutes) * 60_000 : null;
+  const estimateFrom = previewClock ?? utc;
+  const arrival = speed === null || (!preview && walk.paused) ? null : estimateFrom + walk.metresToNextStop / speed * 1000;
+  const back = arrival !== null && returning && !walk.nextIsReturn && seconds !== null && Number.isFinite(walk.remainingScienceMinutes)
+    ? estimateFrom + seconds * 1000 + walk.remainingScienceMinutes * 60_000 : null;
   return <dl className="route-metrics">
     <div><dt>Distance left</dt><dd>{distance}</dd></div>
-    {seconds !== null && <div><dt>Est. travel</dt><dd>{duration}</dd></div>}
-    {arrival !== null && <div className="route-metrics__arrival"><dt>Est. arrival</dt>
-      <dd><time dateTime={new Date(arrival).toISOString()}>{new Date(arrival).toLocaleString([], {
-        month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-      })}</time>{mars && <small>Sol {mars.sol} · {mars.time} LTST</small>}</dd></div>}
+    <div><dt>Est. travel</dt><dd>{seconds === null ? "Unavailable" : duration(seconds)}</dd></div>
+    {arrival !== null && <Arrival label={walk.nextIsReturn ? "Est. return to lander" : "Est. arrival"} utc={arrival} point={walk.nextPoint} />}
+    {back !== null && <Arrival label="Est. return to lander" utc={back} point={walk.arrivalPoint} />}
   </dl>;
 }
 
@@ -111,16 +131,17 @@ export function EarthWalkSetup({ walk, open, close, started, comparison, pathSel
   </dialog>;
 }
 
-export function EarthWalkControls({ walk, speed, utc, recenter, exit }: {
-  walk: Walk; speed: number | null; utc: number; recenter: () => void; exit: () => void;
+export function EarthWalkControls({ walk, speed, utc, returning, preview, recenter, exit }: {
+  walk: Walk; speed: number | null; utc: number; returning: boolean; preview: PreviewEstimate | null; recenter: () => void; exit: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => { if (!walk.session) setCollapsed(false); }, [walk.session]);
   if (!walk.session) return null;
-  const preview = walk.session.mode !== "Outdoor";
+  const playback = walk.session.mode !== "Outdoor";
+  const recommend = preview?.recommendation;
   const imminent = walk.guidance && walk.guidance.metres <= 12
     ? walk.guidance.kind : null;
-  return <section aria-label="Earth Walk controls" className="earth-walk-controls">
+  return <section aria-label="Earth Walk controls" className={`earth-walk-controls${preview ? " earth-walk-controls--preview" : ""}`}>
     <header className="navigation-hud__headline">
       {walk.guidance ? <div className="gps-maneuver" aria-label="Next maneuver">
         {imminent === "left" || imminent === "right" ? <NavigationIcon kind={imminent} />
@@ -140,13 +161,24 @@ export function EarthWalkControls({ walk, speed, utc, recenter, exit }: {
     </div>}
     <div className="navigation-hud__details" id="navigation-steps" hidden={collapsed}>
     {walk.nextStop && !walk.arrived && <strong>{walk.nextStop}</strong>}
-    <span className="small">{preview && walk.rover ? "Rover preview" : modeLabel[walk.session.mode]}
-      {!preview && walk.rover ? " · Rover" : ""}{walk.paused && !walk.arrived ? " · Paused" : ""}</span>
-    {!walk.detailed && <span className="small">Regional estimate · arrival needs finer terrain</span>}
+    <span className="small">{playback && walk.rover ? "Rover preview" : modeLabel[walk.session.mode]}
+      {preview && !walk.rover && " · Walk"}
+      {!playback && walk.rover ? " · Rover" : ""}{walk.paused && !walk.arrived ? " · Paused" : ""}</span>
+    {preview && recommend && !walk.arrived && <div className="preview-travel-mode small">
+      <strong>{recommend.mode ? `${recommend.mode} recommended` : "Revise the trip"}</strong>
+      {!recommend.withinBudget && <span> · {recommend.mode === "Rover"
+        ? preview.walk === null ? "Estimated rover time still exceeds budget." : "Faster, but still over budget."
+        : "Budget or slope limits exceeded."}</span>}
+    </div>}
+    {!walk.detailed && <span className="small">{preview?.regional
+      ? "Coarse MOLA estimate · local passability unverified."
+      : "Regional estimate · arrival needs finer terrain"}</span>}
     {walk.session.mode === "Outdoor" && walk.accuracy !== null && <span className="small">GPS accuracy · ±{Math.round(walk.accuracy)} m</span>}
     {walk.session.mode === "Outdoor" && walk.pose && <span className="small">Simulated Mars position · {formatLatLon(walk.pose.point, 5)}</span>}
-    {walk.remaining !== null && !walk.arrived && <RouteMetrics metres={walk.remaining} speed={speed} utc={utc}
-      scienceMinutes={walk.remainingScienceMinutes} destination={walk.arrivalPoint} paused={walk.paused} />}
+    {walk.remaining !== null && !walk.arrived && <RouteMetrics walk={walk} metres={walk.remaining}
+      speed={speed} utc={utc} returning={returning} preview={preview} />}
+    {preview && recommend && !walk.arrived && preview.walk !== null && preview.rover !== null &&
+      <span className="small">Full trip · Walk {duration(preview.walk * 60)} · Rover {duration(preview.rover * 60)}</span>}
     {walk.upcoming.length > 1 && <ol className="navigation-hud__steps" aria-label="Upcoming directions">
       {walk.upcoming.map(({ kind, metres }, index) => <li key={index}>
         {metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`} · {kind === "left" ? "Turn left" : kind === "right" ? "Turn right" : `Toward ${walk.nextStop ?? "destination"}`}

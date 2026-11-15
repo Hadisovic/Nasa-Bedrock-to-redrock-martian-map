@@ -555,6 +555,8 @@
 }
 .earth-walk-controls { top:196px; bottom:auto; max-height:min(45dvh,370px); overflow:auto; border-radius:17px;
   background:#141c28; border-color:#687990; padding:.45rem; }
+.earth-walk-controls--preview { max-height:min(55dvh,430px); }
+.preview-travel-mode strong { color:#a1dff1; }
 .navigation-hud__headline { position:sticky; top:0; z-index:1; display:flex; align-items:center; gap:.3rem;
   padding:.35rem; background:#234c71; color:#fff; border-radius:12px; }
 .navigation-hud__headline > .gps-maneuver { flex:1; min-width:0; }
@@ -591,6 +593,7 @@
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .earth-walk-controls,
   .earth-walk-controls { top:112px; bottom:auto; left:72px; width:calc(100% - 82px); max-height:min(33dvh,248px); }
   .earth-walk-controls { padding:.36rem; }
+  .earth-walk-controls--preview { max-height:min(47dvh,360px); }
   .gps-maneuver { padding:.35rem .4rem; gap:.3rem; }
   .navigation-hud__headline > button { padding-inline:.35rem; }
   .explorer .explorer__sidebar--directions { height:var(--explorer-sheet-height,35%); }
