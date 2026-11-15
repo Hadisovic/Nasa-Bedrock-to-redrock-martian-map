@@ -9,6 +9,7 @@ import { Resources } from "./components/Resources.tsx";
 import "./styles/app.css";
 import "./styles/home.css";
 import "./styles/mission.css";
+import "./styles/observatory.css";
 
 const Bench = lazy(() => import("./bench/Bench.tsx").then((m) => ({ default: m.Bench })));
 const App = lazy(() => import("./App.tsx").then((m) => ({ default: m.App })));

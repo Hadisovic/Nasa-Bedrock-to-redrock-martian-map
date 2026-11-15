@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { nextManeuver, WalkMode } from "./earthWalk.ts";
+import { REGIONAL_GPS_SCALE } from "./earthWalk.ts";
 import { formatLatLon } from "./geo.ts";
 import { noticePreference, notificationsSupported, saveNoticePreference } from "./deviceNotifications.ts";
 import type { useEarthWalk } from "./useEarthWalk.ts";
@@ -59,21 +60,22 @@ export function EarthWalkSetup({ walk, open, close, started }: {
       <button type="button" className="btn btn--small" aria-label="Close route setup" disabled={walk.starting} onClick={close}>×</button></header>
     {gpsAllowed && <section className="route-start-card">
       <h3>Earth GPS Demo</h3>
-      <p>Move the astronaut by walking with this device. Allow precise location and start in an open area.</p>
+      <p>Your first reliable phone location becomes Earth base (0, 0, 0), paired with the Mars lander on your route.</p>
       {deviceNotices && <label className="route-start-card__notifications">
         <input type="checkbox" checked={notify} onChange={(event) => {
           saveNoticePreference(event.target.checked);
           setNotify(event.target.checked);
         }} /> Device notifications
       </label>}
+      <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
+          <option value={1}>1× · 1 m becomes 1 m</option><option value={10}>10× · 1 m becomes 10 m</option>
+          <option value={100}>100× · 10 m becomes 1 km</option>
+          <option value={REGIONAL_GPS_SCALE}>1 m becomes 1 km</option>
+      </select></label>
+      {scale > 1 && <p>GPS uncertainty grows with the scale. {scale === REGIONAL_GPS_SCALE ? "Use a long route for approximate compass guidance." : "Use 1× for short routes."}</p>}
       <button type="button" className="btn btn--primary" disabled={disabled} onClick={() => void launch("Outdoor")}>Start GPS demo</button>
       <details>
         <summary>GPS options</summary>
-        <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
-          <option value={1}>1× · 1 m becomes 1 m</option><option value={10}>10× · 1 m becomes 10 m</option>
-          <option value={100}>100× · 10 m becomes 1 km</option>
-        </select></label>
-        {scale > 1 && <p>The demo scales GPS uncertainty as well. Use 1× for short routes on detailed terrain.</p>}
         <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
         <p>Keep Martian Map open for live GPS. Your phone may pause location and voice in the background. On iPhone and iPad, add Martian Map to the Home Screen for notifications.</p>
         {deviceNotices && Notification.permission === "denied" && <p>Notifications are blocked. You can allow them in your browser’s site settings.</p>}
@@ -107,7 +109,7 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
             <path d="M12 3 5 12l5-1v9h4v-9l5 1z" fill="currentColor" />
           </svg>}
         <div><strong>{walk.guidance.distance}</strong><span>{walk.guidance.action}</span></div>
-      </div> : walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? "Arrived" : "Navigation"}</strong>}
+      </div> : walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? walk.regionalGps ? "Near destination" : "Arrived" : "Navigation"}</strong>}
       <button type="button" className="btn btn--small" aria-label={walk.muted ? "Unmute GPS voice" : "Mute GPS voice"}
         onClick={walk.toggleMute}>{walk.muted ? "Unmute" : "Mute"}</button>
       <button type="button" className="btn btn--small" aria-expanded={!collapsed} aria-controls="navigation-steps"
@@ -115,7 +117,7 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
     </header>
     {walk.terrain && !walk.arrived && <p className="navigation-hud__terrain">{walk.terrain.label} · {walk.terrain.slopeDeg.toFixed(1)}° measured grade</p>}
     {walk.remaining !== null && !walk.arrived && <RouteMetrics metres={walk.remaining} speed={speed} movementSeconds={walk.travelSecondsRemaining}
-      playbackRate={walk.playbackRate} simulationUtc={walk.simulationUtc} paused={walk.paused} recorded={preview} regional={!walk.detailed} />}
+      playbackRate={walk.playbackRate} simulationUtc={walk.simulationUtc} paused={walk.paused} recorded={preview} regional={!walk.detailed || walk.regionalGps} />}
     <div className="mission-row navigation-hud__primary">
       {!walk.arrived && <button type="button" className="btn btn--small" disabled={walk.obstacleHold} onClick={walk.togglePause}>{walk.paused ? "Resume" : "Pause"}</button>}
       {preview && !walk.arrived && <button type="button" className="btn btn--small" onClick={walk.cycleRate} title="Fast-forward movement and mission time together" aria-label={`Playback speed ${walk.playbackRate} times; change speed`}>
@@ -126,9 +128,14 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
     <div className="navigation-hud__details" id="navigation-steps" hidden={collapsed}>
     {walk.nextStop && !walk.arrived && <strong>{walk.nextStop}</strong>}
     <span className="small">{walk.rover ? "Rover preview" : modeLabel[walk.session.mode]}{walk.paused && !walk.arrived ? " · Paused" : ""}</span>
-    {!walk.detailed && <span className="small">Regional estimate · map overview</span>}
+    {walk.regionalGps ? <span className="small">Regional GPS demo · 1 m on Earth = 1 km on Mars</span>
+      : !walk.detailed && <span className="small">Regional estimate · map overview</span>}
     {walk.session.mode === "Outdoor" && walk.accuracy !== null && <span className="small">GPS accuracy · ±{Math.round(walk.accuracy)} m</span>}
     {walk.session.mode === "Outdoor" && walk.pose && <span className="small">Simulated Mars position · {formatLatLon(walk.pose.point, 5)}</span>}
+    {walk.session.mode === "Outdoor" && walk.earthMovement && <span className="small">
+      Earth base (0, 0, 0) · {Math.abs(walk.earthMovement.east).toFixed(1)} m {walk.earthMovement.east < 0 ? "W" : "E"}, {Math.abs(walk.earthMovement.north).toFixed(1)} m {walk.earthMovement.north < 0 ? "S" : "N"}
+      {walk.earthMovement.heading && ` · Phone travel heading ${walk.earthMovement.heading}`}
+    </span>}
     {(walk.message || walk.cue) && <div role="status" className="small">
       {walk.message && <div>{walk.message}</div>}
       {walk.cue && <div>Mission Control · {walk.cue}</div>}

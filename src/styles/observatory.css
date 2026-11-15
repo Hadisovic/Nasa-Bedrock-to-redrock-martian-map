@@ -1,0 +1,446 @@
+:root {
+  --console-bg: #080b10;
+  --console-panel: #101720;
+  --console-raised: #151f2a;
+  --console-line: #303e4d;
+  --console-line-soft: #263340;
+  --console-ink: #f0ebe2;
+  --console-muted: #a4afbb;
+  --console-copper: #ffa676;
+  --console-blue: #9fd6ec;
+  --console-mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+}
+
+/* The title plate pairs the original artwork and wordmark with the atlas frame. */
+.mission-home {
+  min-height: calc(100svh - 45px);
+  height: auto;
+  display: grid;
+  align-content: center;
+  gap: clamp(24px, 5vh, 52px);
+  padding: clamp(20px, 4vw, 64px);
+  color: var(--console-ink);
+  background: radial-gradient(ellipse at 71% 51%, #21212a 0, #0c1119 40%, var(--console-bg) 75%);
+  transition: opacity 450ms ease;
+}
+.mission-home.is-leaving { opacity: 0; }
+.mission-home__masthead, .mission-home__content { width: min(100%, 1350px); margin-inline: auto; }
+.mission-home__masthead {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--console-line);
+  font: 500 .77rem/1.3 var(--console-mono);
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.mission-home__masthead img { display: block; width: 52px; height: auto; }
+.mission-home__masthead .mission-home__help { position: static; margin-inline-start: auto; }
+.mission-home__content {
+  display: grid;
+  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 88px);
+}
+.mission-home__intro { padding-block: 14px; }
+.mission-home__intro h1 { margin: 0; }
+.mission-home__intro h1 img { display: block; width: min(100%, 490px); height: auto; }
+.mission-home__intro p { max-width: 35ch; margin: 22px 0 28px; color: #bac5d0; font-size: clamp(.96rem, 1.3vw, 1.12rem); line-height: 1.65; }
+.mission-home__launch { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.mission-home__launch .mission-home__enter {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .9rem;
+  width: auto;
+  height: auto;
+  min-height: 46px;
+  padding: .6rem 1rem;
+  border: 1px solid var(--console-line);
+  border-radius: 3px;
+  background: var(--console-panel);
+  box-shadow: none;
+  color: var(--console-ink);
+  font: 700 .86rem/1.2 var(--font);
+  cursor: pointer;
+}
+.mission-home__launch .mission-home__enter { background: var(--console-copper); border-color: #ffc3a1; color: #1d1008; }
+.mission-home__launch .mission-home__enter:hover { background: #ffc4a2; }
+.mission-home__plate { min-width: 0; margin: 0; border: 1px solid var(--console-line); padding: 7px; background: #0b1018; }
+.mission-home__viewport {
+  position: relative;
+  aspect-ratio: 1.25;
+  overflow: hidden;
+  isolation: isolate;
+  background: #080f1e;
+}
+.mission-home__viewport::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, #070d19a0, transparent 23%, transparent 73%, #090c1570),
+    repeating-linear-gradient(180deg, transparent 0 3px, #0b162c25 3px 4px);
+  box-shadow: inset 0 0 0 1px #b6c8de3d;
+}
+.mission-home__scene { position: absolute; inset: -8% 0 auto auto; width: 176%; height: 123%; }
+.mission-home__art, .mission-home__motion { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mission-home__art { object-fit: cover; object-position: 100% 49%; }
+.mission-home__motion { pointer-events: none; }
+.mission-home__plate figcaption { padding: 8px 3px 2px; color: var(--console-muted); font: .64rem/1.4 var(--console-mono); letter-spacing: .12em; text-transform: uppercase; }
+
+/* The atlas header, map view and telemetry share the same frame. */
+.app.explorer {
+  --map-panel: #101720;
+  --map-surface: #131d28;
+  --map-border: var(--console-line);
+  --map-text: var(--console-ink);
+  --map-hover: #202f3d;
+  --map-selection: var(--console-blue);
+  --map-shadow: 0 12px 32px #0007;
+  --explorer-panel-gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 10px 12px 0;
+  background: var(--console-bg);
+  color: var(--console-ink);
+}
+.explorer .explorer__topbar {
+  position: relative;
+  inset: auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(135px, .76fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--console-line);
+  border-top-color: #a66d50;
+  background: var(--console-panel);
+  pointer-events: auto;
+}
+.explorer .explorer__brand {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 6px 0 2px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none;
+}
+.explorer .explorer__brand-mark { width: 44px; }
+.explorer .explorer__brand-title { width: 132px; }
+.explorer .explorer__brand .explorer__data-credit { display: none; }
+.explorer__wordmark small { color: var(--console-muted); font: .64rem/1.3 var(--console-mono); letter-spacing: .06em; }
+.explorer .explorer-toolbar {
+  position: static;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  justify-self: stretch;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--console-line-soft);
+  border-radius: 4px;
+  background: #0b121b;
+  pointer-events: auto;
+}
+.explorer .explorer-toolbar .btn {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #c9d5df;
+  font-size: .78rem;
+  font-weight: 650;
+}
+.explorer .explorer-toolbar .btn svg { color: var(--console-blue); }
+.explorer .explorer-toolbar .btn:hover { background: #162534; }
+.explorer .explorer-toolbar .btn[aria-pressed=true] { background: #33241f; border-color: #9f5c41; color: #ffd7c0; }
+.explorer .explorer-toolbar .btn[aria-pressed=true] svg { color: var(--console-copper); }
+.explorer__search-help { min-width: 0; gap: 6px; }
+.explorer .explorer__topbar .search { max-width: none; }
+.explorer .explorer__topbar .search input {
+  height: 42px;
+  min-height: 42px;
+  padding-inline: .75rem;
+  border: 1px solid var(--console-line);
+  border-radius: 3px;
+  background: #0b121b;
+  box-shadow: none;
+  font-size: .84rem;
+}
+.explorer .search__results { border-radius: 4px; clip-path: none; box-shadow: var(--map-shadow); }
+.explorer .search__results li { border-color: var(--console-line-soft); }
+
+.explorer .explorer__workspace { min-height: 0; }
+.explorer .stage {
+  border: 1px solid var(--console-line);
+  box-shadow: 0 0 0 1px #06080a;
+  background: #030509;
+}
+.explorer .stage::after {
+  content: "";
+  position: absolute;
+  z-index: 6;
+  inset: 5px;
+  pointer-events: none;
+  background: conic-gradient(from 90deg at 1px 1px, transparent 25%, #bd8b71 0) top left,
+    conic-gradient(from 180deg at calc(100% - 1px) 1px, transparent 25%, #bd8b71 0) top right,
+    conic-gradient(from 0deg at 1px calc(100% - 1px), transparent 25%, #bd8b71 0) bottom left,
+    conic-gradient(from 270deg at calc(100% - 1px) calc(100% - 1px), transparent 25%, #bd8b71 0) bottom right;
+  background-size: 10px 10px;
+  background-repeat: no-repeat;
+}
+.explorer-map-controls {
+  top: 14px;
+  left: 15px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--console-line);
+  border-radius: 4px;
+  background: #0b121ce8;
+}
+.explorer-map-controls button {
+  width: 42px;
+  height: 38px;
+  border-radius: 2px;
+  box-shadow: none;
+  color: var(--console-blue);
+  font-family: var(--console-mono);
+}
+.explorer-map-controls .explorer-compass { width: 42px; height: 42px; border: 0; border-radius: 3px; background: #111b26; }
+.explorer-map-controls button[aria-pressed=true] { background: #38271f; border-color: #ad6f4e; color: var(--console-copper); }
+.explorer .map-hud--scale { bottom: 13px; right: 14px; max-width: calc(100% - 98px); border: 1px solid var(--console-line);
+  border-radius: 3px; background: #0b121ce8; color: var(--console-blue); font: .68rem/1.4 var(--console-mono); }
+.explorer .map-banner--warn { top: 13px; z-index: 5; }
+.explorer .map-banner--top { top: auto; }
+.explorer .flight-tools:not(.flight-tools--flying) { left: 15px; bottom: 12px; }
+.explorer .explorer__workspace:has(.globe3d--flying) .stage .flight-tools--flying { top: 14px; left: 15px; right: 14px; max-width: none; }
+.explorer .stage:has(.globe3d--flying) .explorer-map-controls { top: 62px; }
+.explorer .flight-story { top: 62px; right: 14px; max-height: calc(100% - 176px); }
+.explorer .earth-walk-controls { top: 50px; left: 73px; width: min(20rem, calc(100% - 87px)); }
+
+.explorer__telemetry {
+  display: flex;
+  align-items: center;
+  min-height: 33px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--console-line);
+  background: #0e1620;
+  color: var(--console-muted);
+  font: .68rem/1.4 var(--console-mono);
+}
+.explorer__telemetry .explorer__position {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+  margin: 0;
+  padding: 3px 10px;
+  height: auto;
+  color: var(--console-muted);
+  border: 0;
+  border-right: 1px solid var(--console-line);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  font: inherit;
+  white-space: nowrap;
+}
+.explorer__telemetry .explorer__position strong { color: var(--console-blue); font-weight: 650; }
+.explorer__telemetry .explorer-credit { position: static; min-width: 0; max-width: none; padding: 3px 10px;
+  color: var(--console-muted); font: inherit; overflow-wrap: anywhere; text-shadow: none; }
+
+/* Discover, Layers, Directions and Drone use the same pane and control hierarchy. */
+.explorer .explorer__sidebar {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  max-height: none;
+  border-radius: 3px;
+  box-shadow: none;
+  background: var(--console-panel);
+  backdrop-filter: none;
+}
+.explorer .explorer__panel-handle { border-radius: 3px 0 0 3px; color: var(--console-blue); }
+.explorer__panel-handle--closed { top: 14px; min-height: 38px; }
+.explorer__sidebar .explorer__panel-bar { border-radius: 0; background: #0c141e; }
+.explorer__sidebar .panel { scrollbar-color: #42596c transparent; }
+.explorer__sidebar .panel-body { padding: 14px; }
+.explorer .explorer__sidebar :is(h2,h3) { color: var(--console-ink); }
+.explorer .explorer__sidebar .btn { border-radius: 3px; }
+.explorer .explorer__sidebar .btn[aria-expanded=true],
+.explorer .explorer__sidebar .btn[aria-pressed=true] { border-color: #8e5e46; background: #35271f; color: #ffcfb2; }
+.explorer .explorer__sidebar .btn.btn--primary,
+.explorer .explorer__sidebar .btn.directions__start { border-color: #ffc3a1; background: var(--console-copper); color: #241308; }
+.explorer .explorer__sidebar .btn.btn--primary:not(:disabled):hover,
+.explorer .explorer__sidebar .btn.directions__start:not(:disabled):hover { background: #ffc4a2; }
+.explorer .explorer__sidebar .btn.directions__start:disabled { border-color: var(--console-line); background: #22303e; color: var(--console-muted); }
+.explorer .explorer__sidebar .btn.btn--locate { border-color: #40617a; background: #172838; color: var(--console-blue); }
+.explorer .explorer__sidebar .btn.btn--locate:hover { background: #233c51; }
+.explorer .catalog__heading span, .explorer .catalog__type, .explorer .catalog__meta { font-family: var(--console-mono); }
+.explorer .catalog__heading span { color: var(--console-blue); }
+.explorer :is(.catalog__options,.catalog__result,.layer-search,.layer-group,.directions__fields,.directions__result) {
+  border-color: var(--console-line-soft);
+  border-radius: 3px;
+  background: #111c27;
+}
+.explorer .catalog__result { border-inline-start: 2px solid #456073; }
+.explorer .catalog__result:focus-within { border-inline-start-color: var(--console-copper); }
+.explorer .catalog__type { color: var(--console-blue); }
+.explorer .catalog__tools input, .explorer .layer-search input { border-radius: 3px; background: #0b121b; }
+.explorer .directions > details { margin-top: 7px; padding: 7px 9px; border: 1px solid var(--console-line-soft); border-radius: 3px; background: #111c27; }
+.explorer .directions > details > summary { padding-block: 3px; color: var(--console-blue); font-size: .82rem; font-weight: 650; cursor: pointer; }
+.explorer .directions > .btn { margin-top: 7px; }
+.explorer .drone-coverage { border: 0; margin: 0; }
+.explorer .drone-simulation-options { display: grid; grid-template-columns: 1fr; width: 100%; }
+.explorer .drone-simulation-options .drone-simulation-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  justify-items: start;
+  padding: 5px 9px 5px 5px;
+  text-align: left;
+}
+.drone-simulation-card img { width: 64px; height: 52px; object-fit: cover; border: 1px solid var(--console-line); }
+.drone-simulation-card small { display: block; margin-top: 4px; color: var(--console-muted); font: .68rem var(--console-mono); }
+.drone-simulation-card > span:last-child { color: var(--console-blue); }
+.drone-coverage .drone-coverage__credit { color: var(--console-muted); font: .65rem/1.4 var(--console-mono); }
+.explorer :is(.route-tools,.map-route,.flight-story,.earth-walk-controls) { border: 1px solid var(--console-line); border-radius: 4px; background: #101720f2; }
+.explorer :is(.route-tools,.map-route,.flight-tools,.route-quick-menu) .btn { border-radius: 3px; }
+.explorer .map-route--ready { left: 72px; max-width: min(530px, calc(100% - 86px)); max-height: min(42dvh, 275px);
+  padding: .75rem; border-top: 2px solid var(--console-copper); }
+.map-route--ready .map-route__summary { width: 100%; padding-bottom: .5rem; }
+.explorer .map-route--ready .map-route__actions { position: sticky; bottom: -.75rem; display: grid;
+  grid-template-columns: 1fr; gap: .45rem; margin: .45rem -.2rem -.35rem; padding: .35rem .2rem;
+  border-top: 1px solid var(--console-line); background: #101720; }
+.explorer .map-route--ready .directions__start { width: 100%; min-height: 42px; justify-content: center; gap: .5rem;
+  background: var(--console-copper); border-color: #ffc3a1; color: #241308; font-size: .9rem; font-weight: 700; }
+.explorer .map-route--ready .directions__start:hover { background: #ffc4a2; }
+.explorer .map-route--ready .directions__start:disabled { background: #22303e; border-color: var(--console-line); color: var(--console-muted); }
+.directions__start svg, .flight-icon, .drone-controls__button svg { width: 18px; height: 18px; fill: none;
+  stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.earth-walk-setup { width: min(430px, calc(100vw - 24px)); }
+.earth-walk-setup h2 { font-size: 1.2rem; }
+.route-start-card { border: 1px solid var(--console-line); border-radius: 5px; background: var(--console-raised); padding: .75rem; }
+.route-start-card h3 { margin: 0; font-size: 1rem; }
+.route-start-card p { margin: .35rem 0 .65rem; font-size: .8rem; color: var(--console-muted); }
+.route-start-card details { margin-bottom: .65rem; color: var(--console-blue); font-size: .8rem; }
+.route-start-card summary { cursor: pointer; }
+.route-start-card label { display: block; margin: .45rem 0; }
+.route-start-card label select { display: block; width: 100%; min-height: 36px; margin-top: .25rem;
+  border: 1px solid var(--console-line); background: var(--console-bg); }
+.route-start-card .btn { clip-path: none; min-height: 42px; width: 100%; margin: 0; border-radius: 3px; }
+.route-start-card .btn--primary { color: #241308; background: var(--console-copper); border-color: #ffc3a1; }
+.gps-maneuver--rejoin { background: #32271e; border-color: var(--console-copper); }
+.gps-maneuver--rejoin > b { color: var(--console-copper); flex: none; }
+.gps-maneuver--rejoin strong { font-size: .9rem; }
+.polar-views { padding: .75rem; margin: .6rem 0; border: 1px solid var(--console-line); border-radius: 4px; background: var(--console-raised); }
+.polar-views h3, .polar-views p { margin: 0 0 .35rem; }
+.flight-tools--flying .btn { gap: 5px; }
+.flight-tools--flying .flight-icon { width: 14px; height: 14px; color: var(--console-blue); }
+.drone-controls :is(.drone-controls__pad,.drone-controls__altitude) { border-radius: 5px; background: #0b121cee; }
+.drone-controls__button { color: var(--console-blue); border-radius: 3px; border-color: #46617a; background: #1a2a39; }
+.drone-controls__button:active { color: var(--console-ink); border-color: #b77957; background: #68442e; }
+.project-dialog:not(.mission-home__dialog) { border: 1px solid var(--console-line); border-top-color: #a66d50;
+  border-radius: 4px; background: var(--console-panel); color: var(--console-ink); }
+.project-dialog:not(.mission-home__dialog)::backdrop { background: #04070acc; }
+:is(#root,.explorer-page) > .project-footer { padding-top: .18rem; background: var(--console-bg); border-color: var(--console-line-soft); color: var(--console-muted); }
+.project-footer > button:hover { color: var(--console-blue); }
+
+/* The detailed terrain planner shares the atlas colors and button treatment. */
+.terrain-console { --header: var(--console-panel); --line: var(--console-line); --navy: var(--console-bg); --slate: var(--console-panel); background: var(--console-bg); color: var(--console-ink); }
+.terrain-console .topbar { border-color: var(--console-line); }
+.terrain-console :is(.sidebar,.panel) { background: var(--console-panel); }
+.terrain-console :is(.btn,.mode,.navlink) { border-radius: 3px; clip-path: none; }
+.terrain-console .btn::before { content: none; }
+
+@media (min-width: 761px) {
+  .explorer .explorer__workspace:not(.explorer__workspace--wide) .stage { right: calc(var(--explorer-panel-width, 400px) + var(--explorer-panel-gap)); }
+  .explorer .explorer__sidebar:not([hidden]) .explorer__panel-handle { left: auto; right: 10px; top: 10px; width: 31px; min-height: 30px; border: 1px solid var(--console-line); border-radius: 3px; }
+  .explorer .explorer__sidebar:not([hidden]) .explorer__panel-handle svg { display: none; }
+  .explorer .explorer__sidebar:not([hidden]) .explorer__panel-handle::after { content: "×"; font-size: 1.15rem; line-height: 1; }
+  .explorer .explorer__sidebar .panel > .panel-body:first-child > :is(h2,.catalog__heading) { padding-right: 35px; }
+  .explorer .explorer__resize-panel { inset: 0 auto 0 -8px; }
+}
+@media (max-width: 950px) {
+  .explorer .explorer__topbar { grid-template-columns: auto minmax(0,1fr) auto; gap: 6px 10px; }
+  .explorer .explorer-toolbar { grid-column: 1 / -1; grid-row: 2; }
+  .explorer .explorer__search-help { justify-content: flex-end; }
+  .explorer .explorer__topbar .search { flex: 0 1 350px; }
+}
+@media (max-width: 760px) {
+  .mission-home { min-height: calc(100svh - 45px); align-content: start; gap: 16px; padding: 18px; }
+  .mission-home__content { grid-template-columns: 1fr; gap: 15px; }
+  .mission-home__intro { padding-block: 7px 0; }
+  .mission-home__intro h1 img { width: min(100%, 395px); }
+  .mission-home__intro p { margin: 14px 0 17px; }
+  .mission-home__viewport { aspect-ratio: 1.4; }
+  .mission-home__scene { width: 160%; }
+  .mission-home__viewport::after { background: linear-gradient(90deg, #0b1018 5.5%, transparent 11%),
+    linear-gradient(180deg, #070d1960, transparent 35%, transparent 75%, #090c1570),
+    repeating-linear-gradient(180deg, transparent 0 3px, #0b162c25 3px 4px); }
+  .app.explorer { padding: 6px 6px 0; gap: 5px; }
+  .explorer .explorer__topbar { padding: 4px 5px; gap: 4px 6px; }
+  .explorer .explorer__brand { width: auto; }
+  .explorer .explorer__brand-title { width: 109px; }
+  .explorer .explorer__topbar .search { flex: 1; }
+  .explorer .explorer-toolbar .btn { height: 35px; min-height: 35px; font-size: .75rem; }
+  .explorer-toolbar .btn svg { display: block; width: 13px; height: 13px; }
+  .explorer-map-controls { top: 10px; left: 10px; }
+  .explorer-map-controls button { width: 37px; height: 35px; }
+  .explorer .map-route--ready { left: 65px; max-width: calc(100% - 76px); max-height: min(40dvh, 250px); }
+  .explorer-map-controls .explorer-compass { width: 37px; height: 37px; }
+  .explorer .explorer__sidebar { top: auto; bottom: 0; width: 100%; max-height: 72%; border-radius: 7px 7px 0 0; }
+  .explorer .explorer__panel-handle { min-height: 36px; border-radius: 7px 7px 0 0; }
+  .explorer .explorer__panel-handle--closed { top: 10px; right: 10px; left: auto; bottom: auto; width: 34px; border: 1px solid var(--console-line); border-radius: 3px; }
+  .explorer .map-hud--scale { bottom: 10px; right: 10px; max-width: calc(100% - 74px); }
+  .explorer .explorer__workspace:has(.explorer__sidebar:not([hidden])) .map-hud--scale { display: none; }
+  .explorer .flight-tools:not(.flight-tools--flying) { left: 10px; bottom: 36px; }
+  .explorer .flight-story { right: 10px; width: calc(100% - 73px); }
+  .explorer .explorer__workspace:has(.explorer__sidebar:not([hidden])) .earth-walk-controls,
+  .explorer .earth-walk-controls { top: 44px; left: 61px; width: min(20rem, calc(100% - 71px)); }
+  .explorer__telemetry { flex-wrap: wrap; gap: 2px 0; padding-block: 4px; font-size: .63rem; }
+  .explorer__telemetry .explorer__position { padding: 0 6px; gap: 5px; }
+  .explorer__telemetry .explorer-credit { width: 100%; padding: 0 6px; }
+}
+@media (max-width: 450px) {
+  .explorer .explorer__wordmark { display: none; }
+  .explorer .explorer__brand { width: 44px; padding: 0; justify-content: center; }
+  .explorer .explorer__brand-mark { width: 39px; }
+  .explorer .explorer__topbar .search input { padding-inline: .55rem; }
+  .explorer .explorer-toolbar .btn { gap: 4px; padding-inline: 2px; font-size: .7rem; }
+  .explorer-toolbar .btn svg { width: 12px; height: 12px; }
+  .explorer__telemetry .explorer__position > span { display: none; }
+}
+@media (min-width: 600px) and (max-width: 760px) and (orientation: landscape) and (max-height: 520px) {
+  .explorer .explorer__sidebar { inset: 0 0 0 auto; width: min(var(--explorer-panel-width, 400px), 44%); height: auto; max-height: none; }
+  .explorer .explorer__workspace:not(.explorer__workspace--wide) .stage {
+    right: calc(min(var(--explorer-panel-width, 400px), 44%) + var(--explorer-panel-gap));
+  }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .explorer-map-controls { flex-direction: row; }
+  .explorer .flight-story { max-height: calc(100% - 110px); }
+}
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  .globe3d--flying .drone-controls { bottom: 34px; }
+  .drone-controls .drone-controls__pad { grid-template-columns: repeat(6, 44px); grid-template-rows: 44px; }
+  .drone-controls .drone-controls__altitude { grid-template-columns: repeat(2, 48px); grid-template-rows: 44px; }
+  .drone-controls .drone-controls__button { grid-area: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mission-home { transition: none; }
+}

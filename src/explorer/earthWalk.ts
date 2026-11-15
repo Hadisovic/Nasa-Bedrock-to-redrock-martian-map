@@ -12,10 +12,18 @@ export type WalkMode = "Outdoor" | "Indoor Steps" | "Recorded Walk";
 export type WalkPose = { point: LatLon; heading: number; moving: boolean; tilt: number; animationRate?: number };
 export type EarthFix = LatLon & { timestamp: number; accuracy: number };
 export type RoutePoint = { point: LatLon; elevation: number | null };
+export const GPS_SCALES = [1, 10, 100, 1000] as const;
+export const REGIONAL_GPS_SCALE = GPS_SCALES[3];
+
+export function earthOffset(anchor: LatLon, fix: LatLon) {
+  return {
+    north: (fix.lat - anchor.lat) * radians * earthRadiusM,
+    east: lonDelta(anchor.lon, fix.lon) * radians * earthRadiusM * Math.cos(anchor.lat * radians),
+  };
+}
 
 export function marsFromEarth(anchor: EarthFix, fix: EarthFix, lander: LatLon, scale = 1): LatLon {
-  const north = (fix.lat - anchor.lat) * radians * earthRadiusM;
-  const east = lonDelta(anchor.lon, fix.lon) * radians * earthRadiusM * Math.cos(anchor.lat * radians);
+  const { north, east } = earthOffset(anchor, fix);
   const bearing = Math.atan2(east, north);
   const step = Math.hypot(north, east) * scale / (MARS_RADIUS_KM * 1000);
   if (!step) return { lat: lander.lat, lon: lander.lon };
@@ -167,6 +175,14 @@ export function locateOnWalk(track: WalkTrack, point: LatLon, minimumMetres = 0,
   return best;
 }
 
+/** At regional scale a confirmed movement can cross the stop between GPS fixes. */
+export function crossedRegionalStop(previous: LatLon, point: LatLon, stop: LatLon, gap: number, uncertainty: number) {
+  const tolerance = Math.max(5, Math.min(750, uncertainty));
+  if (gap > tolerance) return false;
+  const motion = buildWalkTrack([{ point: previous, elevation: null }, { point, elevation: null }]);
+  return motion.length === 2 && locateOnWalk(motion, stop).distance <= tolerance;
+}
+
 export function orderedStopDistances(track: WalkTrack, stops: readonly LatLon[]) {
   let minimum = 0;
   return stops.map((stop) => {
@@ -178,30 +194,41 @@ export function orderedStopDistances(track: WalkTrack, stops: readonly LatLon[])
 const landmarkTypes = new Set(["landing", "rover-stop", "science-observation", "sample", "sample-depot", "hardware"]);
 const compassPoints = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
 export const compassIndex = (bearing: number) => Math.round(bearing / 45) % compassPoints.length;
-const compassDirection = (bearing: number) => compassPoints[compassIndex(bearing)];
+export const compassDirection = (bearing: number) => compassPoints[compassIndex(bearing)];
 
-export function walkDirection(track: WalkTrack, metres: number, legEnd: number, target: string, regional: boolean) {
-  const next = regional
-    ? { kind: "stop" as const, metres: Math.max(0, Math.min(legEnd, track.at(-1)!.metres) - metres) }
-    : nextManeuver(track, metres, legEnd);
+export function walkDirection(track: WalkTrack, metres: number, legEnd: number, target: string, regional: boolean, scale = 1) {
   const at = sampleWalk(track, metres);
-  const ahead = sampleWalk(track, metres + Math.min(12, next.metres));
+  const regionalDemo = scale === REGIONAL_GPS_SCALE;
+  const end = Math.min(legEnd, track.at(-1)!.metres);
+  const waypoint = regionalDemo ? track[sampleWalk(track, metres + 1000).end].metres : end;
+  const next = regional || regionalDemo
+    ? { kind: "stop" as const, metres: Math.max(0, Math.min(end, waypoint) - metres) }
+    : nextManeuver(track, metres, legEnd);
+  const ahead = sampleWalk(track, metres + Math.min(regionalDemo ? 1000 : 12, next.metres));
   const bearing = next.metres >= 1 ? bearingDeg(at.point, ahead.point) : at.heading;
   const distance = walkDistance(next.metres), spoken = walkDistance(next.metres, true);
   const direction = compassDirection(bearing);
-  const action = next.kind === "stop" ? `Toward ${target}` : `Turn ${next.kind}`;
-  const text = next.kind === "stop"
+  const action = regionalDemo ? `Head ${direction}` : next.kind === "stop" ? `Toward ${target}` : `Turn ${next.kind}`;
+  const text = regionalDemo
+    ? `Head ${direction} along the route for about ${spoken} on Mars. That is roughly ${earthDistance(next.metres, scale)} here.`
+    : next.kind === "stop"
     ? `${regional ? "Regional guidance. " : ""}Head ${direction} toward ${target}, about ${spoken} along the route.`
     : next.metres < 5 ? `Turn ${next.kind} ahead.` : `Head ${direction} for about ${spoken}, then turn ${next.kind}.`;
   return { ...next, action, text, bearing, distance };
 }
 
-export function rejoinDirection(from: LatLon, nearest: { point: LatLon; distance: number }) {
+export function rejoinDirection(from: LatLon, nearest: { point: LatLon; distance: number }, scale = 1) {
   const bearing = bearingDeg(from, nearest.point);
   const distance = walkDistance(nearest.distance);
   const direction = compassDirection(bearing);
+  const offset = scale === REGIONAL_GPS_SCALE ? ` About ${earthDistance(nearest.distance, scale)} here.` : "";
   return { kind: "rejoin" as const, metres: nearest.distance, bearing, distance, action: `Route to the ${direction}`,
-    text: `The planned route is about ${walkDistance(nearest.distance, true)} ${direction}. Return along terrain you know is clear.` };
+    text: `The planned route is about ${walkDistance(nearest.distance, true)} ${direction}.${offset} Return along terrain you know is clear.` };
+}
+
+function earthDistance(metres: number, scale: number) {
+  const earthMetres = metres / scale;
+  return earthMetres < 1 ? "less than one metre" : walkDistance(earthMetres, true);
 }
 
 function walkDistance(metres: number, spoken = false) {

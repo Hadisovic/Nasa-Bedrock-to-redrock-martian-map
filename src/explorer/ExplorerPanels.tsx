@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import type { Catalog, CatalogEvent, CatalogFilter, EnvironmentObservation, LayerEntry, LayerManifest } from "./catalog.ts";
 import { EVENT_TYPE_LABEL, PRECISION_LABEL, isImageLayer, matchesFilter, searchEvents } from "./catalog.ts";
 import { formatLatLon, greatCircleKm } from "./geo.ts";
@@ -56,12 +57,13 @@ export function SearchBox({ events, unlocated, onGo, onRead, onRoute, routeLabel
   );
 }
 
-export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visibleCount, filtersOpen, onFilters, query, onQuery }: {
+export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visibleCount, filtersOpen, onFilters, query, onQuery, mapControls }: {
   catalog: Catalog; filter: CatalogFilter; setFilter: (f: CatalogFilter) => void;
   onGo: (event: CatalogEvent) => void; onRead: (event: CatalogEvent) => void; visibleCount: number;
   filtersOpen: boolean; onFilters: (open: boolean) => void;
-  query: string; onQuery: (query: string) => void;
+  query: string; onQuery: (query: string) => void; mapControls: ReactNode;
 }) {
+  const [mapOptionsOpen, setMapOptionsOpen] = useState(false);
   const missions = useMemo(() => {
     const map = new Map<string, string>();
     for (const e of catalog.events) map.set(e.missionId, e.mission);
@@ -74,6 +76,9 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
     return query.trim() ? searchEvents(filtered, query, filtered.length)
       : filtered.sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999") || a.title.localeCompare(b.title));
   }, [catalog, filter, query]);
+  const filterCount = filter.missions.size + filter.types.size
+    + Number(filter.solMin != null || filter.solMax != null)
+    + Number(filter.yearMin != null || filter.yearMax != null);
   const num = (v: string) => (v.trim() === "" ? null : Number(v));
 
   return (
@@ -82,14 +87,18 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
         <h2>Discoveries</h2>
         <span role="status">{list.length} {list.length === 1 ? "result" : "results"}</span>
       </header>
-      <label className="sr-only" htmlFor="catalog-search">Search discoveries</label>
-      <input id="catalog-search" className="catalog__search" type="search" placeholder="Search discoveries" value={query}
-        onChange={(event) => onQuery(event.target.value)} />
-      <p className="muted small">
-        {catalog.counts.total.mapped} precise and {catalog.counts.total.approximate} approximate or regional. Showing {visibleCount} on the map.
-      </p>
-      <details className="filters" open={filtersOpen} onToggle={(event) => onFilters(event.currentTarget.open)}>
-        <summary>Filter by mission, type, sol or year</summary>
+      <div className="catalog__tools">
+        <label className="sr-only" htmlFor="catalog-search">Search discoveries</label>
+        <input id="catalog-search" type="search" placeholder="Search discoveries" value={query}
+          onChange={(event) => onQuery(event.target.value)} />
+        <button type="button" className="btn" aria-expanded={filtersOpen} aria-controls="catalog-filters"
+          onClick={() => { onFilters(!filtersOpen); setMapOptionsOpen(false); }}>
+          Filters{filterCount > 0 && <span className="catalog__filter-count">{filterCount}</span>}
+        </button>
+        <button type="button" className="btn" aria-expanded={mapOptionsOpen} aria-controls="catalog-map-display"
+          onClick={() => { setMapOptionsOpen(!mapOptionsOpen); onFilters(false); }}>Map display</button>
+      </div>
+      <div className="catalog__options filters" id="catalog-filters" hidden={!filtersOpen}>
         <fieldset><legend>Mission</legend>
           {missions.map(([id, name]) => (
             <label key={id} className="chip"><input type="checkbox" checked={filter.missions.has(id)} onChange={() => setFilter({ ...filter, missions: toggle(filter.missions, id) })} /> {name}</label>
@@ -109,21 +118,26 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
           <label>From <input type="number" inputMode="numeric" min={1976} value={filter.yearMin ?? ""} onChange={(e) => setFilter({ ...filter, yearMin: num(e.target.value) })} /></label>
           <label>to <input type="number" inputMode="numeric" min={1976} value={filter.yearMax ?? ""} onChange={(e) => setFilter({ ...filter, yearMax: num(e.target.value) })} /></label>
         </fieldset>
-        <button type="button" className="btn btn--small btn--ghost" onClick={() => setFilter(EMPTY_FILTER)}>Clear filters</button>
-      </details>
+        <button type="button" className="btn btn--small" disabled={!filterCount} onClick={() => setFilter(EMPTY_FILTER)}>Clear filters</button>
+      </div>
+      <div className="catalog__options" id="catalog-map-display" hidden={!mapOptionsOpen}>
+        {mapControls}
+        <p className="muted small">{visibleCount} records shown on the map.
+          {" "}The catalog includes {catalog.counts.total.mapped} precise and {catalog.counts.total.approximate} approximate or regional locations.</p>
+      </div>
       <ul className="catalog__results" aria-label="Discovery results">
         {list.map((event) => (
           <li key={event.id} className="catalog__result">
             <span className="catalog__type"><span style={{ background: TYPE_ACCENT[event.type] }} aria-hidden="true" />{EVENT_TYPE_LABEL[event.type]}</span>
             <button type="button" className="catalog__title" aria-label={`Read about ${event.title}`} onClick={() => onRead(event)}>
-              <strong>{event.title}</strong><span aria-hidden="true">›</span>
+              <span>{event.title}</span><span aria-hidden="true">›</span>
             </button>
             <p className="catalog__meta">{[event.mission, event.sol != null ? `Sol ${event.sol}` : null, event.date].filter(Boolean).join(" · ")}</p>
             <GoToLocation onClick={() => onGo(event)} />
           </li>
         ))}
       </ul>
-      {!list.length && <div className="catalog__empty">
+      {list.length === 0 && <div className="catalog__empty">
         <p>No discoveries match this search and filters.</p>
         <button type="button" className="btn" onClick={() => { onQuery(""); setFilter(EMPTY_FILTER); }}>Reset search and filters</button>
       </div>}

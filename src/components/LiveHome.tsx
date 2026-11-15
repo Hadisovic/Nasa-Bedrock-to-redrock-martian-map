@@ -3,6 +3,9 @@ import { HomeMotion } from "./HomeMotion.tsx";
 import { explorerBadge } from "../explorer/nasaMark.ts";
 import { ExplorerHelp } from "../explorer/ExplorerHelp.tsx";
 
+const artwork = import.meta.env.BASE_URL + "images/martian-map-cinematic.jpg";
+const wordmark = import.meta.env.BASE_URL + "images/martian-map-title.png";
+
 export function LiveHome({ onEnter }: { onEnter: () => void }) {
   const [leaving, setLeaving] = useState(false);
 
@@ -12,23 +15,32 @@ export function LiveHome({ onEnter }: { onEnter: () => void }) {
     return () => window.clearTimeout(timeout);
   }, [leaving, onEnter]);
 
-  return <main className="mission-home">
-    <button type="button" className={`mission-home__enter${leaving ? " is-leaving" : ""}`}
-      aria-label="Explore Mars" onClick={() => {
-        if (matchMedia("(prefers-reduced-motion: reduce)").matches) onEnter();
-        else setLeaving(true);
-      }}>
-      <span className="mission-home__scene">
-        <img className="mission-home__art" src="./images/martian-map-cinematic.jpg" alt="" fetchPriority="high" />
-        <HomeMotion />
-      </span>
-      <span className="mission-home__phone-title" aria-hidden="true">
-        <img src={explorerBadge} alt="" />
-        <small>Bedrock to Redrock</small>
-        <img className="mission-home__phone-wordmark" src="./images/martian-map-title.png" alt="" />
-      </span>
-      <span className="mission-home__prompt">Tap anywhere to begin the mission</span>
-    </button>
-    <ExplorerHelp home />
+  return <main className={`mission-home${leaving ? " is-leaving" : ""}`}>
+    <header className="mission-home__masthead">
+      <img src={explorerBadge} alt="" width="58" height="52" />
+      <span>Bedrock to Redrock</span>
+      <ExplorerHelp home />
+    </header>
+    <div className="mission-home__content">
+      <section className="mission-home__intro">
+        <h1><img src={wordmark} alt="Martian Map" /></h1>
+        <p>Explore Mars with NASA imagery and mission records. Chart a route across the surface or fly over detailed terrain.</p>
+        <div className="mission-home__launch">
+          <button type="button" className="mission-home__enter" disabled={leaving} onClick={() => {
+            if (matchMedia("(prefers-reduced-motion: reduce)").matches) onEnter();
+            else setLeaving(true);
+          }}>Explore Mars <span aria-hidden="true">↗</span></button>
+        </div>
+      </section>
+      <figure className="mission-home__plate">
+        <div className="mission-home__viewport">
+          <div className="mission-home__scene">
+            <img className="mission-home__art" src={artwork} alt="" fetchPriority="high" />
+            <HomeMotion />
+          </div>
+        </div>
+        <figcaption>Mars surface illustration</figcaption>
+      </figure>
+    </div>
   </main>;
 }

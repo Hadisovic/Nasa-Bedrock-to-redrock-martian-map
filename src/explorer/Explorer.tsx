@@ -17,7 +17,7 @@ import { bearingDeg, formatLatLon, greatCircleKm, lonDelta, relativeToLander, wr
 import type { LatLon } from "./geo.ts";
 import type { GlobeMarker, GlobeOverlay, GlobeView, OverlayFeature, RouteMapPoint } from "./types.ts";
 import { zoomForPrecision } from "./types.ts";
-import { explorerBadge, nasaInsignia } from "./nasaMark.ts";
+import { explorerBadge } from "./nasaMark.ts";
 import { nearGale } from "./galeLayout.ts";
 import { automaticMission, defaultMission, MAX_STOPS, planReturns, planStops, readPlan, PLAN_DATA_VERSION, validMission, validStop } from "./missionPlan.ts";
 import type { Endpoint, Plan, RouteChoice, Stop } from "./missionPlan.ts";
@@ -357,7 +357,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     const width = stage?.clientWidth ?? 600, height = stage?.clientHeight ?? 500;
     const sidePanel = workspace.current?.querySelector<HTMLElement>(".explorer__sidebar:not([hidden])");
     const sideBySide = !sidePanel || sidePanel.offsetLeft >= width;
-    const topInset = Math.min(sideBySide ? 125 : 180, height * .25);
+    const topInset = Math.min(48, height * .15);
     const bottomInset = sidePanel && !sideBySide ? sidePanel.clientHeight : Math.min(95, height * .16);
     const visibleHeight = Math.max(height * .25, height - topInset - bottomInset);
     const minSpan = localView ? 0.0005 : 0.05;
@@ -625,6 +625,16 @@ export function Explorer({ onHome }: { onHome: () => void }) {
       setPanelOpen(false); setRouteInfoOpen(false); setPick(null); setRouteMenu(null); setRouteToolsOpen(false);
     }
   };
+  const discoveryMapControls = <div className="discover-map-tools__toggles" role="group" aria-label="Discovery map controls">
+    <button type="button" className="btn" aria-pressed={showFlags} onClick={() => setShowFlags(!showFlags)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 1c5-5 9 4 14 0v10c-5 4-9-5-14 0" /></svg>Site flags
+      <span aria-hidden="true" className="discovery-toggle-state">{showFlags ? "On" : "Off"}</span>
+    </button>
+    <button type="button" className="btn" aria-pressed={showCoverage} onClick={() => setShowCoverage(!showCoverage)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6 10 10m-8-8 4-4 6 6-4 4m-7-3-4 4 4 4 4-4M4 9a11 11 0 0 0 11 11M4 4a16 16 0 0 0 16 16" /></svg>Drone coverage
+      <span aria-hidden="true" className="discovery-toggle-state">{showCoverage ? "On" : "Off"}</span>
+    </button>
+  </div>;
   const clock = marsAt(clockUtc, view);
   return (
     <div className="app explorer" onPointerDownCapture={stopIdleOrbit} onWheelCapture={stopIdleOrbit}
@@ -641,26 +651,13 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     }}>
       <header className="topbar explorer__topbar">
         <button type="button" className="brand explorer__brand" onClick={onHome} aria-label="Martian Map, back to the intro page">
-          <img src={explorerBadge} className="explorer__brand-mark" alt={nasaInsignia ? "NASA" : ""} />
+          <img src={explorerBadge} className="explorer__brand-mark" alt="" />
           <div className="explorer__wordmark">
             <strong className="explorer__brand-title" aria-hidden="true">Martian Map</strong>
-            <small>Bedrock to Redrock{!nasaInsignia && <span className="explorer__data-credit"> · NASA data</span>}</small>
+            <small>Bedrock to Redrock</small>
           </div>
         </button>
-        <div className="explorer__search-help">{data && <SearchBox events={events} unlocated={unlocated} center={view} onGo={(event) => {
-          const point = siteEndpoint(event);
-          if (pick !== null && point) choosePoint(point); else goTo(event);
-        }} onRead={read} onRoute={planTo} routeLabel={pick === "start" ? "Set lander" : typeof pick === "number" ? "Replace stop"
-          : pick === "position" ? "Set crew position" : pick === "block" ? "Mark blocked cell" : "Add stop"} />}
-        <ExplorerHelp /></div>
-          <div className="mars-clock" aria-label={earthWalk.simulationUtc === null ? "Live Mars time at the map center" : "Simulated Mars mission time"} title={earthWalk.simulationUtc === null ? "Local true solar time at the map center" : `Simulation clock · ${earthWalk.playbackRate}×`}>
-            <strong>{clock.time}</strong>
-            <span>Sol {clock.sol}{earthWalk.simulationUtc !== null && " · SIM"}</span>
-            <time dateTime={new Date(clockUtc).toISOString()}>{new Date(clockUtc).toISOString().slice(0, 10)} UTC</time>
-          </div>
-      </header>
-      <section className="explorer-toolbar" aria-label="Explorer toolbar">
-        <div className="explorer-toolbar__actions" role="group" aria-label="Map tools">
+        <nav className="explorer-toolbar" aria-label="Map tools">
           <button type="button" className="btn" aria-pressed={panelOpen && (tab === "catalog" || tab === "card")}
             onClick={() => flightRequested ? exitDrone("catalog") : openPanel("catalog")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h14l-3 4 3 4H5" /></svg>Discover</button>
           <button type="button" className="btn" aria-pressed={panelOpen && tab === "layers"}
@@ -683,8 +680,19 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               openPanel("drone");
             }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17M4 4h5v5H4zm11 0h5v5h-5zM4 15h5v5H4zm11 0h5v5h-5z" /></svg>Drone</button>
 
+        </nav>
+        <div className="explorer__search-help">{data && <SearchBox events={events} unlocated={unlocated} center={view} onGo={(event) => {
+          const point = siteEndpoint(event);
+          if (pick !== null && point) choosePoint(point); else goTo(event);
+        }} onRead={read} onRoute={planTo} routeLabel={pick === "start" ? "Set lander" : typeof pick === "number" ? "Replace stop"
+          : pick === "position" ? "Set crew position" : pick === "block" ? "Mark blocked cell" : "Add stop"} />}
+        <ExplorerHelp /></div>
+        <div className="mars-clock" aria-label={earthWalk.simulationUtc === null ? "Live Mars time at the map center" : "Simulated Mars mission time"} title={earthWalk.simulationUtc === null ? "Local true solar time at the map center" : `Simulation clock · ${earthWalk.playbackRate}×`}>
+          <strong>{clock.time}</strong>
+          <span>Sol {clock.sol}{earthWalk.simulationUtc !== null && " · SIM"}</span>
+          <time dateTime={new Date(clockUtc).toISOString()}>{new Date(clockUtc).toISOString().slice(0, 10)} UTC</time>
         </div>
-      </section>
+      </header>
       <main ref={workspace} className={`workspace explorer__workspace${panelOpen ? "" : " explorer__workspace--wide"}`}
         style={{ "--explorer-panel-width": `${panelDrag.current?.sheet === false && panelDragSize !== null ? panelDragSize : panelWidth}px`,
           "--explorer-sheet-height": `${panelDrag.current?.sheet && panelDragSize !== null ? panelDragSize : sheetHeight}px` } as CSSProperties}>
@@ -715,7 +723,6 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current} tiles={tiles} elevationAt={elevationAt} />
           ))}
 
-          <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
           <EarthWalkControls onInfo={showRouteDetails} walk={earthWalk} speed={mission.rover ? mission.roverSpeed : mission.speed}
             exit={() => { earthWalk.stop(); setPick(null); setTab("marswalk"); }}
             reporting={pick === "block"} report={() => setPick(pick === "block" ? null : "block")}
@@ -788,23 +795,11 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             <button type="button" className="btn explorer__back" onClick={backToDiscoveries}>‹ Discoveries</button>
           </div>}
           <div ref={panelContents} className="panel" role="region" aria-label={panelTitles[tab]}>
-            {tab === "catalog" && <section className="discover-map-tools" aria-label="Discovery map controls">
-              <div className="discover-map-tools__toggles">
-                <button type="button" className="btn" aria-pressed={showFlags} onClick={() => setShowFlags(!showFlags)}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 1c5-5 9 4 14 0v10c-5 4-9-5-14 0" /></svg>Site flags
-                  <span aria-hidden="true" className="discovery-toggle-state">{showFlags ? "On" : "Off"}</span>
-                </button>
-                <button type="button" className="btn" aria-pressed={showCoverage} onClick={() => setShowCoverage(!showCoverage)}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6 10 10m-8-8 4-4 6 6-4 4m-7-3-4 4 4 4 4-4M4 9a11 11 0 0 0 11 11M4 4a16 16 0 0 0 16 16" /></svg>Drone coverage
-                  <span aria-hidden="true" className="discovery-toggle-state">{showCoverage ? "On" : "Off"}</span>
-                </button>
-              </div>
-            </section>}
             {tab === "drone" && <section className="panel-body drone-coverage">
               <h2>Drone simulations</h2>
               <p className="small">Fly over either terrain pack and explore its geology.</p>
               <div className="drone-simulation-options" role="group" aria-label="Drone simulations">
-                {droneSites.map((site) => <button key={site.id} type="button" className="btn"
+                {droneSites.map((site) => <button key={site.id} type="button" className="btn drone-simulation-card"
                   aria-label={`${site.label} · ${site.spacingM} m`} onClick={() => goToDrone(site, true)}>
                   <img src={publicUrl(dronePreviews[site.id].photo)} alt="" loading="lazy" />
                   <span><strong>{site.label}</strong><small>{site.spacingM} m terrain grid</small></span>
@@ -816,7 +811,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             {tab === "catalog" && (data?.catalog
               ? <CatalogPanel catalog={data.catalog} filter={filter} setFilter={setFilter} onGo={goTo} onRead={read}
                   filtersOpen={catalogFiltersOpen} onFilters={setCatalogFiltersOpen} visibleCount={showFlags ? catalogMarkers.length : 0}
-                  query={catalogQuery} onQuery={setCatalogQuery} />
+                  query={catalogQuery} onQuery={setCatalogQuery} mapControls={discoveryMapControls} />
               : <p className="muted panel-body">{data ? "The historical catalog is not bundled in this build." : "Loading…"}</p>)}
             {tab === "card" && (cardEvent
               ? <>
@@ -907,9 +902,12 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                 <OfflinePacks />
               </>} />}
           </div>
-          <p className="sidebar__foot small muted">Centre {formatLatLon(view, 2)} · planetocentric, east longitude</p>
         </aside>
       </main>
+      <div className="explorer__telemetry" aria-label="Map telemetry">
+        <div className="explorer__position" title="Planetocentric coordinates at the map center"><span>Map center</span><strong>{formatLatLon(view, 2)}</strong></div>
+        <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
+      </div>
       {routeInfoOpen && <RouteInfo legs={visibleLegs} stops={stops} mission={mission} choice={selectedChoice} choose={chooseRoute}
         onMode={changeTravelMode} slopeLimit={activeSlope} progress={earthWalk.progress} science={destinationScience} elevationM={earthWalk.elevationM}
         travelledM={earthWalk.travelledM} remainingM={earthWalk.remaining} close={() => setRouteInfoOpen(false)} />}

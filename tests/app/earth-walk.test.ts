@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
+import { buildItineraryTrack, buildWalkTrack, crossedRegionalStop, deviationTracker, earthGpsDevice, earthOffset, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
 import type { Catalog } from "../../src/explorer/catalog.ts";
 import { relativeToLander } from "../../src/explorer/geo.ts";
 
@@ -31,6 +31,33 @@ test("GPS rejects weak, stale and out-of-order fixes", () => {
   assert.equal(usableFix({ ...fix, accuracy: 13 }, 10200, 9999), false);
   assert.equal(usableFix(fix, 15100, 9999), false);
   assert.equal(usableFix(fix, 10200, 10000), false);
+});
+
+test("regional demo anchors the phone at zero and maps one Earth metre to a kilometre in each cardinal direction", () => {
+  const anchor = { lat: 0, lon: 0, accuracy: 1, timestamp: 0 };
+  const lander = { lat: 0, lon: 42 };
+  const degree = 180 / Math.PI / 6_371_008.8;
+  assert.deepEqual(earthOffset(anchor, anchor), { north: 0, east: 0 });
+  assert.deepEqual(marsFromEarth(anchor, anchor, lander, 1000), lander);
+  for (const [north, east] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const actual = marsFromEarth(anchor, { ...anchor, lat: north * degree, lon: east * degree }, lander, 1000);
+    const offset = relativeToLander(lander, actual, null, null);
+    assert.ok(Math.abs(offset.eastM - east * 1000) < .01);
+    assert.ok(Math.abs(offset.northM - north * 1000) < .01);
+  }
+});
+
+test("regional demo guidance follows each leg and recognizes a confirmed crossing without snapping to the endpoint", () => {
+  const origin = { lat: 0, lon: 0 }, bend = { lat: 0, lon: .1 }, end = { lat: .1, lon: .1 };
+  const route = buildWalkTrack([origin, bend, end].map((point) => ({ point, elevation: null })));
+  const first = walkDirection(route, 0, Infinity, "Stop", true, 1000);
+  const second = walkDirection(route, route[1].metres, Infinity, "Stop", true, 1000);
+  assert.equal(first.action, "Head east");
+  assert.equal(second.action, "Head north");
+  assert.match(first.text, /roughly 6 metres here/);
+  assert.equal(crossedRegionalStop({ lat: .08, lon: .1 }, { lat: .12, lon: .1 }, end, 0, 2500), true);
+  assert.equal(crossedRegionalStop({ lat: .08, lon: .15 }, { lat: .12, lon: .15 }, end, 0, 2500), false);
+  assert.equal(crossedRegionalStop({ lat: .08, lon: .1 }, { lat: .12, lon: .1 }, end, 1000, 2500), false);
 });
 
 test("Earth motion maps across a Martian pole without leaving valid coordinates", () => {
