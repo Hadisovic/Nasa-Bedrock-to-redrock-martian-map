@@ -531,7 +531,8 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const progress = state.current;
   const regionalGps = session?.mode === "Outdoor" && session.scale === REGIONAL_GPS_SCALE;
   const earthMovement = gps.current && { ...earthOffset(gps.current.anchor, gps.current.last), heading: gps.current.heading };
-  const guidance = session?.mode === "Outdoor" && hasFix && !progress.arrived && !paused
+  const guidance = session && !progress.arrived && progress.track.length > 1 &&
+    (session.mode === "Outdoor" ? hasFix : !detailed)
     ? offRoute ? rejoin : walkDirection(progress.track, progress.metres, progress.stopDistances[progress.next] ?? Infinity,
       nextStop ?? "destination", !detailed, session.scale) : null;
   const maneuver = session && !offRoute && !progress.arrived && detailed && !regionalGps && progress.track.length > 1
@@ -550,7 +551,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     return steps;
   }, [!!maneuver, progress.track, progress.metres, progress.next, progress.stopDistances]);
   return { eligible, liveEligible, detailed, gpsAvailable, session, paused, pose, message, cue: cue && cueText(cue), remaining, accuracy, nextStop, planned, starting,
-    maneuver, guidance, upcoming, muted, rover, obstacleHold, earthMovement, regionalGps,
+    maneuver, guidance, upcoming, muted, rover, obstacleHold, earthMovement, regionalGps, hasFix,
     toggleMute: () => {
       mute.current = !mute.current;
       setMuted(mute.current);

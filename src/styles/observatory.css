@@ -435,7 +435,7 @@
   .explorer-map-controls { flex-direction: row; }
   .explorer .flight-story { max-height: calc(100% - 110px); }
 }
-@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+@media (orientation: landscape) and (max-height: 520px) {
   .globe3d--flying .drone-controls { bottom: 34px; }
   .drone-controls .drone-controls__pad { grid-template-columns: repeat(6, 44px); grid-template-rows: 44px; }
   .drone-controls .drone-controls__altitude { grid-template-columns: repeat(2, 48px); grid-template-rows: 44px; }

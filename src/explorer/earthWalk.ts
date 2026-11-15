@@ -208,7 +208,7 @@ export function walkDirection(track: WalkTrack, metres: number, legEnd: number, 
   const bearing = next.metres >= 1 ? bearingDeg(at.point, ahead.point) : at.heading;
   const distance = walkDistance(next.metres), spoken = walkDistance(next.metres, true);
   const direction = compassDirection(bearing);
-  const action = regionalDemo ? `Head ${direction}` : next.kind === "stop" ? `Toward ${target}` : `Turn ${next.kind}`;
+  const action = regional || regionalDemo ? `Head ${direction}` : next.kind === "stop" ? `Toward ${target}` : `Turn ${next.kind}`;
   const text = regionalDemo
     ? `Head ${direction} along the route for about ${spoken} on Mars. That is roughly ${earthDistance(next.metres, scale)} here.`
     : next.kind === "stop"

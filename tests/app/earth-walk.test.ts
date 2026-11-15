@@ -141,6 +141,9 @@ test("navigation gives the initial heading, then a turn and the heading for the 
     /Head east toward Science stop/);
   assert.match(walkDirection(track, stop, Infinity, "Lander", true).text,
     /Regional guidance\. Head west toward Lander/);
+  const regional = walkDirection(track, stop, Infinity, "Lander", true);
+  assert.equal(regional.action, "Head west", "the visible regional card must state its compass direction");
+  assert.equal(regional.kind, "stop", "regional data must not invent a precise turn");
 });
 
 test("failed detour guidance points from actual GPS position to the remaining route", () => {

@@ -109,12 +109,14 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
             <path d="M12 3 5 12l5-1v9h4v-9l5 1z" fill="currentColor" />
           </svg>}
         <div><strong>{walk.guidance.distance}</strong><span>{walk.guidance.action}</span></div>
-      </div> : walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? walk.regionalGps ? "Near destination" : "Arrived" : "Navigation"}</strong>}
+      </div> : walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? walk.regionalGps ? "Near destination" : "Arrived" : walk.session.mode === "Outdoor" && !walk.hasFix ? "Waiting for GPS" : "Navigation"}</strong>}
       <button type="button" className="btn btn--small" aria-label={walk.muted ? "Unmute GPS voice" : "Mute GPS voice"}
         onClick={walk.toggleMute}>{walk.muted ? "Unmute" : "Mute"}</button>
       <button type="button" className="btn btn--small" aria-expanded={!collapsed} aria-controls="navigation-steps"
         onClick={() => setCollapsed(!collapsed)}>{collapsed ? "Show" : "Hide"}</button>
     </header>
+    {walk.guidance && (!walk.detailed || walk.regionalGps) && <p className="small muted">Approximate regional guidance · toward {walk.nextStop ?? "destination"}</p>}
+    {walk.session.mode === "Outdoor" && !walk.hasFix && walk.message && <p className="small" role="status">{walk.message}</p>}
     {walk.terrain && !walk.arrived && <p className="navigation-hud__terrain">{walk.terrain.label} · {walk.terrain.slopeDeg.toFixed(1)}° measured grade</p>}
     {walk.remaining !== null && !walk.arrived && <RouteMetrics metres={walk.remaining} speed={speed} movementSeconds={walk.travelSecondsRemaining}
       playbackRate={walk.playbackRate} simulationUtc={walk.simulationUtc} paused={walk.paused} recorded={preview} regional={!walk.detailed || walk.regionalGps} />}
