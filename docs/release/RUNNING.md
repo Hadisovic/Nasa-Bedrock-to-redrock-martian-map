@@ -1,7 +1,7 @@
 # Running, testing and deploying
 
-Requires Node.js 22.18+ or 24+, plus npm. All data is bundled, so no API keys or network services
-are needed at runtime.
+Requires Node.js 22.18+ or 24+, plus npm. The map and routing data are bundled. Web Push
+on the hosted app uses the optional relay described below.
 
 ## Local development
 
@@ -31,10 +31,15 @@ python3 -m http.server 8000 --directory dist --bind 127.0.0.1
 Opening `index.html` directly from disk (`file://`) is not supported, because the browser blocks
 the raster fetches.
 
-The team confirmed permission for the NASA insignia in the intro artwork, app header, and map flags.
-Both desktop intro images include the insignia. Production builds use the bundled SVG at
-`public/images/nasa-insignia.svg` for the header, mobile intro, and map flags. The production setting
-in `.env.production` also includes it in the core offline pack. See the [NASA Brand Guidelines](https://www.nasa.gov/nasa-brand-center/brand-guidelines/).
+The intro uses the orange Bedrock to Redrock badge in `public/images/martian-map-home-badge.png`.
+The header, white discovery flags, app icon and GPS notices use the blue badge in
+`public/images/martian-map-logo.png`. The offline pack includes both badges and the intro artwork.
+Mission imagery and data retain their original attribution.
+
+The desktop background in `public/images/martian-map-hero.png` was prepared with the built-in image editor.
+The edit prompt asked to remove only the round NASA insignia and red swoosh above the title and fill the
+spot with matching dark star field. It asked to preserve the original text, star field, scene,
+perspective, colors and 4:3 composition. The independent badge overlay uses the original supplied raster.
 
 ## Local testing milestone (current phase)
 
@@ -50,6 +55,8 @@ from device port `4173` to `localhost:4173` on the computer. Open `http://localh
 Under **Directions → Route options → Offline maps**, download **Planet map and app** and the
 terrain pack for your route. Verify the route opens on the phone before disconnecting the cable.
 For a walk away from the computer, open the same build from a trusted HTTPS host reachable by the phone.
+A [GPS demo route guide](GPS-DEMO-ROUTES.md) provides share links and exact coordinates for checking
+stop-aware replanning, rejoin guidance, recorded voice and sourced alerts.
 A hosted preview uses `npm run build` and the `dist/` output directory. Open the HTTPS link directly
 in Safari or Chrome, choose **Directions → Start route → Earth GPS Demo**, and allow precise location.
 A regular Wi-Fi HTTP preview is suitable for checking the layout. The URL paths are:
@@ -77,21 +84,29 @@ with envelope `-6400,1092000,-3900,1097000`. Use the Gale supplement ZIP and the
 `python scripts/data/layers/drone_geology.py GALE_ZIP JEZERO_QUERY_JSON` to regenerate overlays.
 
 Earth GPS Demo uses a phone or tablet’s fixes to simulate astronaut or rover movement from the selected
-lander. Choose 1×, 10×, or 100× distance scaling in the setup. The larger scales amplify location
-uncertainty, so use 1× for precise local detours.
+lander. GPS options offer 1× through 100,000×. The two largest options map one metre on Earth to
+10 km or 100 km on Mars for regional playback testing with live Earth movement. The scale also
+amplifies location uncertainty. Use 1× for precise local detours.
 On coarse MOLA it gives the regional route, estimated position, and GPS status. Detailed turns,
 terrain alerts, and off-route detours are limited to a route within the local terrain packs.
 Routine GPS voice prompts are bundled in the core offline pack. Nearby site cues are derived from
 observed catalog locations near the active leg. The phone's offline English voice reads the name,
 distance, and compass direction when available. The same message appears in the navigation panel.
 The app keeps Earth coordinates in the phone tab's memory and shares only the planned Mars coordinates.
-For a short indoor test, use **Recorded preview** to verify the camera, route, and voice. Earth GPS
-Demo waits for a reliable fix and is best tested outdoors in an open area.
+For a short indoor test, use **Recorded preview** to verify the camera, route, and voice. The preview
+shows modeled travel time and separate arrival and return dates where applicable. Its Walk or Rover
+recommendation compares the modeled trip times, planned science stops and time budget. With coarse MOLA,
+those figures are rough planning estimates and local passability remains unverified. Earth GPS Demo
+waits for a reliable fix and is best tested outdoors in an open area.
 
 The [Perseverance model](https://science.nasa.gov/resource/mars-perseverance-rover-3d-model/) is
-credited to NASA/JPL-Caltech. The app loads it when rover playback starts and includes it in the
-offline app download. Rover estimates use user-entered speeds and limits and the selected route's
-measured slope. A suggestion requires a complete detailed round trip, a walking time over budget,
+credited to NASA/JPL-Caltech. The app starts fetching it when the Start route dialog opens and reuses
+the download for 3D rover navigation. It is included in the offline app download. The flat map and the
+3D loading fallback use a rover marker. The bundled lander and blocky astronaut start loading when
+the app opens. In either drone area, the route guide accepts map and science-flag stops and
+reuses the terrain planner for recorded Walk or Rover previews. The drone camera remains independent
+during playback. Rover estimates use user-entered speeds and limits and the selected route's
+measured slope. A spoken Earth GPS suggestion requires a complete detailed round trip, a walking time over budget,
 and a rover time within budget and reserve. The visual model represents Perseverance.
 
 ## Data reproduction
@@ -101,3 +116,11 @@ python scripts/data/jezero.py crop --output <tmp>   # regenerate the HiRISE crop
 python scripts/data/jezero.py verify
 npm run data:waypoints                              # refresh in-crop rover waypoints from NASA
 ```
+
+## Earth GPS notifications
+
+In GPS options, leave **Device notifications** checked and allow the browser prompt when starting the demo. Switching away during an active Earth GPS route can display the last confirmed instruction, or a prompt to reopen the map if no fix was available. Location and spoken guidance resume in the open map when the device has a fresh fix. On iPhone and iPad use the Home Screen app.
+
+The production Cloudflare Pages project can relay Web Push through `/api/route-push`. Generate a stable VAPID key pair with `npx web-push generate-vapid-keys`, then configure `ROUTE_PUSH_PUBLIC_KEY`, `ROUTE_PUSH_PRIVATE_KEY` (secret), and `ROUTE_PUSH_SUBJECT` (an HTTPS contact URL or contact mailto URI) in Pages before deploying. Keep the private key out of source control and the frontend build. The relay gets the browser subscription and the instruction text, with a 20-second lifetime. Earth GPS coordinates stay on the device. Without the relay the app uses local service-worker notifications on supported browsers.
+
+To verify the deployed relay, use Chrome on Android or add the site to the Home Screen on iPhone. Start Earth GPS, wait for the next instruction, switch to another app, tap the notification, then confirm fresh GPS guidance resumes. Repeat with notifications denied, a paused route, and a recorded preview.

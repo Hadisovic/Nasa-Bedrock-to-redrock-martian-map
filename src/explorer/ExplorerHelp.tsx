@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { usePixelSound } from "../components/usePixelSound.ts";
 
 const steps = [
-  { tab: "Map", text: "Drag to explore. Zoom in for detail. Use 2D or 3D to switch views." },
+  { tab: "Map", text: "Explore the whole planet in 2D and 3D. Drag to explore and zoom in for detail." },
   { tab: "Discover", text: "Tap a flag to read about a mission. Use Layers to see the data behind the map." },
-  { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors gentler terrain, and dashes lead home. Pick a route before starting." },
+  { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors gentler terrain, and dashes lead home. One available path is selected automatically. Use Navigation tools to report a blocked cell on detailed terrain and recalculate around it." },
   { tab: "Save", text: "Tap the route for details or save options. Name it, share a link, or export a file." },
-  { tab: "Drone", text: "Wildcat Ridge and Mount Sharp are interactive samples of detailed terrain, inspired by NASA’s Curiosity flyover. Use the joystick and altitude controls. Turn on geology to see mapped units." },
-  { tab: "Earth Walk", text: "On a phone or tablet, allow precise location and use a large open area. Earth GPS moves the simulation using your actual heading and your chosen distance scale. Recorded preview plays the route on desktop. Operational Mars navigation would need local sensors and positioning infrastructure." },
+  { tab: "Drone", text: "Fly over Wildcat Ridge or Mount Sharp. Place a lander and tap terrain or a science flag to add stops. Choose a recorded walk or rover preview, then fly around the moving crew. Additional areas need aligned NASA or USGS imagery and elevation." },
+  { tab: "Earth Walk", text: "On a phone or tablet, allow precise location and use an open area. Earth GPS maps your real movement and chosen scale onto Mars. On any device, replay the route as an astronaut or rover. Operational Mars navigation would need local sensors and positioning infrastructure." },
 ];
 
-export function ExplorerHelp() {
+export function ExplorerHelp({ home = false }: { home?: boolean }) {
   const [step, setStep] = useState(0);
   const [shown, setShown] = useState(0);
   const [open, setOpen] = useState(false);
@@ -36,20 +36,29 @@ export function ExplorerHelp() {
     const context = new AudioContext();
     const volume = context.createGain();
     volume.gain.setValueAtTime(0, context.currentTime);
-    volume.gain.linearRampToValueAtTime(0.024, context.currentTime + 1.8);
+    volume.gain.linearRampToValueAtTime(0.22, context.currentTime + 1.8);
     volume.connect(context.destination);
-    for (const [index, frequency] of [82.41, 123.47, 164.81].entries()) {
-      const tone = context.createOscillator();
-      tone.frequency.value = frequency;
-      tone.detune.value = index * 3;
-      tone.connect(volume);
-      tone.start(context.currentTime + index * .6);
+    const beat = .72;
+    const chords = [[45, 52, 55, 59], [41, 48, 52, 55], [48, 55, 59, 62], [43, 50, 53, 57]];
+    const samples = context.createBuffer(1, Math.round(context.sampleRate * beat * 32), context.sampleRate);
+    const wave = samples.getChannelData(0);
+    for (let frame = 0; frame < wave.length; frame++) {
+      const time = frame / context.sampleRate;
+      const chord = chords[Math.floor(time / (beat * 8)) % chords.length];
+      const bar = time % (beat * 8);
+      const pulse = time % (beat / 2);
+      const note = chord[Math.floor(bar / (beat / 2)) % chord.length] + 12;
+      const sine = (pitch: number, phase: number) => Math.sin(2 * Math.PI * 440 * 2 ** ((pitch - 69) / 12) * phase);
+      const swell = Math.sin(Math.PI * bar / (beat * 8)) ** 2;
+      const shimmer = (1 - Math.exp(-pulse * 55)) * Math.exp(-pulse * 9);
+      const fade = Math.min(1, time / .05, (wave.length / context.sampleRate - time) / .05);
+      wave[frame] = fade * (.18 * swell * (sine(chord[0], bar) + .45 * sine(chord[2], bar)) + .13 * shimmer * sine(note, pulse));
     }
-    const pulse = context.createOscillator(), depth = context.createGain();
-    pulse.frequency.value = 0.09;
-    depth.gain.value = 0.009;
-    pulse.connect(depth).connect(volume.gain);
-    pulse.start();
+    const loop = context.createBufferSource();
+    loop.buffer = samples;
+    loop.loop = true;
+    loop.connect(volume);
+    loop.start();
     ambience.current = context;
     void context.resume().then(() => setMusicOn(ambience.current === context), () => {});
   }
@@ -66,8 +75,9 @@ export function ExplorerHelp() {
   }, [open, shown, current]);
 
   return <>
-    <button type="button" className="mission-home__help explorer-help" aria-label="Map tutorial" onClick={() => {
-      sound.unlock(); select(0); setOpen(true); dialog.current?.showModal();
+    <button type="button" className={home ? "mission-home__help" : "mission-home__help explorer-help"} aria-label={home ? "How to play" : "Map tutorial"} onClick={() => {
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) sound.unlock();
+      select(0); setOpen(true); dialog.current?.showModal();
     }}>?</button>
     <dialog ref={dialog} className="project-dialog mission-home__dialog explorer-help__dialog" aria-label="Map tutorial" onClose={() => setOpen(false)}>
       <header><h2>Map tutorial</h2><form method="dialog"><button type="submit" aria-label="Close tutorial">×</button></form></header>

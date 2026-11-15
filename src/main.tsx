@@ -7,6 +7,7 @@ import "@fontsource/archivo-black/400.css";
 import { App } from "./App.tsx";
 import { Explorer } from "./explorer/Explorer.tsx";
 import { Resources } from "./components/Resources.tsx";
+import { preloadAstronautModel } from "./explorer/crewAssets.ts";
 import "./styles/app.css";
 import "./styles/home.css";
 import "./styles/mission.css";
@@ -29,6 +30,8 @@ function Root() {
   const [page, setPage] = useState<Page>(read);
   const [explorerVisit, setExplorerVisit] = useState(0);
   useEffect(() => {
+    void preloadAstronautModel().catch(() => { /* Playback can retry. */ });
+    void import("./explorer/markers.ts").then(({ loadRocket }) => loadRocket()).catch(() => { /* A map marker can retry. */ });
     const onHash = () => {
       const next = read();
       setPage(next);

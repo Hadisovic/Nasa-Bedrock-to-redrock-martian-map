@@ -3,6 +3,16 @@ import type { LatLon } from "./geo.ts";
 import type { LayerEntry } from "./catalog.ts";
 
 export const KM_PER_DEGREE = (MARS_RADIUS_KM * Math.PI) / 180;
+export const GLOBE_FOV_DEG = 40;
+
+export function fitPlanetZoom(width: number, height: number, globe: boolean) {
+  if (!globe) return Math.min(width / 360, height / 180);
+  // Fit the sphere's visible edge, which sits closer to the camera than its center.
+  const tangent = Math.tan(GLOBE_FOV_DEG * Math.PI / 360);
+  const diameter = Math.min(width, height) * .9;
+  const separation = Math.hypot(1, height / (diameter * tangent));
+  return height * Math.PI / (360 * tangent * (separation - 1));
+}
 
 /** Shared view for both modes: centre and zoom in screen pixels per degree of latitude. */
 export interface GlobeView { lat: number; lon: number; zoom: number }

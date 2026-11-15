@@ -17,15 +17,26 @@ export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number;
 
 export const routeColors = { shortest: "#6bd5ff", lowerSlope: "#ffc377" };
 
-export function routeProfile(legs: readonly PlannedLeg[], mission: MissionOptions, weighted: boolean, walkingSlope: number) {
+export function routeProfile(legs: readonly PlannedLeg[], mission: MissionOptions, weighted: boolean, walkingSlope: number,
+  { regionalEstimate = false } = {}) {
   const measured = legs.map(({ result }) => selectedLeg(result, weighted));
   if (!legs.length || measured.some((leg) => !leg)) return null;
   const distanceKm = measured.reduce((sum, leg) => sum + (leg?.distanceKm ?? 0), 0);
   const steepest = Math.max(...measured.map((leg) => leg?.maxSlopeDeg ?? 0));
   const regional = legs.some(({ result }) => result?.terrain?.regional);
-  const travel = (speed: number, limit: number) => regional || !Number.isFinite(speed) || speed <= 0 || !(limit >= 1 && limit <= 89) || steepest > limit
+  const travel = (speed: number, limit: number, maxSpeed: number) => (regional && !regionalEstimate) || !(speed >= .1 && speed <= maxSpeed) || !(limit >= 1 && limit <= 89) || steepest > limit
     ? null : distanceKm * 1000 / speed / 60;
-  return { distanceKm, steepest, regional, walk: travel(mission.speed, walkingSlope), rover: travel(mission.roverSpeed, mission.roverSlope) };
+  return { distanceKm, steepest, regional, walk: travel(mission.speed, walkingSlope, 2), rover: travel(mission.roverSpeed, mission.roverSlope, 20) };
+}
+
+export function previewTravelRecommendation(profile: NonNullable<ReturnType<typeof routeProfile>>, stops: readonly Stop[],
+  mission: MissionOptions, returning: boolean) {
+  if (!validMission(mission) || !stops.every(validStop)) return null;
+  const { walk, rover } = profile;
+  const travelBudget = mission.budget - (returning ? mission.reserve : 0) - stops.reduce((sum, stop) => sum + stop.scienceMinutes, 0);
+  if (walk !== null && walk <= travelBudget) return { mode: "Walk", withinBudget: true } as const;
+  if (rover !== null && (walk === null || rover < walk)) return { mode: "Rover", withinBudget: rover <= travelBudget } as const;
+  return { mode: null, withinBudget: false } as const;
 }
 
 export function itineraryLegs(start: Endpoint | null, stops: readonly Stop[], returning: boolean, position?: LatLon): Leg[] {

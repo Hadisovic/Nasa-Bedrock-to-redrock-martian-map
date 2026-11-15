@@ -7,7 +7,7 @@ import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
 import { routeColors, routeProfile, selectedLeg, summarizeItinerary } from "./itinerary.ts";
 import type { PlannedLeg } from "./itinerary.ts";
 import { marsAt } from "./marsTime.ts";
-import { RoverIcon } from "./icons.tsx";
+import { NavigationIcon, RoverIcon } from "./icons.tsx";
 
 export type Pick = "start" | "add" | "position" | "block" | number;
 export const routeStartId = "directions-start";
@@ -64,7 +64,10 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
     {!picking && summary.complete && comparison}
     <div className="map-route__actions">
       {picking ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
-        {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>Start route</button>}
+        {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>
+          <NavigationIcon kind="start" />
+          Start route
+        </button>}
         {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
         <button type="button" className="btn btn--small" onClick={onClear}>Clear route</button>
       </>}
@@ -96,10 +99,6 @@ export function RouteSettings({ legs, stops, mission, setMission, slope, setSlop
     ? [["Walk", arrival("walk")], ["Rover", arrival("rover")]] as const : [];
   return <>
     <fieldset className="directions__options"><legend>Travel assumptions</legend>
-      <label>Travel mode<select value={mission.rover ? "rover" : "walk"}
-        onChange={(event) => setMission({ ...mission, rover: event.target.value === "rover" })}>
-        <option value="walk">Walk</option><option value="rover">Rover</option>
-      </select></label>
       {number("Walking speed (m/s)", "speed", 0.1, 2, 0.1)}
       <label>Walking slope limit (°)<input type="number" min={1} max={89} value={Number.isFinite(slope) ? slope : ""}
         onChange={(event) => setSlope(event.target.valueAsNumber)} /></label>
@@ -108,7 +107,7 @@ export function RouteSettings({ legs, stops, mission, setMission, slope, setSlop
       {number("Available time (min)", "budget", 1, 10080)}
       {number("Return reserve (min)", "reserve", 0, mission.budget)}
     </fieldset>
-    {arrivals.some(([, values]) => values) && <details open><summary>Arrivals if leaving now</summary>
+    {arrivals.some(([, values]) => values) && <details><summary>Arrivals if leaving now</summary>
       {arrivals.map(([profile, values]) => values && <section key={profile}><h3>{profile}</h3><ol>
         {values.map(({ time, mars, point, returning }, index) => <li key={index}>
           <strong>{returning ? "Lander" : labelPoint(point)}</strong> · <time dateTime={new Date(time).toISOString()}>{new Date(time).toLocaleString()}</time>

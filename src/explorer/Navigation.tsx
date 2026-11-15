@@ -73,7 +73,7 @@ export function Navigation({ route, returning, local, fix, report, block, clear,
       <button className="btn btn--small" disabled={!local && !block} onClick={() => { setRunning(false); report(); }}>Report blocked cell</button>
       <button className="btn btn--small" onClick={() => { setRunning(false); clear(); }}>Reset navigation inputs</button>
     </div>
-    <p className="muted small">Set a known position to replan from there through the ordered stops. Obstacle reports require a local elevation grid.</p>
+    <p className="muted small">Set a known crew position to replan through the remaining stops. To report an obstacle, tap <strong>Report blocked cell</strong>, then tap its location on the map. The planner excludes that cell on detailed terrain. Reset navigation inputs clears the report.</p>
     <details>
       <summary>Recorded position input</summary>
       <label>Load recorded track <input type="file" accept=".json,application/json" onChange={async (e) => {

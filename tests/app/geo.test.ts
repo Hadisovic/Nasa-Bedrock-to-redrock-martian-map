@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { clusterScreen, greatCircleKm, latLonToUnit, lonDelta, toEquirectPixel, unitToLatLon, wrapLon } from "../../src/explorer/geo.ts";
 import { matchesFilter, searchEvents } from "../../src/explorer/catalog.ts";
 import type { CatalogEvent } from "../../src/explorer/catalog.ts";
-import { clampView } from "../../src/explorer/types.ts";
+import { clampView, fitPlanetZoom, GLOBE_FOV_DEG } from "../../src/explorer/types.ts";
 
 test("longitudes wrap at the 180° seam", () => {
   assert.equal(wrapLon(180), -180);
@@ -44,6 +44,19 @@ test("view clamps to the poles and wraps longitude", () => {
   const v = clampView({ lat: 89, lon: 200, zoom: 10 }, 600);
   assert.equal(v.lon, -160);
   assert.equal(v.lat, 60);
+});
+
+test("planet reset fits the full flat map and sphere on a portrait phone", () => {
+  const width = 393, height = 790;
+  const flatZoom = fitPlanetZoom(width, height, false);
+  assert.ok(Math.abs(flatZoom * 360 - width) < 1e-9);
+  assert.ok(flatZoom * 180 <= height);
+  const tangent = Math.tan(GLOBE_FOV_DEG * Math.PI / 360);
+  const zoom = fitPlanetZoom(width, height, true);
+  const distance = 1 + height / zoom * Math.PI / (360 * tangent);
+  const apparentDiameter = height / (tangent * Math.sqrt(distance ** 2 - 1));
+  assert.ok(apparentDiameter < width);
+  assert.ok(apparentDiameter > width * .8);
 });
 
 const event = (over: Partial<CatalogEvent>): CatalogEvent => ({

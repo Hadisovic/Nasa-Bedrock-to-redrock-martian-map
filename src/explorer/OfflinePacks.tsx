@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { marsWorker } from "./marsWorker.ts";
 
 type Pack = "core" | "gale" | "wildcat";
 type FileEntry = { path: string; bytes: number };
@@ -18,7 +19,7 @@ export function OfflinePacks() {
     if (import.meta.env.DEV || !("serviceWorker" in navigator) || !isSecureContext) return;
     let live = true;
     void Promise.all([
-      navigator.serviceWorker.register("./mars-offline.js").then(() => navigator.serviceWorker.ready),
+      marsWorker(),
       fetch("./offline-files.json").then(async (response) => {
         if (!response.ok) throw Error("manifest");
         return response.json() as Promise<Manifest>;

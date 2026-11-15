@@ -2,16 +2,18 @@ import type { ReactNode, Ref } from "react";
 
 const ticks = Array.from({ length: 36 }, (_, index) => index);
 
-export function MapControls({ switchView, zoomIn, zoomOut, resetNorth, needle, flying = false, extras }: {
+export function MapControls({ switchView, zoomIn, zoomOut, resetNorth, needle, compassTilt = 0, flying = false, extras }: {
   switchView: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
   resetNorth?: () => void;
   needle?: Ref<SVGGElement>;
+  compassTilt?: number;
   flying?: boolean;
   extras?: ReactNode;
 }) {
-  const dial = <svg viewBox="0 0 72 72" aria-hidden="true">
+  const dial = <svg viewBox="0 0 72 72" aria-hidden="true"
+    style={compassTilt ? { transform: `perspective(130px) rotateX(${compassTilt}rad)` } : undefined}>
     <circle cx="36" cy="36" r="33" fill="#121925" stroke="#6b7989" />
     <circle cx="36" cy="36" r="22.5" fill="#1d2a39" stroke="#526375" strokeWidth=".8" />
     {ticks.map((tick) => <path key={tick} transform={`rotate(${tick * 10} 36 36)`}

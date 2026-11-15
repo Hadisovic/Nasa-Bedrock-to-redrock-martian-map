@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix } from "../../src/explorer/earthWalk.ts";
+import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, earthGpsScales, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, upcomingWalkDirections, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
 import type { Catalog } from "../../src/explorer/catalog.ts";
-import { relativeToLander } from "../../src/explorer/geo.ts";
+import { greatCircleKm, relativeToLander } from "../../src/explorer/geo.ts";
 
 const north = { lat: 18.456, lon: 77.406 };
 const south = { lat: 18.455, lon: 77.406 };
@@ -23,6 +23,27 @@ test("Earth offsets are mapped 1:1, including a longitude seam crossing", () => 
   const scaled = relativeToLander(south, marsFromEarth(start, finish, south, 100), null, null);
   assert.ok(Math.abs(scaled.eastM - 2000) < 1.1);
   assert.ok(Math.abs(scaled.northM - 1000) < 1.1);
+});
+
+test("1000× GPS demo maps a metre east and north to a kilometre on Mars", () => {
+  const anchor = { lat: 0, lon: 0, accuracy: 1, timestamp: 1 };
+  const degree = 180 / Math.PI / 6_371_008.8;
+  const fix = { ...anchor, lat: degree, lon: degree };
+  const scaled = relativeToLander(south, marsFromEarth(anchor, fix, south, 1000), null, null);
+  assert.ok(Math.abs(scaled.eastM - 1000) < 1);
+  assert.ok(Math.abs(scaled.northM - 1000) < 1);
+});
+
+test("planetwide demo scales map one Earth metre to 10 km and 100 km across the Mars longitude seam", () => {
+  const anchor = { lat: 0, lon: 0, accuracy: 1, timestamp: 1 };
+  const eastward = { ...anchor, lon: 180 / Math.PI / 6_371_008.8 };
+  const lander = { lat: 0, lon: 179.99 };
+  for (const scale of [10_000, 100_000] as const) {
+    assert.ok(earthGpsScales.includes(scale));
+    const point = marsFromEarth(anchor, eastward, lander, scale);
+    assert.ok(point.lon < 0);
+    assert.ok(Math.abs(greatCircleKm(lander, point) * 1000 - scale) < .01);
+  }
 });
 
 test("GPS rejects weak, stale and out-of-order fixes", () => {
@@ -61,6 +82,8 @@ test("GPS option is limited to handheld or tablet-class devices", () => {
   assert.equal(earthGpsDevice("Windows NT 10.0", 10, false), false);
   assert.equal(earthGpsDevice("Macintosh", 5, true), true);
   assert.equal(earthGpsDevice("Android", 5, true), true);
+  assert.equal(earthGpsDevice("iPhone", 0, true), true);
+  assert.equal(earthGpsDevice("iPhone", 0, false), false);
 });
 
 test("GPS reacquisition discards an unconfirmed fix from before the interruption", () => {
@@ -93,6 +116,8 @@ test("reroute requires sustained deviation outside accuracy and a fair distance 
   assert.equal(deviation(18, 4, 9900), false);
   assert.equal(shorterFromSamePosition(70, null), false);
   assert.equal(shorterFromSamePosition(70, 90), true);
+  assert.equal(shorterFromSamePosition(384.7, 386.2, 2.8), false);
+  assert.equal(shorterFromSamePosition(384.7, 390, 2.8), true);
 });
 
 test("route matching at a return crossing stays within the current leg", () => {
@@ -101,6 +126,27 @@ test("route matching at a return crossing stays within the current leg", () => {
   assert.equal(locateOnWalk(track, south, 0, first).metres, 0);
   assert.equal(locateOnWalk(track, north, second, third).metres, third);
   assert.deepEqual(sampleWalk(track, track.at(-1)!.metres).point, south);
+});
+
+test("navigation gives the initial heading, then a turn and the heading for the next leg", () => {
+  const stop = track[2].metres;
+  const first = walkDirection(track, 0, stop, "Science stop", false);
+  assert.match(first.text, /Head north for about \d+ metres, then turn right/);
+  assert.equal(first.kind, "right");
+  assert.match(walkDirection(track, track[1].metres + 8, stop, "Science stop", false).text,
+    /Head east toward Science stop/);
+  assert.match(walkDirection(track, stop, Infinity, "Lander", true).text,
+    /Regional guidance\. Head west toward Lander/);
+});
+
+test("failed detour guidance points from actual GPS position to the remaining route", () => {
+  const outside = { lat: (south.lat + north.lat) / 2, lon: north.lon + .002 };
+  const nearest = locateOnWalk(track, outside, 0, track[1].metres);
+  const guidance = rejoinDirection(outside, nearest);
+  assert.ok(nearest.distance > 100);
+  assert.equal(guidance.action, "Route to the west");
+  assert.ok(Math.abs(guidance.bearing - 270) < .01);
+  assert.match(guidance.text, /Return along terrain you know is clear/);
 });
 
 test("step detector ignores constant gravity and debounces peaks", () => {
@@ -130,6 +176,22 @@ test("the maneuver arrow and distance follow the routed bend and stop boundary",
   assert.deepEqual(nextManeuver(path, stop - 35, stop), { kind: "stop", metres: 35 });
   const mirrored = buildWalkTrack([south, north, { lat: north.lat, lon: north.lon - 0.001 }].map((point) => ({ point, elevation: 0 })));
   assert.equal(nextManeuver(mirrored, stop - 35, mirrored.at(-1)!.metres).kind, "left");
+});
+
+test("ordered preview instructions follow the current leg and respect coarse coverage", () => {
+  const exit = { lat: east.lat + 0.001, lon: east.lon };
+  const path = buildWalkTrack([south, north, east, exit].map((point) => ({ point, elevation: 0 })));
+  const progress = path[1].metres - 35;
+  const end = path[2].metres;
+  const steps = upcomingWalkDirections(path, progress, end, "Science stop", false);
+  assert.deepEqual(steps.map(({ kind, direction }) => [kind, direction]), [["right", "north"], ["stop", "east"]]);
+  assert.ok(Math.abs(steps[0].metres - 35) <= 4);
+  assert.ok(Math.abs(steps[1].metres - (end - progress)) < .01);
+  assert.equal(steps[1].action, "Toward Science stop");
+  const regional = upcomingWalkDirections(path, progress, end, "Science stop", true);
+  assert.equal(regional.length, 1);
+  assert.equal(regional[0].kind, "stop");
+  assert.match(regional[0].text, /^Regional guidance/);
 });
 
 test("nearby rover landmarks use sourced coordinates and follow the active leg", () => {

@@ -6,6 +6,7 @@ const radians = Math.PI / 180;
 const earthRadiusM = 6_371_008.8;
 const marsMetresPerDegree = MARS_RADIUS_KM * 1000 * radians;
 export type WalkMode = "Outdoor" | "Indoor Steps" | "Recorded Walk";
+export const earthGpsScales = [1, 10, 100, 1000, 10_000, 100_000] as const;
 export type WalkPose = { point: LatLon; heading: number; moving: boolean; tilt: number };
 export type EarthFix = LatLon & { timestamp: number; accuracy: number };
 export type RoutePoint = { point: LatLon; elevation: number | null };
@@ -30,8 +31,8 @@ export function usableFix(fix: EarthFix, now: number, previous: number) {
 }
 
 export function earthGpsDevice(userAgent: string, touchPoints: number, touchOnly: boolean) {
-  return touchPoints > 0 && (/Android|iPhone|iPad|iPod/i.test(userAgent) ||
-    (/Macintosh/.test(userAgent) && touchPoints > 1) || (/Windows/.test(userAgent) && touchOnly));
+  if (/Android|iPhone|iPad|iPod/i.test(userAgent)) return touchPoints > 0 || touchOnly;
+  return touchPoints > 0 && ((/Macintosh/.test(userAgent) && touchPoints > 1) || (/Windows/.test(userAgent) && touchOnly));
 }
 
 /** Wait for successive fixes outside the error radius in a consistent direction. */
@@ -75,8 +76,8 @@ export function deviationTracker() {
   };
 }
 
-export function shorterFromSamePosition(newDistance: number, verifiedRejoinDistance: number | null) {
-  return verifiedRejoinDistance !== null && newDistance + 1 < verifiedRejoinDistance;
+export function shorterFromSamePosition(newDistance: number, verifiedRejoinDistance: number | null, marginM = 1) {
+  return verifiedRejoinDistance !== null && newDistance + Math.max(1, marginM) < verifiedRejoinDistance;
 }
 
 export function buildWalkTrack(points: readonly RoutePoint[]) {
@@ -119,7 +120,9 @@ export function sampleWalk(track: WalkTrack, metres: number) {
   const t = Math.max(0, Math.min(1, (metres - a.metres) / (b.metres - a.metres)));
   const point = t === 0 ? a.point : t === 1 ? b.point : { lat: a.point.lat + (b.point.lat - a.point.lat) * t,
     lon: wrapLon(a.point.lon + lonDelta(a.point.lon, b.point.lon) * t) };
-  return { point, heading: bearingDeg(a.point, b.point), end };
+  const elevation = t === 0 ? a.elevation : t === 1 ? b.elevation : a.elevation !== null && b.elevation !== null
+    ? a.elevation + (b.elevation - a.elevation) * t : null;
+  return { point, heading: bearingDeg(a.point, b.point), end, elevation };
 }
 
 export function nextManeuver(track: WalkTrack, metres: number, legEnd: number) {
@@ -165,6 +168,50 @@ export function orderedStopDistances(track: WalkTrack, stops: readonly LatLon[])
 
 const landmarkTypes = new Set(["landing", "rover-stop", "science-observation", "sample", "sample-depot", "hardware"]);
 const compassPoints = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+export const compassIndex = (bearing: number) => Math.round(bearing / 45) % compassPoints.length;
+const compassDirection = (bearing: number) => compassPoints[compassIndex(bearing)];
+
+export function walkDirection(track: WalkTrack, metres: number, legEnd: number, target: string, regional: boolean) {
+  const next = regional
+    ? { kind: "stop" as const, metres: Math.max(0, Math.min(legEnd, track.at(-1)!.metres) - metres) }
+    : nextManeuver(track, metres, legEnd);
+  const at = sampleWalk(track, metres);
+  const ahead = sampleWalk(track, metres + Math.min(12, next.metres));
+  const bearing = next.metres >= 1 ? bearingDeg(at.point, ahead.point) : at.heading;
+  const distance = walkDistance(next.metres), spoken = walkDistance(next.metres, true);
+  const direction = compassDirection(bearing);
+  const action = next.kind === "stop" ? `Toward ${target}` : `Turn ${next.kind}`;
+  const text = next.kind === "stop"
+    ? `${regional ? "Regional guidance. " : ""}Head ${direction} toward ${target}, about ${spoken} along the route.`
+    : next.metres < 5 ? `Turn ${next.kind} ahead.` : `Head ${direction} for about ${spoken}, then turn ${next.kind}.`;
+  return { ...next, action, text, bearing, distance, direction };
+}
+
+export function upcomingWalkDirections(track: WalkTrack, metres: number, legEnd: number, target: string, regional: boolean) {
+  const steps = [];
+  let cursor = metres;
+  for (let i = 0; i < 4; i++) {
+    const step = walkDirection(track, cursor, legEnd, target, regional);
+    const ahead = cursor - metres + step.metres;
+    steps.push({ ...step, metres: ahead, distance: walkDistance(ahead) });
+    if (step.kind === "stop") break;
+    cursor = Math.min(legEnd, cursor + step.metres + 6);
+  }
+  return steps;
+}
+
+export function rejoinDirection(from: LatLon, nearest: { point: LatLon; distance: number }) {
+  const bearing = bearingDeg(from, nearest.point);
+  const distance = walkDistance(nearest.distance);
+  const direction = compassDirection(bearing);
+  return { kind: "rejoin" as const, metres: nearest.distance, bearing, distance, direction, action: `Route to the ${direction}`,
+    text: `The planned route is about ${walkDistance(nearest.distance, true)} ${direction}. Return along terrain you know is clear.` };
+}
+
+function walkDistance(metres: number, spoken = false) {
+  return metres >= 1000 ? `${(metres / 1000).toFixed(1)} ${spoken ? "kilometres" : "km"}`
+    : `${Math.round(metres)} ${spoken ? "metres" : "m"}`;
+}
 
 /** Find a sourced, observed landmark near the crew and near the next part of the active leg. */
 export function nearbyLandmark(events: readonly CatalogEvent[], point: LatLon, track: WalkTrack,
@@ -184,7 +231,7 @@ export function nearbyLandmark(events: readonly CatalogEvent[], point: LatLon, t
   if (!nearest) return null;
   const { event, place, distance, uncertainty } = nearest;
   const direction = distance > Math.max(1, uncertainty + positionUncertainty)
-    ? compassPoints[Math.round(bearingDeg(point, place) / 45) % compassPoints.length] : null;
+    ? compassDirection(bearingDeg(point, place)) : null;
   const rounded = Math.max(5, Math.round(distance / 5) * 5);
   return { text: direction ? `Nearby: ${event.title}, about ${rounded} metres ${direction}.`
     : `Nearby: ${event.title}, within about ${Math.max(5, Math.ceil((distance + uncertainty + positionUncertainty) / 5) * 5)} metres.`,

@@ -2,16 +2,22 @@
 .mission-home { position: relative; height: 100dvh; background: #030407; }
 .mission-home__enter { position: absolute; inset: 0; display: block; width: 100%; border: 0; background: #030407; cursor: pointer; overflow: hidden; transition: opacity .45s ease-in-out, transform .45s ease-out; }
 .mission-home__enter.is-leaving { opacity: 0; transform: scale(1.02); }
-.mission-home__scene { position:absolute; inset:0; display:block; }
+.mission-home__scene { position:absolute; inset:0; display:block; container-type:size;
+  --hero-width:max(100cqw, calc(100cqh * 4 / 3)); --hero-height:calc(var(--hero-width) * 3 / 4); --hero-top:.36; }
+.mission-home__desktop-badge { position:absolute; pointer-events:none;
+  width:calc(var(--hero-width) * .125); left:calc((100cqw - var(--hero-width)) / 2 + var(--hero-width) * .151);
+  top:calc((100cqh - var(--hero-height)) * var(--hero-top) + var(--hero-height) * .117); }
 .mission-home__phone-title { display:none; }
 .mission-home__art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 36%; }
 .mission-home__motion { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .mission-home__prompt { position: absolute; inset-inline: 12px; bottom: clamp(42px, 8vh, 78px); text-align: center; color: #fff8ef; letter-spacing: .13em; font-size: clamp(.85rem, 1.4vw, 1rem); text-shadow: 0 0 14px #d96a3c, 0 2px 8px #000; animation: mission-hint 3s ease-in-out infinite; }
 .mission-home__help { position: absolute; top: 18px; right: 18px; width: 48px; height: 48px; cursor: pointer; border: 3px solid #bfc4cd; color: white; background: #333942; box-shadow: 4px 4px #151923, inset -3px -3px #232933; font: 900 1.5rem monospace; }
-.project-footer { color: #b9bfcc; font-size: .78rem; padding: .45rem .8rem; }
-.project-footer > button { cursor: pointer; color: inherit; padding: 5px; border: 0; background: transparent; text-decoration: underline; }
+.project-footer { color: #b9bfcc; font-size: .78rem; padding: 0 .8rem; }
+.project-footer > button { cursor: pointer; color: inherit; min-height: 28px; padding: 0 .65rem; border: 0;
+  background: transparent; text-decoration: underline; line-height: 1.2; }
+.project-footer > button:focus-visible { outline: 2px solid #a1dff1; outline-offset: -2px; }
 :is(#root,.explorer-page) > .project-footer { display:flex; justify-content:center; background:#121925; border-top:1px solid #303942;
-  padding-bottom:max(.45rem, env(safe-area-inset-bottom)); }
+  padding-bottom:env(safe-area-inset-bottom, 0px); }
 .explorer-page { height:100dvh; display:flex; flex-direction:column; }
 .explorer-page .explorer-entry { flex:1; height:auto; }
 .project-dialog { max-width: min(420px, calc(100vw - 2rem)); max-height: 85dvh; color: #f3f5f8; background: #171c26; border: 1px solid #677487; border-radius: 12px; padding: 1.2rem; }
@@ -39,16 +45,18 @@
 .explorer .stage__tools .btn--primary { background: #25445b; color: #f3f5f8; }
 .explorer .search input { background: #212229; border-color: #ffffff2a; }
 @media (max-aspect-ratio: 9/10) {
-  .mission-home__art { object-position:right center; }
+  .mission-home__art { object-position:66% center; }
+  .mission-home__desktop-badge { display:none; }
   .mission-home__phone-title { position:absolute; z-index:2; display:grid; justify-items:center; gap:6px;
     inset:8% auto auto 50%; transform:translateX(-50%); width:min(330px,70vw);
     color:#f2f2f4; text-shadow:0 2px 5px #050611; }
-  .mission-home__phone-title img:first-child { width:clamp(47px,14vw,76px); }
+  .mission-home__portrait-badge { width:clamp(58px,16vw,90px); }
   .mission-home__phone-title small { font:400 .86rem Workbench, monospace; }
   .mission-home__phone-title .mission-home__phone-wordmark { width:100%; }
   .mission-home__prompt { bottom:max(44px,calc(env(safe-area-inset-bottom) + 32px),8dvh); text-wrap:balance; }
 }
 @media (max-height: 520px) and (min-aspect-ratio: 4/3) {
+  .mission-home__scene { --hero-top:.26; }
   .mission-home__art { object-position:50% 26%; }
   .mission-home__prompt { bottom:max(48px,calc(env(safe-area-inset-bottom) + 38px)); }
 }
@@ -73,13 +81,6 @@
 .flight-tools--flying { display:flex; justify-content:flex-start; max-width:calc(100% - 1.4rem); }
 .drone-controls { position:absolute; z-index:5; left:18px; right:18px; bottom:56px; display:flex; align-items:end;
   justify-content:space-between; pointer-events:none; }
-.drone-controls__steering { display:flex; align-items:end; gap:8px; }
-.drone-controls__stick { display:grid; place-items:center; width:96px; height:96px; border:1px solid var(--map-border);
-  border-radius:50%; background:var(--map-panel); box-shadow:inset 0 0 24px #0009,0 4px 16px #0009;
-  touch-action:none; pointer-events:auto; cursor:grab; }
-.drone-controls__stick:active { cursor:grabbing; }
-.drone-controls__stick > span { width:34px; height:34px; border:1px solid #89a9c5; border-radius:50%;
-  background:#344b64; box-shadow:0 3px 8px #0009; pointer-events:none; }
 .drone-controls__pad, .drone-controls__altitude { display:grid; gap:4px; padding:6px; background:var(--map-panel);
   border:1px solid var(--map-border); border-radius:18px; box-shadow:0 4px 16px #0009; pointer-events:auto; }
 .drone-controls__pad { grid-template-columns:repeat(3,44px); grid-template-rows:repeat(2,44px); }
@@ -89,6 +90,7 @@
   user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; font-size:1.35rem; line-height:1; }
 .drone-controls__button:hover { background:#324c68; }
 .drone-controls__button:active { background:#527ba0; color:#fff; }
+.drone-controls__button svg { width:22px; height:22px; }
 .drone-controls__button small { font-size:.59rem; font-weight:700; line-height:1.15; }
 .drone-controls__button--forward { grid-area:1 / 2; }
 .drone-controls__button--left { grid-area:2 / 1; }
@@ -99,10 +101,6 @@
 .drone-controls__button--slideRight { grid-area:1 / 3; }
 .globe3d--flying canvas { touch-action:none; cursor:grab; }
 .globe3d--flying canvas:active { cursor:grabbing; }
-@media (max-width:380px) {
-  .drone-controls__steering { gap:5px; }
-  .drone-controls__stick { width:74px; height:74px; }
-}
 .profile-comparison { margin-block:.75rem; overflow-x:auto; }
 .profile-comparison table { border-collapse:collapse; width:100%; font-size:.8rem; }
 .profile-comparison caption { font-weight:700; text-align:left; margin-block-end:.35rem; }
@@ -171,6 +169,31 @@
 .flight-readout { position:absolute; z-index:4; bottom:12px; left:18px; right:18px; display:flex; justify-content:center;
   flex-wrap:wrap; gap:4px 11px; color:var(--map-text); font-size:.72rem; text-shadow:0 1px 3px #000; text-align:center; }
 .flight-readout a { color:inherit; }
+.flight-orientation { display:none; opacity:0; transition:opacity .22s ease, display .22s allow-discrete; }
+@media (orientation:portrait) and (pointer:coarse) {
+  .flight-orientation { display:inline-flex; opacity:1; align-items:center; gap:.4rem; max-width:100%; margin-bottom:3px;
+    padding:.14rem .25rem .14rem .55rem; border:1px solid var(--map-border); border-radius:12px;
+    background:var(--map-panel); text-shadow:none; font-size:.73rem; font-weight:700; }
+  .flight-orientation svg { width:27px; height:27px; flex:none; color:#a4def1; }
+  .flight-orientation button { min-width:36px; min-height:36px; border:0; background:transparent; color:#e8eff9; cursor:pointer; font-size:1rem; }
+  .flight-orientation + span { flex-basis:100%; }
+  .globe3d--flying:has(.flight-orientation) .drone-controls { bottom:99px; }
+}
+@media (orientation:portrait) and (pointer:coarse) and (max-width:760px) {
+  .globe3d--flying:has(.flight-orientation) .drone-controls { bottom:151px; }
+}
+@media (prefers-reduced-motion:no-preference) {
+  .flight-orientation svg g { transform-origin:16px 16px; animation:rotate-device 2.8s ease-in-out infinite; }
+}
+@keyframes rotate-device {
+  0%, 16% { transform:rotate(0deg); }
+  58%, 86% { transform:rotate(90deg); }
+  100% { transform:rotate(0deg); }
+}
+.flight-tools--flying > .btn, .drone-simulation-options > .btn { display:inline-flex; align-items:center; gap:.35rem; }
+.flight-tools--flying > .btn svg { width:17px; height:17px; flex:none; }
+.flight-geology-info { margin-top:.55rem; padding-top:.45rem; border-top:1px solid var(--map-border); }
+.flight-geology-info > summary { cursor:pointer; color:var(--ice); font-weight:700; }
 .flight-story { position:absolute; z-index:6; right:18px; top:132px; width:min(330px,calc(100% - 110px));
   max-height:calc(100% - 270px); overflow:auto; padding:.65rem .8rem; border:1px solid var(--map-border);
   border-radius:14px; background:var(--map-panel); color:var(--map-text); font-size:.83rem; box-shadow:var(--map-shadow); }
@@ -181,6 +204,12 @@
 .flight-story label { display:block; margin-top:.45rem; }
 .flight-story__links { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; }
 .flight-story__links a { color:var(--ice); }
+.flight-route-stops { margin:.5rem 0; padding-inline-start:1.4rem; }
+.flight-route-stops li + li { margin-top:.45rem; }
+.flight-route-stops .mission-row { margin-top:.24rem; }
+.flight-route-modes { margin:.45rem 0; }
+.flight-route-modes svg { width:17px; height:17px; }
+.flight-route-modes .btn[aria-pressed=true] { background:#234c71; border-color:#86a2bc; }
 .drone-simulation-options { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.45rem; }
 .flight-geology-labels { position:absolute; inset:0; pointer-events:none; z-index:3; overflow:hidden; }
 .flight-geology-labels button { position:absolute; left:0; top:0; pointer-events:auto; color:#fff5db; background:none;
@@ -193,8 +222,6 @@
 .flight-legend button span { width:.7rem; height:.7rem; border-radius:2px; }
 .flight-legend a { flex-basis:100%; color:var(--ice); font-size:.73rem; }
 .route-analysis > .mission-row { margin-top:.65rem; }
-.route-analysis__chart { margin:.6rem 0; color:var(--map-text); font-size:.8rem; }
-.route-analysis__chart svg { display:block; width:100%; }
 .explorer__workspace:has(.explorer__sidebar:not([hidden])) .drone-controls { right:18px; }
 .explorer .explorer__workspace, .explorer .explorer__workspace--wide { position:relative; display:block; }
 .explorer .stage { position:absolute; inset:0; }
@@ -250,6 +277,7 @@
   border-radius:999px; padding-inline:1.3rem; min-height:44px;
 }
 .explorer .btn.directions__start:hover, .earth-walk-setup .btn--primary:hover { background:#c3dafc; color:#092341; }
+.explorer .btn.directions__start { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:44px; }
 .directions__launch { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:.65rem; }
 .directions__start-hint { margin:0 0 .65rem; color:#c3cede; }
 .explorer .btn.directions__start:disabled { background:#2d405a; border-color:#59708e; color:#d2dcea; opacity:1; cursor:default; }
@@ -277,6 +305,8 @@
 .directions__fields .itinerary-stop__actions { margin:0 0 .1rem 1.55rem; }
 .directions__field-actions { margin-left:1.55rem; }
 .earth-walk-setup { width: min(420px, calc(100vw - 2rem)); }
+.earth-walk-setup .btn:disabled { opacity:.52; cursor:not-allowed; }
+.earth-walk-setup .btn--primary:hover:disabled { background:#a8c7fa; }
 .earth-walk-setup label { display:block; margin:.65rem 0; }
 .earth-walk-setup .mission-row { margin-top:.6rem; }
 .earth-walk-controls > strong { font-size:1.15rem; }
@@ -308,10 +338,13 @@
   padding:.48rem .65rem; text-align:left; border-radius:10px;
   color:#effaff; background:#112b40f2; border:1px solid #73bed8; box-shadow:0 4px 20px #000a; text-shadow:none; font-family:Inter, sans-serif; }
 .gps-maneuver > b { color:#a0edff; font-size:1.8rem; line-height:1; }
+.gps-maneuver > svg { color:#a0edff; width:26px; height:26px; flex:none; }
 .gps-maneuver strong { display:block; color:#fff; font-size:1.1rem; letter-spacing:0; text-shadow:none; }
 .gps-maneuver span { color:#ceecfa; line-height:1.15; letter-spacing:0; }
-.explorer .btn.btn--locate { color:#061d2a; background:#8adbf3; border:1px solid #c5f4ff; gap:.35rem; }
-.explorer .btn.btn--locate:hover, .explorer .btn.btn--locate:focus-visible { background:#c5f4ff; box-shadow:0 0 14px #6cc6e566; }
+.explorer .btn.btn--locate { color:#061d2a; background:#a8e5f8; border:1px solid #c5f4ff; gap:.35rem; }
+.explorer .btn.btn--locate::before { content:none; }
+.explorer .btn.btn--locate:hover { background:#d1f5ff; }
+.explorer .btn.btn--locate:focus-visible { background:#d1f5ff; box-shadow:inset 0 0 0 2px #167294; }
 .rover-suggestion { padding:.58rem .7rem; border-left:3px solid #88d3e8; background:#163044; border-radius:4px; }
 .drone-coverage { display:flex; align-items:center; flex-wrap:wrap; gap:.35rem; margin-top:.5rem; padding-top:.35rem;
   border-top:1px solid var(--map-border); color:#b9bfcc; font-size:.81rem; }
@@ -324,9 +357,8 @@
   .explorer .explorer__topbar { left:10px; right:10px; top:9px; gap:6px; }
   .explorer .explorer__topbar .search { flex:1; max-width:280px; }
   .explorer .explorer__topbar .search input { font-size:.78rem; }
-  .explorer-toolbar { top:63px; left:10px; right:10px; max-width:calc(100% - 20px); }
-  .explorer-toolbar__actions { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
-  .explorer-toolbar__actions > .btn { flex:none; }
+  .explorer-toolbar { top:63px; left:10px; right:10px; width:min(460px, calc(100% - 20px)); max-width:none; }
+  .explorer-toolbar__actions { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:clamp(4px,1.5vw,8px); }
   .explorer .explorer__sidebar { top:auto; bottom:0; right:0; width:100%; height:var(--explorer-sheet-height,35%); max-height:72%;
     margin:0; border-radius:20px 20px 0 0; }
   .explorer .explorer__sidebar--directions { height:max(var(--explorer-sheet-height,35%), min(370px, 58%)); }
@@ -339,7 +371,7 @@
   .explorer__resize-sheet { position:absolute; z-index:3; top:0; left:calc(50% - 46px); width:92px;
     display:grid; place-items:start center; height:13px; min-height:13px; padding-top:5px; touch-action:none; cursor:row-resize; }
   .explorer__resize-sheet::before { content:""; width:42px; height:5px; border-radius:5px; background:#6b7e99; }
-  .explorer .explorer-toolbar .btn { height:40px; min-height:40px; }
+  .explorer .explorer-toolbar .btn { height:36px; min-height:36px; justify-content:center; padding-inline:clamp(4px,1.5vw,10px); }
   .explorer-credit, .explorer .map-hud--scale { bottom:45px; }
   .explorer-map-controls { top:111px; left:10px; gap:4px; }
   .explorer-map-controls .explorer-compass { width:56px; height:56px; }
@@ -362,7 +394,7 @@
 @media (max-width:640px) {
   .flight-tools .btn, .mission-row .btn { min-height:38px; }
   .stage:has(.map-route) .flight-tools { bottom:10rem; }
-  .explorer .explorer-toolbar .btn { font-size:.74rem; padding-inline:.52rem; }
+  .explorer .explorer-toolbar .btn { font-size:.74rem; }
   .explorer-toolbar .btn svg { display:none; }
   .explorer-credit { font-size:.61rem; max-width:calc(100% - 100px); }
 }
@@ -405,6 +437,7 @@
 .btn[aria-pressed=true] .discovery-toggle-state { color:#dff8ff; background:#40586a; }
 .explorer .explorer-help { position:static; order:2; flex:none; width:39px; height:39px; font-size:1.18rem; }
 .explorer-help__dialog { width:640px; max-width:calc(100vw - 2rem); }
+.explorer-help__dialog h2, .explorer-help__tabs button { font-family:Workbench,monospace; }
 .explorer-help__dialog header, .explorer-help__tabs { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
 .explorer-help__dialog header { justify-content:space-between; }
 .explorer-help__dialog h2 { font-size:1rem; margin:.3rem 0; }
@@ -443,19 +476,120 @@
 .route-choice svg { width:15px; height:15px; }
 .route-choice__dot { width:.56rem; height:.56rem; border-radius:50%; }
 .route-choice[aria-pressed=true] { outline:2px solid #92d6f0; }
-.route-details-dialog { width: min(580px, calc(100vw - 24px)); max-width:none; }
+.route-details-dialog { width:min(500px, calc(100% - 24px)); max-width:none; padding:0; border-radius:24px;
+  background:#151820eF; border-color:#ffffff24; box-shadow:0 24px 64px #0008; backdrop-filter:blur(18px); }
 .route-details-dialog > header, .earth-walk-setup > header { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.route-details-dialog > header { padding:1.15rem 1.15rem .45rem; }
+.route-details-dialog > header p { color:#e1c6af; text-transform:uppercase; letter-spacing:.12em; margin:0 0 .3rem; font-size:.73rem; }
+.route-details-dialog > header h2, .earth-walk-setup h2 { font:750 1.25rem/1.2 Inter,sans-serif; margin:0; }
+.route-information__tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.35rem; padding:.35rem 1rem .65rem;
+  border-bottom:1px solid #ffffff24; }
+.route-information__tabs button, .route-information__modes button { color:inherit; font:650 .91rem Inter,sans-serif; min-height:43px;
+  border:1px solid transparent; background:transparent; border-radius:999px; cursor:pointer; }
+.route-information__tabs [aria-selected=true] { background:#40344d; border-color:#b7a3c7; }
+.route-information__tabs button:focus-visible, .route-information__modes button:focus-visible,
+.navigation-icon-button:focus-visible, .route-start-card .btn:focus-visible { outline:2px solid #a8c7fa; outline-offset:2px; }
+.route-information__content { display:grid; gap:.8rem; padding:1rem 1.15rem 1.15rem; font:.92rem/1.45 Inter,sans-serif; }
+.route-information__content :is(p,h3,figure,dl) { margin:0; }
+.route-information__content h3 { color:#e1c6af; text-transform:uppercase; font-size:.77rem; letter-spacing:.07em; }
+.route-information__content a { color:#a5def1; text-underline-offset:.16em; }
+.route-information__modes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; }
+.route-information__modes button { display:flex; justify-content:center; align-items:center; gap:.4rem; border-radius:12px;
+  background:#202938; border-color:#506077; }
+.route-information__modes [aria-pressed=true] { background:#3f4961; border-color:#a8c7fa; }
+.route-information__metrics { display:grid; gap:.45rem; }
+.route-information__metrics div { display:flex; justify-content:space-between; gap:.85rem; }
+.route-information__metrics dt { color:#c8d1e0; }
+.route-information__metrics dd { margin:0; text-align:right; font-weight:650; }
+.route-information__content .route-choices { display:grid; margin:0; }
+.route-information__content .route-choice { clip-path:none; border:1px solid #56677d; background:#232e41; border-radius:13px; padding:.65rem; }
+.route-information__content .route-choice[aria-pressed=true] { outline:0; border-color:#ffbb81; }
+.route-information__content .route-choice::before { content:none; }
+.route-information__chart :is(figcaption,small), .route-information__note { color:#b6c3d6; }
+.route-information__chart svg { width:100%; display:block; max-height:110px; margin:.35rem 0; }
+.route-information__options { border-top:1px solid #ffffff24; padding-top:.55rem; }
+.route-information__options summary, .directions__more > summary { cursor:pointer; font-weight:650; padding-block:.35rem; }
+.directions__more { margin-block:.5rem; padding:.35rem .6rem; border:1px solid #ffffff20; border-radius:10px; }
+.directions__more > :is(details,button) { margin-block:.45rem; }
 .route-details-dialog .directions__options { margin:.8rem 0; }
 .route-details-dialog .directions__options label { min-width:0; }
-.earth-walk-setup { width:min(380px,100%); }
-.earth-walk-setup > label, .earth-walk-setup > button { margin-top:.5rem; }
-.earth-walk-controls { top:205px; bottom:auto; max-height:min(38dvh,310px); overflow:auto; }
-.navigation-hud__headline { display:flex; align-items:center; gap:.3rem; }
+.earth-walk-setup { width:min(420px, calc(100% - 24px)); max-width:none; padding:1rem; border-radius:22px;
+  background:#181d28; border-color:#607086; }
+.earth-walk-setup .route-choices { display:grid; margin-top:.75rem; }
+.earth-walk-setup .route-choice { border-radius:12px; background:#232e41; border:1px solid #596c86; clip-path:none; padding:.6rem; }
+.earth-walk-setup .route-choice::before { content:none; }
+.earth-walk-setup .route-choice[aria-pressed=true] { border-color:#8ccbed; outline:none; }
+.navigation-icon-button { display:inline-grid; place-items:center; flex:none; min-width:44px; min-height:44px; padding:0;
+  border:1px solid #536378; border-radius:50%; background:#212b3b; color:#edf4ff; cursor:pointer; }
+.route-start-card { display:grid; gap:.5rem; margin-top:.6rem; padding:.75rem;
+  border:1px solid #44546c; border-radius:15px; background:#1d2736; }
+.route-start-card h3, .route-start-card p { margin:0; }
+.route-start-card h3 { display:flex; align-items:center; gap:.35rem; font-size:1rem; }
+.route-start-card h3 svg { color:#a8c7fa; }
+.route-start-card p, .route-start-card details { color:#d0dbea; font-size:.82rem; }
+.earth-walk-setup .route-start-card .btn { min-height:44px; width:100%; justify-content:center; gap:.35rem; padding:.45rem; margin:0;
+  border-radius:11px; clip-path:none; border:1px solid #657895; background:#27344a; color:#eef5ff; text-align:center; font-size:.86rem; }
+.earth-walk-setup .route-start-card .btn::before { content:none; }
+.earth-walk-setup .route-start-card .btn--primary { background:#a8c7fa; border-color:#a8c7fa; color:#102440; }
+.earth-walk-setup .route-start-card .btn:disabled { background:#2b3443; border-color:#607083; color:#c0cad7; opacity:.75; }
+.route-start-card .btn svg { flex:none; }
+.route-start-path p { margin:.45rem 0 .25rem; }
+.route-start-card--unavailable { background:#151d2a; }
+.route-start-card__previews { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.4rem; }
+.route-start-card fieldset { border:0; min-width:0; margin:0; padding:0; }
+.route-start-card fieldset:disabled { opacity:.6; }
+.route-start-card summary { cursor:pointer; padding-block:.3rem; }
+.route-start-card label:has(select) { display:grid; gap:.3rem; }
+.map-crew-sprite { position:absolute; inset:0 auto auto 0; z-index:3; pointer-events:none; }
+.map-crew-sprite svg { display:block; width:27px; height:44px; filter:drop-shadow(0 2px 3px #000); }
+.map-crew-rover { display:inline-flex; align-items:center; color:#fbdca8; }
+.map-crew-rover svg { width:32px; height:32px; filter:drop-shadow(0 2px 3px #000); }
+@media (prefers-reduced-motion:no-preference) {
+  .map-crew-sprite--moving svg { animation:crew-step .22s ease-in-out infinite alternate; }
+}
+@media (max-width:760px) and (orientation:portrait) {
+  .flight-tools--flying > .btn { min-height:42px; }
+  .flight-tools--flying > .btn span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .flight-tools--flying > .btn { min-width:42px; justify-content:center; }
+}
+@media (orientation:landscape) and (max-height:520px) and (pointer:coarse) {
+  .explorer .explorer__workspace:has(.globe3d--flying) .stage .flight-tools--flying {
+    top:63px; left:auto; right:12px; max-width:calc(100% - 310px);
+  }
+  .flight-tools--flying > .btn span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .flight-tools--flying > .btn { min-width:42px; justify-content:center; }
+  .globe3d--flying .flight-story { top:109px; right:12px; width:min(300px,45%); max-height:calc(100% - 164px); }
+  .globe3d--flying .drone-controls { bottom:48px; }
+  .globe3d--flying .flight-readout { bottom:10px; }
+}
+.earth-walk-controls { top:196px; bottom:auto; max-height:min(45dvh,370px); overflow:auto; border-radius:17px;
+  background:#141c28; border-color:#687990; padding:.45rem; }
+.earth-walk-controls--preview { max-height:min(55dvh,430px); }
+.preview-travel-mode strong { color:#a1dff1; }
+.navigation-hud__headline { position:sticky; top:0; z-index:1; display:flex; align-items:center; gap:.3rem;
+  padding:.35rem; background:#234c71; color:#fff; border-radius:12px; }
 .navigation-hud__headline > .gps-maneuver { flex:1; min-width:0; }
 .navigation-hud__headline > strong { flex:1; }
-.navigation-hud__details:not([hidden]) { display:grid; gap:.33rem; }
-.navigation-hud__steps { margin:.15rem 0; padding-inline-start:1.3rem; font-size:.74rem; }
-.flight-walk-status { position:absolute; z-index:6; top:197px; left:92px; display:flex; align-items:center;
+.navigation-hud__headline .gps-maneuver { background:transparent; border:0; padding:.2rem .3rem; }
+.navigation-hud__headline .gps-maneuver svg { width:32px; height:32px; flex:none; }
+.navigation-hud__headline .navigation-icon-button { border-color:#86a2bc; background:#203d5a; }
+.navigation-hud__alert { padding:.45rem .55rem; margin:.35rem 0; border-left:3px solid #f7c088; border-radius:7px;
+  background:#293345; font-size:.77rem; }
+.navigation-hud__details:not([hidden]) { display:grid; gap:.33rem; padding:.25rem; }
+.navigation-hud__details .route-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.route-metrics__arrival { grid-column:1 / -1; }
+.route-metrics__arrival small { display:block; color:#c3cede; margin-top:.12rem; font-size:.73rem; }
+.navigation-hud__directions { border-top:1px solid #405168; padding-top:.3rem; }
+.navigation-hud__directions summary { cursor:pointer; font-size:.78rem; font-weight:650; }
+.navigation-hud__steps { margin:.25rem 0; padding-inline-start:1.45rem; list-style:decimal; font-size:.74rem; }
+.navigation-hud__steps li { padding:.15rem 0; }
+.navigation-hud__steps li > div { display:flex; gap:.35rem; align-items:center; }
+.navigation-hud__steps svg { color:#a0edff; width:16px; height:16px; flex:none; }
+.navigation-map-prompt, .flight-pick-prompt { position:absolute; bottom:65px; left:12px; z-index:8; padding:.45rem .65rem;
+  max-width:calc(100% - 24px); display:flex; gap:.55rem; align-items:center; background:var(--map-panel);
+  color:#f3f6fa; border:1px solid #6d8099; border-radius:12px; font-size:.82rem; }
+.flight-pick-prompt { top:196px; bottom:auto; left:92px; max-width:calc(100% - 104px); margin:0; }
+.flight-walk-status { position:absolute; z-index:6; top:197px; left:92px; display:flex; align-items:center; flex-wrap:wrap;
   gap:.4rem; max-width:calc(100% - 102px); padding:.35rem .45rem; border-radius:10px; background:var(--map-panel); }
 .drone-controls, .drone-controls * { touch-action:none; -webkit-touch-callout:none; user-select:none; }
 .explorer .map-route { max-width:min(530px, calc(100% - 40px)); max-height:min(33dvh,300px); overflow:auto; }
@@ -473,6 +607,7 @@
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .earth-walk-controls,
   .earth-walk-controls { top:112px; bottom:auto; left:72px; width:calc(100% - 82px); max-height:min(33dvh,248px); }
   .earth-walk-controls { padding:.36rem; }
+  .earth-walk-controls--preview { max-height:min(47dvh,360px); }
   .gps-maneuver { padding:.35rem .4rem; gap:.3rem; }
   .navigation-hud__headline > button { padding-inline:.35rem; }
   .explorer .explorer__sidebar--directions { height:var(--explorer-sheet-height,35%); }
@@ -480,4 +615,6 @@
   .explorer-credit { left:9px; max-width:58%; overflow-wrap:anywhere; }
   .explorer .map-hud--scale { right:9px; max-width:37%; text-align:right; overflow-wrap:anywhere; }
   .flight-walk-status { left:73px; top:163px; max-width:calc(100% - 83px); }
+  .flight-walk-status > span { flex-basis:100%; }
+  .flight-pick-prompt { left:65px; top:162px; max-width:calc(100% - 75px); }
 }
