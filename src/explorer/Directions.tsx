@@ -48,16 +48,16 @@ export function RouteChoices({ legs, mission, choice, choose, progress }: {
   </div>;
 }
 
-export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart, onClear, comparison, remainingRoute = false }: {
+export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart, onEarthGps, onClear, comparison, remainingRoute = false }: {
   pick: Pick | null; legs: readonly PlannedLeg[]; summary: ReturnType<typeof summarizeItinerary>;
-  onCancel: () => void; onDetails: () => void; onFit: () => void; onStart?: () => void; onClear: () => void;
+  onCancel: () => void; onDetails: () => void; onFit: () => void; onStart?: () => void; onEarthGps?: () => void; onClear: () => void;
   comparison: React.ReactNode; remainingRoute?: boolean;
 }) {
   if (pick === null && !legs.length) return null;
   const pending = legs.some((leg) => !leg.result);
   const title = pick === "start" ? "Place the lander" : pick === "position" ? "Set crew position"
     : pick === "block" ? "Mark blocked terrain" : typeof pick === "number" ? `Place stop ${pick + 1}` : "Choose a destination";
-  return <div className="map-route">
+  return <div className={`map-route${pick === null && summary.complete ? " map-route--ready" : ""}`}>
     {pick !== null ? <div role="status" className="map-route__status"><strong>{title}</strong><span>Tap the map or search a site.</span></div>
       : <>
       <div role="status" className="map-route__status"><strong>{summary.complete ? `${summary.travel === null ? distance(summary.distanceKm) : minutes(summary.travel)} · ${remainingRoute ? "remaining" : legs.at(-1)?.returning ? "round trip" : "one way"}`
@@ -66,12 +66,14 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
       </>}
     <div className="map-route__actions">
       {pick !== null ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
-        {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>
+        {summary.complete && <div className="map-route__launch">
+          {onEarthGps && <button type="button" className="btn btn--small directions__start" onClick={onEarthGps}>Earth GPS demo</button>}
+          <button type="button" className={`btn btn--small${onEarthGps ? "" : " directions__start"}`} onClick={onStart} disabled={!onStart}>
           <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
             <path d="M4 11 20 4l-7 16-2.3-6.7L4 11Z" />
           </svg>
-          Start route
-        </button>}
+          {onEarthGps ? "Preview route" : "Start route"}
+        </button></div>}
         <button type="button" className="btn btn--small" onClick={onDetails}>Route info</button>
         {!!legs.length && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
         <button type="button" className="btn btn--small" onClick={onClear}>Clear route</button>
@@ -118,7 +120,7 @@ function EndpointField({ label, point, active, events, onPick, onSelect }: {
 }
 
 export function Directions({ start, stops, returning, setReturning, pick, setPick, clearStart, clearRoute, remove, move, swap, setScience,
-  legs, slope, fit, weighted, choice, setWeighted, mission, onMode, onStart, onInfo, progress, science, accept, preview, setPreview, retry, extra,
+  legs, slope, fit, weighted, choice, setWeighted, mission, onMode, onStart, onEarthGps, onInfo, progress, science, accept, preview, setPreview, retry, extra,
   events, selectEndpoint, onDemo, onSave, walking, liveEligible }: {
   start: Endpoint | null; stops: Stop[]; returning: boolean; setReturning: (value: boolean) => void;
   pick: Pick | null; setPick: (pick: Pick | null) => void; clearStart: () => void; clearRoute: () => void; remove: (index: number) => void;
@@ -128,7 +130,8 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
   accept: (index: number, endpoint: "start" | "end", point: Endpoint) => void;
   preview: number | null; setPreview: (index: number | null) => void; retry: () => void; extra: React.ReactNode;
   events: readonly CatalogEvent[]; selectEndpoint: (target: "start" | "add" | number, point: Endpoint) => void;
-  onMode: (rover: boolean) => void; onStart?: () => void; onInfo: () => void; progress?: NavigationProgress | null; science?: React.ReactNode;
+  onMode: (rover: boolean) => void; onStart?: () => void; onEarthGps?: () => void; onInfo: () => void;
+  progress?: NavigationProgress | null; science?: React.ReactNode;
   onDemo: () => void; onSave: () => void; walking: boolean;
   liveEligible: boolean;
 }) {
@@ -189,7 +192,10 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
       {totals.complete && <RouteChoices legs={legs} mission={mission} choice={choice} choose={setWeighted} progress={progress} />}
       {science}
       {hasResult && <div className="mission-row">
-        <button type="button" className="btn btn--small directions__start" disabled={!onStart} onClick={onStart}>Start route</button>
+        {onEarthGps && <button type="button" className="btn btn--small directions__start" onClick={onEarthGps}>Earth GPS demo</button>}
+        <button type="button" className={`btn btn--small${onEarthGps ? "" : " directions__start"}`} disabled={!onStart} onClick={onStart}>
+          {onEarthGps ? "Preview route" : "Start route"}
+        </button>
         <button type="button" className="btn btn--small" onClick={fit}>Fit route</button>
         <button type="button" className="btn btn--small" onClick={onSave}>Save</button>
       </div>}

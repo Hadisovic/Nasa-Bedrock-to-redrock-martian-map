@@ -33,6 +33,7 @@ import { createAtmosphere, createStarfield } from "./globeAtmosphere.ts";
 import { globeTileWindow, makeGlobeTileTexture } from "./globeTiles.ts";
 import { discreteOverlay } from "./overlaySampling.ts";
 import { loadEarthAstronaut } from "./earthAstronaut.ts";
+import { earthGpsDevice } from "./earthWalk.ts";
 import type { WalkPose } from "./earthWalk.ts";
 
 export interface Globe3DProps {
@@ -152,6 +153,7 @@ export function Globe3D(props: Globe3DProps) {
   const droneLook = useRef(0.5);
   const obliqueLook = useRef(0.5);
   const [overhead, setOverhead] = useState(false);
+  const [rotationHintDismissed, setRotationHintDismissed] = useState(false);
   const lastDroneReport = useRef(0);
   const sunRef = useRef(sunPoint);
   sunRef.current = sunPoint;
@@ -195,6 +197,7 @@ export function Globe3D(props: Globe3DProps) {
     droneLook.current = region === "wildcat" ? 1.12 : 0.74;
     obliqueLook.current = droneLook.current;
     setOverhead(false);
+    setRotationHintDismissed(false);
     setFlightPosition({ point, heading: region === "gale" ? 180 : 0,
       height: region === "wildcat" ? 225 : 1380 });
     setNotice("");
@@ -312,7 +315,8 @@ export function Globe3D(props: Globe3DProps) {
   const press = useRef<{ x: number; y: number; id: number } | null>(null);
   const landing = useRef<{ key: string; time: number } | null>(null);
   const hasEarthWalk = !!(drone ? flightWalk.pose : props.earthWalkPose);
-  const showCrewSprite = hasEarthWalk && !drone && !props.roverPreview && navigator.maxTouchPoints > 0;
+  const showCrewSprite = hasEarthWalk && !drone && !props.roverPreview &&
+    earthGpsDevice(navigator.userAgent, navigator.maxTouchPoints, matchMedia("(pointer: coarse)").matches);
   useEffect(() => {
     const view = s.current;
     if (!view || !hasEarthWalk || showCrewSprite) return;
@@ -1311,7 +1315,14 @@ export function Globe3D(props: Globe3DProps) {
         <button type="button" className="btn btn--small" onClick={flightWalk.stop}>End preview</button>
       </div>}
       {drone && <><DroneControls onInput={(input) => { droneInput.current = input; }} /><div className="flight-readout">
-        <span className="flight-landscape-hint">Rotate your phone for more room to fly.</span>
+        {!rotationHintDismissed && <div className="flight-orientation">
+          <svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <g><rect x="10" y="5" width="12" height="22" rx="2" /><path d="M15 24h2" /></g>
+            <path d="M25 4c4 2 5 5 5 8m-3-2 3 2 1-3" />
+          </svg>
+          <span>Rotate to landscape for more room to fly.</span>
+          <button type="button" aria-label="Dismiss rotate hint" onClick={() => setRotationHintDismissed(true)}>×</button>
+        </div>}
         <span>Simulated camera · {Math.round(drone.height)} m above ground · {Math.round(drone.heading) % 360}°</span>
         <span>{closeRegion === "wildcat" ? "Wildcat Ridge · 1 m" : "Mount Sharp · 20 m"}</span>
         <span>{formatLatLon(drone.point, 5)}</span>

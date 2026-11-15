@@ -61,6 +61,8 @@ test("GPS option is limited to handheld or tablet-class devices", () => {
   assert.equal(earthGpsDevice("Windows NT 10.0", 10, false), false);
   assert.equal(earthGpsDevice("Macintosh", 5, true), true);
   assert.equal(earthGpsDevice("Android", 5, true), true);
+  assert.equal(earthGpsDevice("iPhone", 0, true), true);
+  assert.equal(earthGpsDevice("iPhone", 0, false), false);
 });
 
 test("GPS reacquisition discards an unconfirmed fix from before the interruption", () => {

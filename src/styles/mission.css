@@ -161,7 +161,27 @@
 .flight-readout { position:absolute; z-index:4; bottom:12px; left:18px; right:18px; display:flex; justify-content:center;
   flex-wrap:wrap; gap:4px 11px; color:var(--map-text); font-size:.72rem; text-shadow:0 1px 3px #000; text-align:center; }
 .flight-readout a { color:inherit; }
-.flight-landscape-hint { display:none; }
+.flight-orientation { display:none; opacity:0; transition:opacity .22s ease, display .22s allow-discrete; }
+@media (orientation:portrait) and (pointer:coarse) {
+  .flight-orientation { display:inline-flex; opacity:1; flex:0 1 auto; align-items:center; justify-content:center; gap:.4rem;
+    max-width:100%; margin-bottom:3px; padding:.14rem .25rem .14rem .55rem; border:1px solid var(--map-border); border-radius:12px;
+    background:var(--map-panel); text-shadow:none; font-size:.73rem; font-weight:700; }
+  .flight-orientation svg { width:27px; height:27px; flex:none; color:#a4def1; }
+  .flight-orientation button { min-width:36px; min-height:36px; border:0; background:transparent; color:#e8eff9; cursor:pointer; font-size:1rem; }
+  .flight-orientation + span { flex-basis:100%; }
+  .globe3d--flying:has(.flight-orientation) .drone-controls { bottom:99px; }
+}
+@media (orientation:portrait) and (pointer:coarse) and (max-width:760px) {
+  .globe3d--flying:has(.flight-orientation) .drone-controls { bottom:151px; }
+}
+@media (prefers-reduced-motion:no-preference) {
+  .flight-orientation svg g { transform-origin:16px 16px; animation:rotate-device 2.8s ease-in-out infinite; }
+}
+@keyframes rotate-device {
+  0%, 16% { transform:rotate(0deg); }
+  58%, 86% { transform:rotate(90deg); }
+  100% { transform:rotate(0deg); }
+}
 .flight-tools--flying > .btn, .drone-simulation-options > .btn { display:inline-flex; align-items:center; gap:.35rem; }
 .flight-tools--flying > .btn svg { width:17px; height:17px; flex:none; }
 .flight-geology-info { margin-top:.55rem; padding-top:.45rem; border-top:1px solid var(--map-border); }
@@ -176,7 +196,12 @@
 .flight-story label { display:block; margin-top:.45rem; }
 .flight-story__links { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; }
 .flight-story__links a { color:var(--ice); }
-.drone-simulation-options { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.45rem; }
+.drone-simulation-options { display:grid; width:100%; gap:.45rem; margin-top:.45rem; }
+.explorer .drone-simulation-options .btn { display:grid; grid-template-columns:60px minmax(0,1fr) auto;
+  gap:.65rem; padding:.35rem .65rem .35rem .35rem; text-align:left; border-radius:11px; }
+.drone-simulation-options img { display:block; width:60px; height:48px; object-fit:cover; border-radius:7px; }
+.drone-simulation-options strong, .drone-simulation-options small { display:block; }
+.drone-simulation-options small { margin-top:.2rem; color:#b7c9da; }
 .flight-geology-labels { position:absolute; inset:0; pointer-events:none; z-index:3; overflow:hidden; }
 .flight-geology-labels button { position:absolute; left:0; top:0; pointer-events:auto; color:#fff5db; background:none;
   border:0; padding:0; cursor:pointer; font:italic 600 clamp(.73rem,1.35vw,1.1rem) Inter,sans-serif; }
@@ -210,6 +235,22 @@
 .explorer__sidebar .panel { min-height:0; scrollbar-width:thin; scrollbar-color:#ffffff33 transparent; }
 .explorer__sidebar .panel-body { padding:.9rem 1rem 1rem; }
 .discover-map-tools { padding:1rem 1rem 0; }
+.catalog__heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.35rem; }
+.catalog__heading h2 { margin:.1rem 0 .4rem; }
+.catalog__heading > span { color:#a8dfee; font-size:.78rem; }
+.catalog__search { width:100%; min-height:42px; padding:.45rem .7rem; border:1px solid var(--map-border);
+  border-radius:10px; background:#141b27; color:var(--map-text); }
+.catalog__results { display:grid; gap:.45rem; margin:.6rem 0 0; padding:0; list-style:none; }
+.catalog__result { min-width:0; padding:.6rem .7rem; border:1px solid var(--map-border);
+  border-inline-start:2px solid #537784; border-radius:10px; background:#17212d; }
+.catalog__type { display:flex; gap:.35rem; align-items:center; color:#afd7e2; font-size:.72rem; }
+.catalog__type > span { width:.45rem; height:.45rem; border-radius:50%; }
+.catalog__title { display:flex; align-items:center; justify-content:space-between; gap:.5rem; width:100%;
+  padding:.25rem 0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.catalog__title:hover strong { text-decoration:underline; }
+.catalog__title > span { color:#9bd8ed; font-size:1.2rem; }
+.catalog__meta { margin:.2rem 0 .45rem; color:#b8c5d5; font-size:.78rem; }
+.catalog__empty { margin:.6rem 0; color:#c8d4e3; }
 .layer-search { display:grid; gap:.5rem; margin:.5rem 0 .75rem; }
 .layer-search input { width:100%; min-height:42px; padding:.45rem .7rem; border:1px solid var(--map-border);
   border-radius:12px; background:var(--map-surface); color:var(--map-text); }
@@ -461,16 +502,17 @@
   .map-crew-sprite--moving svg { animation:crew-step .22s ease-in-out infinite alternate; }
 }
 @media (max-width:760px) and (orientation:portrait) {
-  .flight-landscape-hint { display:block; flex-basis:100%; font-weight:700; }
   .flight-tools--flying > .btn { min-height:42px; }
   .flight-tools--flying > .btn span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
   .flight-tools--flying > .btn { min-width:42px; justify-content:center; }
 }
 @media (orientation:landscape) and (max-height:520px) and (pointer:coarse) {
   .explorer .explorer__workspace:has(.globe3d--flying) .stage .flight-tools--flying {
-    top:9px; left:auto; right:12px; max-width:calc(100% - 100px);
+    top:63px; left:auto; right:12px; max-width:calc(100% - 310px);
   }
-  .globe3d--flying .flight-story { top:59px; right:12px; width:min(300px,45%); max-height:calc(100% - 114px); }
+  .flight-tools--flying > .btn span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .flight-tools--flying > .btn { min-width:42px; justify-content:center; }
+  .globe3d--flying .flight-story { top:109px; right:12px; width:min(300px,45%); max-height:calc(100% - 164px); }
   .globe3d--flying .drone-controls { bottom:48px; }
   .globe3d--flying .flight-readout { bottom:10px; }
 }
@@ -484,6 +526,9 @@
   gap:.4rem; max-width:calc(100% - 102px); padding:.35rem .45rem; border-radius:10px; background:var(--map-panel); }
 .drone-controls, .drone-controls * { touch-action:none; -webkit-touch-callout:none; user-select:none; }
 .explorer .map-route { max-width:min(530px, calc(100% - 40px)); max-height:min(33dvh,300px); overflow:auto; }
+.map-route__launch { flex-basis:100%; display:flex; gap:.35rem; }
+.map-route__launch .btn { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:.3rem; min-height:44px; }
+.explorer .map-route--ready { border-top:2px solid #c88566; }
 .map-route__summary { border:0; padding:0; color:inherit; background:transparent; text-align:left; cursor:pointer; }
 .map-route__summary span:last-child { color:#a1dff1; }
 @media (max-width:760px) {
@@ -501,8 +546,31 @@
   .gps-maneuver { padding:.35rem .4rem; gap:.3rem; }
   .navigation-hud__headline > button { padding-inline:.35rem; }
   .explorer .explorer__sidebar--directions { height:var(--explorer-sheet-height,35%); }
-  .explorer .map-route { left:10px; max-width:calc(100% - 20px); }
+  .explorer .map-route { left:70px; max-width:calc(100% - 80px); }
   .explorer-credit { left:9px; max-width:58%; overflow-wrap:anywhere; }
   .explorer .map-hud--scale { right:9px; max-width:37%; text-align:right; overflow-wrap:anywhere; }
   .flight-walk-status { left:73px; top:163px; max-width:calc(100% - 83px); }
+}
+@media (min-width:761px) {
+  .explorer .explorer__workspace:not(.explorer__workspace--wide) .stage {
+    right:calc(var(--explorer-panel-width,400px) + 23px);
+  }
+  .explorer .explorer__sidebar { bottom:34px; max-height:none; }
+  .explorer__workspace:not(.explorer__workspace--wide) .explorer-credit { max-width:calc(100% - 36px); }
+  .explorer .explorer__workspace:not(.explorer__workspace--wide) .map-hud--scale { bottom:31px; }
+}
+@media (min-width:600px) and (max-width:760px) and (orientation:landscape) and (max-height:520px) {
+  .explorer .explorer__workspace:not(.explorer__workspace--wide) .stage {
+    right:calc(min(var(--explorer-panel-width,400px),44%) + 12px);
+  }
+  .explorer .explorer__sidebar { inset:63px 6px 8px auto; width:min(var(--explorer-panel-width,400px),44%);
+    height:auto; max-height:none; border-radius:12px; }
+  .explorer__sidebar .explorer__panel-handle { min-height:30px; border-radius:12px 12px 0 0; }
+  .explorer__resize-sheet { display:none; }
+  .explorer-map-controls { flex-direction:row; }
+  .explorer__workspace:has(.explorer__sidebar:not([hidden])) .stage :is(.flight-tools,.map-route) { bottom:40px; }
+  .explorer__workspace:has(.explorer__sidebar:not([hidden])) .route-tools { bottom:12px; }
+  .explorer__workspace:has(.explorer__sidebar:not([hidden])) .route-quick-menu {
+    top:clamp(105px,var(--route-menu-y),calc(100% - 114px));
+  }
 }

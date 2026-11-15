@@ -35,14 +35,17 @@ export function prepareRouteNotices() {
   try { void Notification.requestPermission().catch(() => {}); } catch { /* This browser rejected the request. */ }
 }
 
-export function routeNotice(text: string) {
+export function routeNotice(text: string, audible = false) {
   if (!notificationsSupported() || Notification.permission !== "granted") return;
   const target = location.href;
-  void marsWorker().then((worker) => worker.showNotification("Martian Map · GPS demo", {
-    body: text, tag: "martian-map-gps", silent: true,
-    icon: new URL("images/martian-map-logo.png", worker.scope).href,
-    data: { target },
-  })).catch(() => {});
+  void marsWorker().then((worker) => {
+    const options: NotificationOptions & { renotify: boolean } = {
+      body: text, tag: "martian-map-gps", silent: !audible, renotify: audible,
+      icon: new URL("images/martian-map-logo.png", worker.scope).href,
+      data: { target },
+    };
+    return worker.showNotification("Martian Map · GPS demo", options);
+  }).catch(() => {});
 }
 
 export function clearRouteNotice() {

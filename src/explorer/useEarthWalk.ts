@@ -94,7 +94,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     cueHistory.current.set(key, now);
     setCue(id);
     if (!mute.current) audio.current?.speak(id);
-    if (session?.notifications) routeNotice(cueText(id));
+    if (session?.notifications) routeNotice(cueText(id), document.hidden && !mute.current);
     return true;
   }
 
@@ -357,7 +357,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
           fixState = "weak";
           setHasFix(false);
           setMessage("Waiting for better location accuracy (12 m or better).");
-          announce("gpsLost");
+          if (!document.hidden) announce("gpsLost");
           gps.current?.moved(null);
           deviating(0, 12, Date.now());
           lastMove = 0; publish(false);
@@ -448,7 +448,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
         fixState = "waiting";
         setHasFix(false);
         setMessage("Location signal lost. Waiting for a fresh fix.");
-        announce("gpsLost");
+        if (!document.hidden) announce("gpsLost");
         gps.current?.moved(null);
         deviating(0, 12, Date.now());
         lastMove = 0;
@@ -489,14 +489,17 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   useEffect(() => {
     if (!session?.notifications || paused) return;
     const onVisibility = () => {
-      if (!document.hidden || state.current.arrived) return;
-      const last = lastCue.current;
-      const instruction = last && Date.now() - last.at < 30_000 ? `Last cue: ${cueText(last.cue)} ` : "";
-      routeNotice(`${instruction}Reopen Martian Map for live GPS updates.`);
+      const s = state.current;
+      if (!document.hidden || s.arrived) return;
+      if (!hasFix) { routeNotice("Waiting for a fresh GPS fix."); return; }
+      const stop = stops[s.next];
+      const target = stop ? stop.point.name ?? `Stop ${s.next + 1}` : "Lander";
+      const instruction = rejoin ?? walkDirection(s.track, s.metres, s.stopDistances[s.next] ?? Infinity, target, !detailed);
+      routeNotice(`Last known direction: ${instruction.text}`);
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [session?.notifications, paused]);
+  }, [session?.notifications, paused, hasFix, rejoin, stops, detailed]);
 
   useEffect(() => {
     if (!session || !pose?.point || cueHistory.current.has("temperature")) return;

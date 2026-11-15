@@ -33,8 +33,8 @@ export function usableFix(fix: EarthFix, now: number, previous: number) {
 }
 
 export function earthGpsDevice(userAgent: string, touchPoints: number, touchOnly: boolean) {
-  return touchPoints > 0 && (/Android|iPhone|iPad|iPod/i.test(userAgent) ||
-    (/Macintosh/.test(userAgent) && touchPoints > 1) || (/Windows/.test(userAgent) && touchOnly));
+  if (/Android|iPhone|iPad|iPod/i.test(userAgent)) return touchPoints > 0 || touchOnly;
+  return touchPoints > 0 && ((/Macintosh/.test(userAgent) && touchPoints > 1) || (/Windows/.test(userAgent) && touchOnly));
 }
 
 /** Wait for successive fixes outside the error radius in a consistent direction. */
