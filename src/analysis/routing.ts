@@ -1,4 +1,7 @@
-import { cellAt, cellCenter, groundDistanceM } from "../contracts/index.ts";
+import { greatCircleKm } from "../explorer/geo.ts";
+import { edgeRoughness, localRoughness, terrainPenalty } from "./terrainCost.ts";
+export { DOWNHILL_PENALTY_FACTOR } from "./terrainCost.ts";
+import { cellAt, cellCenter, groundDistanceM, unprojectMars } from "../contracts/index.ts";
 import type { ProjectedPoint, RasterCell, RoundTrip, RouteLeg, RouteRequest, RouteResult, TerrainGrid } from "../contracts/index.ts";
 
 /**
@@ -21,22 +24,30 @@ const NEIGHBOURS: readonly (readonly [number, number])[] = [
   [-1, 0], [0, 1], [1, 0], [0, -1], [-1, 1], [1, 1], [1, -1], [-1, -1],
 ];
 
-export const DOWNHILL_PENALTY_FACTOR = 0.5;
-
 interface Graph {
   terrain: TerrainGrid;
   runEast: number;
   runNorth: number;
   runDiagonal: number;
+  runs?: number[][];
 }
 
-function buildGraph(terrain: TerrainGrid): Graph {
+function buildGraph(terrain: TerrainGrid, exactRuns = false): Graph {
   const { layout } = terrain;
   // Use the grid's central latitude; the variation across 384 m is negligible.
   const mid = cellCenter(layout, { row: Math.floor(layout.height / 2), column: 0 });
   const runEast = groundDistanceM(mid, { xM: mid.xM + layout.pixelSizeM, yM: mid.yM });
   const runNorth = layout.pixelSizeM;
-  return { terrain, runEast, runNorth, runDiagonal: Math.hypot(runEast, runNorth) };
+  const runs = exactRuns ? Array.from({ length: layout.height }, (_, row) => {
+    const from = cellCenter(layout, { row, column: 0 });
+    const point = unprojectMars(from);
+    return NEIGHBOURS.map(([dr, dc]) => {
+      const next = unprojectMars({ xM: from.xM + dc * layout.pixelSizeM, yM: from.yM - dr * layout.pixelSizeM });
+      return greatCircleKm({ lat: point.latitudePlanetocentricDeg, lon: point.longitudeEastDeg },
+        { lat: next.latitudePlanetocentricDeg, lon: next.longitudeEastDeg }) * 1000;
+    });
+  }) : undefined;
+  return { terrain, runEast, runNorth, runDiagonal: Math.hypot(runEast, runNorth), runs };
 }
 
 function slopeDeg(rise: number, run: number): number {
@@ -85,9 +96,11 @@ class MinHeap {
 interface SearchOptions {
   maxAbsSlopeDeg: number;
   penaltyWeight: number;
+  roughness?: Float32Array;
 }
 
-function moveCost(graph: Graph, from: number, to: number, dr: number, dc: number, options: SearchOptions): number | undefined {
+function moveCost(graph: Graph, from: number, to: number, move: number, options: SearchOptions): number | undefined {
+  const [dr, dc] = NEIGHBOURS[move];
   const { width } = graph.terrain.layout;
   const z = graph.terrain.elevationsM;
   const zf = z[from], zt = z[to];
@@ -96,22 +109,23 @@ function moveCost(graph: Graph, from: number, to: number, dr: number, dc: number
     // No corner cutting across unknown cells.
     if (!Number.isFinite(z[from + dr * width]) || !Number.isFinite(z[from + dc])) return undefined;
   }
-  const run = dr === 0 ? graph.runEast : dc === 0 ? graph.runNorth : graph.runDiagonal;
+  const run = graph.runs?.[Math.floor(from / width)][move] ??
+    (dr === 0 ? graph.runEast : dc === 0 ? graph.runNorth : graph.runDiagonal);
   const slope = slopeDeg(zt - zf, run);
   if (Math.abs(slope) > options.maxAbsSlopeDeg) return undefined;
   if (options.penaltyWeight === 0) return run;
-  const p = Math.abs(slope) / options.maxAbsSlopeDeg;
-  const factor = slope > 0 ? 1 : DOWNHILL_PENALTY_FACTOR;
-  return run * (1 + options.penaltyWeight * factor * p * p);
+  return run * (1 + options.penaltyWeight * terrainPenalty(zt - zf, run, options.maxAbsSlopeDeg,
+    edgeRoughness(options.roughness, from, to)));
 }
 
 function hasTraversableMove(graph: Graph, index: number, options: SearchOptions): boolean {
   const { width, height } = graph.terrain.layout;
   const row = Math.floor(index / width), column = index % width;
-  for (const [dr, dc] of NEIGHBOURS) {
+  for (let move = 0; move < NEIGHBOURS.length; move++) {
+    const [dr, dc] = NEIGHBOURS[move];
     const r = row + dr, c = column + dc;
     if (r < 0 || c < 0 || r >= height || c >= width) continue;
-    if (moveCost(graph, index, r * width + c, dr, dc, options) !== undefined) return true;
+    if (moveCost(graph, index, r * width + c, move, options) !== undefined) return true;
   }
   return false;
 }
@@ -125,7 +139,14 @@ function search(graph: Graph, start: number, goal: number, options: SearchOption
   const parent = new Int32Array(n).fill(-1);
   const closed = new Uint8Array(n);
   const goalRow = Math.floor(goal / width), goalColumn = goal % width;
+  const toLatLon = (index: number) => {
+    const { latitudePlanetocentricDeg: lat, longitudeEastDeg: lon } =
+      unprojectMars(cellCenter(graph.terrain.layout, { row: Math.floor(index / width), column: index % width }));
+    return { lat, lon };
+  };
+  const target = graph.runs && toLatLon(goal);
   const heuristic = (index: number) => {
+    if (target) return greatCircleKm(toLatLon(index), target) * 1000;
     const dr = Math.abs(Math.floor(index / width) - goalRow) * graph.runNorth;
     const dc = Math.abs((index % width) - goalColumn) * graph.runEast;
     return Math.hypot(dr, dc);
@@ -139,12 +160,13 @@ function search(graph: Graph, start: number, goal: number, options: SearchOption
     if (current === goal) break;
     closed[current] = 1;
     const row = Math.floor(current / width), column = current % width;
-    for (const [dr, dc] of NEIGHBOURS) {
+    for (let move = 0; move < NEIGHBOURS.length; move++) {
+      const [dr, dc] = NEIGHBOURS[move];
       const r = row + dr, c = column + dc;
       if (r < 0 || c < 0 || r >= height || c >= width) continue;
       const next = r * width + c;
       if (closed[next]) continue;
-      const cost = moveCost(graph, current, next, dr, dc, options);
+      const cost = moveCost(graph, current, next, move, options);
       if (cost === undefined) continue;
       const candidate = g[current] + cost;
       if (candidate < g[next] || (candidate === g[next] && current < parent[next])) {
@@ -178,11 +200,11 @@ function toLeg(graph: Graph, from: ProjectedPoint, to: ProjectedPoint, cells: nu
 
 /** Closest cell within the search radius connected to the fixed endpoint by legal moves. */
 export function nearestConnectedPoint(terrain: TerrainGrid, fixed: ProjectedPoint, requested: ProjectedPoint,
-  maxAbsSlopeDeg: number, radiusM: number): ProjectedPoint | null {
+  maxAbsSlopeDeg: number, radiusM: number, exactRuns = false): ProjectedPoint | null {
   const { width, height } = terrain.layout;
   const cell = cellAt(terrain.layout, fixed);
   if (!cell || !Number.isFinite(terrain.elevationsM[cell.row * width + cell.column]) || !(maxAbsSlopeDeg > 0 && maxAbsSlopeDeg < 90)) return null;
-  const graph = buildGraph(terrain);
+  const graph = buildGraph(terrain, exactRuns);
   const options = { maxAbsSlopeDeg, penaltyWeight: 0 };
   const seen = new Uint8Array(width * height);
   const queue = new Uint32Array(width * height);
@@ -197,10 +219,11 @@ export function nearestConnectedPoint(terrain: TerrainGrid, fixed: ProjectedPoin
       const d = groundDistanceM(requested, candidate);
       if (d < bestM) { best = candidate; bestM = d; }
     }
-    for (const [dr, dc] of NEIGHBOURS) {
+    for (let move = 0; move < NEIGHBOURS.length; move++) {
+      const [dr, dc] = NEIGHBOURS[move];
       const r = row + dr, c = column + dc, next = r * width + c;
       if (r < 0 || c < 0 || r >= height || c >= width || seen[next]) continue;
-      if (moveCost(graph, index, next, dr, dc, options) === undefined) continue;
+      if (moveCost(graph, index, next, move, options) === undefined) continue;
       seen[next] = 1; queue[tail++] = next;
     }
   }
@@ -222,7 +245,7 @@ export interface PlannedRoute {
 type Preparation = { graph: Graph; start: number; goal: number; strict: SearchOptions; unknownNote: string; unknownCells: number }
   | { result: Exclude<RouteResult, { status: "available" }> };
 
-function prepareRoute(request: RouteRequest): Preparation {
+function prepareRoute(request: RouteRequest, exactRuns = false): Preparation {
   const { habitat, destination, terrain, maxAbsSlopeDeg, slopePenaltyWeight } = request;
   if (!validPoint(habitat) || !validPoint(destination) ||
       !(maxAbsSlopeDeg > 0 && maxAbsSlopeDeg < 90) ||
@@ -244,7 +267,7 @@ function prepareRoute(request: RouteRequest): Preparation {
     return { result: { status: "unavailable", reason: "missing-terrain", detail: `The ${!Number.isFinite(terrain.elevationsM[start]) ? "habitat" : "destination"} cell has no valid elevation; unknown terrain is never treated as flat.` } };
   }
 
-  const graph = buildGraph(terrain);
+  const graph = buildGraph(terrain, exactRuns);
   const strict: SearchOptions = { maxAbsSlopeDeg, penaltyWeight: 0 };
   const unknownCells = terrain.elevationsM.reduce((count, value) => count + (Number.isFinite(value) ? 0 : 1), 0);
   const unknownNote = unknownCells ? ` ${unknownCells} unknown cells were excluded, so this describes the known grid only.` : "";
@@ -259,15 +282,23 @@ function prepareRoute(request: RouteRequest): Preparation {
   return { graph, start, goal, strict, unknownNote, unknownCells };
 }
 
-export function planDirectionalLeg(request: RouteRequest) {
-  const prepared = prepareRoute(request);
+export function planDirectionalLeg(request: RouteRequest, comparison?: { balancedWeight: number; spacingM: number; shortestOnly?: boolean }) {
+  const prepared = prepareRoute(request, !!comparison);
   if ("result" in prepared) return prepared.result;
   const { graph, start, goal, strict, unknownNote } = prepared;
   const path = search(graph, start, goal, strict);
   if (!path) return { status: "no-route" as const, detail: `No connected path stays within ${strict.maxAbsSlopeDeg}° on this leg.${unknownNote}` };
-  const weighted = request.slopePenaltyWeight ? search(graph, start, goal, { ...strict, penaltyWeight: request.slopePenaltyWeight }) : undefined;
+  const roughness = comparison && !comparison.shortestOnly ? localRoughness(graph.terrain.elevationsM, graph.terrain.layout.width,
+    graph.terrain.layout.height, comparison.spacingM) : undefined;
+  const weighted = (penaltyWeight: number) => ({ ...strict, penaltyWeight, roughness });
   const leg = (cells: number[]) => toLeg(graph, request.habitat, request.destination, cells);
-  return { status: "available" as const, shortest: leg(path), alternative: weighted && !sameCells(path, weighted) ? leg(weighted) : undefined };
+  const lower = !comparison?.shortestOnly && request.slopePenaltyWeight ? search(graph, start, goal, weighted(request.slopePenaltyWeight)) : undefined;
+  const balanced = comparison && !comparison.shortestOnly ? search(graph, start, goal, weighted(comparison.balancedWeight)) : undefined;
+  return { status: "available" as const, shortest: leg(path),
+    balanced: balanced && !sameCells(path, balanced) ? leg(balanced) : undefined,
+    alternative: lower && !sameCells(path, lower) ? leg(lower) : undefined,
+    roughness };
+
 }
 
 export function planRoundTrip(request: RouteRequest): PlannedRoute {

@@ -3,9 +3,9 @@ import { formatLatLon } from "./geo.ts";
 import { searchEvents } from "./catalog.ts";
 import type { CatalogEvent } from "./catalog.ts";
 import { MAX_STOPS, validMission, validStop } from "./missionPlan.ts";
-import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
-import { routeColors, routeProfile, selectedLeg, summarizeItinerary } from "./itinerary.ts";
-import type { PlannedLeg } from "./itinerary.ts";
+import type { Endpoint, MissionOptions, RouteChoice, Stop } from "./missionPlan.ts";
+import { availableChoices, selectedLeg, summarizeItinerary } from "./itinerary.ts";
+import type { NavigationProgress, PlannedLeg } from "./itinerary.ts";
 import { marsAt } from "./marsTime.ts";
 import { RoverIcon } from "./icons.tsx";
 
@@ -20,110 +20,64 @@ const labelPoint = (point: Endpoint) => point.name ?? formatLatLon(point, 4);
 const terrainName = ({ label, spacingM, regional }: { label: string; spacingM: number; regional: boolean }) =>
   `${label} · ${spacingM < 1000 ? `${Math.round(spacingM)} m` : `~${(spacingM / 1000).toFixed(1)} km`}${regional ? " · regional estimate" : ""}`;
 
-export function RouteChoices({ legs, mission, walkingSlope, choice, choose }: {
-  legs: readonly PlannedLeg[]; mission: MissionOptions; walkingSlope: number; choice: boolean | null;
-  choose: (value: boolean) => void;
+export function TravelModes({ rover, choose }: { rover: boolean; choose: (rover: boolean) => void }) {
+  return <div className="travel-modes" role="group" aria-label="Travel mode">
+    <button type="button" className="btn travel-mode" aria-pressed={!rover} onClick={() => choose(false)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="13" cy="4.5" r="1.8" /><path d="m7 22 4-6 2-7m-2 7 5 2 1 4m-9-9 5-4 3 5h4" /></svg>Walk
+    </button>
+    <button type="button" className="btn travel-mode" aria-pressed={rover} onClick={() => choose(true)}><RoverIcon />Rover</button>
+  </div>;
+}
+
+export function RouteChoices({ legs, mission, choice, choose, progress }: {
+  legs: readonly PlannedLeg[]; mission: MissionOptions; choice: RouteChoice;
+  choose: (value: RouteChoice) => void; progress?: NavigationProgress | null;
 }) {
-  const hasAlternative = legs.some(({ result }) => result?.status === "ok" && result.alternative);
+  const choices = availableChoices(legs);
   return <div className="route-choices" role="group" aria-label="Choose a route">
-    {(hasAlternative ? [false, true] : [false]).map((lowerSlope) => {
-      const estimate = routeProfile(legs, mission, lowerSlope, walkingSlope);
-      if (!estimate) return null;
-      return <button type="button" className="btn route-choice" key={String(lowerSlope)} aria-pressed={choice === lowerSlope}
-        onClick={() => choose(lowerSlope)}><span className="route-choice__dot" style={{ background: lowerSlope ? routeColors.lowerSlope : routeColors.shortest }} />
-        <strong>{lowerSlope ? "Lower slope cost" : "Shortest"}</strong><span>{distance(estimate.distanceKm)}</span>
-        <small>{estimate.regional ? "Regional estimate" : <>
-          <span aria-label="Walking duration"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <circle cx="13" cy="4.5" r="1.8" /><path d="m7 22 4-6 2-7m-2 7 5 2 1 4m-9-9 5-4 3 5h4" />
-          </svg> {estimate.walk === null ? "—" : minutes(estimate.walk)}</span>
-          <span aria-label="Rover duration"><RoverIcon /> {estimate.rover === null ? "—" : minutes(estimate.rover)}</span>
-        </>}</small></button>;
+    {choices.map(({ id, label, color }) => {
+      const estimate = summarizeItinerary(legs, [], mission, id, progress);
+      return <button type="button" className="btn route-choice" key={id} aria-pressed={choice === id}
+        title={label} onClick={() => choose(id)} style={{ "--route-color": color } as React.CSSProperties}>
+        <span className="route-choice__dot" style={{ background: color }} />
+        <strong>{id === "shortest" ? "Shortest" : id === "balanced" ? "Balanced" : "Lower terrain"}</strong>
+        <span>{estimate.travel === null ? distance(estimate.distanceKm) : minutes(estimate.travel)}</span>
+        <small>{distance(estimate.distanceKm)}{id === "balanced" || (id === "shortest" && !choices.some(x => x.id === "balanced")) ? " · recommended" : ""}</small>
+      </button>;
     })}
   </div>;
 }
 
-export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart, onClear, comparison }: {
+export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart, onClear, comparison, remainingRoute = false }: {
   pick: Pick | null; legs: readonly PlannedLeg[]; summary: ReturnType<typeof summarizeItinerary>;
   onCancel: () => void; onDetails: () => void; onFit: () => void; onStart?: () => void; onClear: () => void;
-  comparison: React.ReactNode;
+  comparison: React.ReactNode; remainingRoute?: boolean;
 }) {
   if (pick === null && !legs.length) return null;
-  const picking = pick !== null;
   const pending = legs.some((leg) => !leg.result);
-  const hasRoute = legs.some((leg) => leg.result?.status === "ok");
-  const title = pick === "start" ? "Tap Mars to place the lander" : pick === "position" ? "Set crew position on Mars"
-    : pick === "block" ? "Mark a blocked terrain cell" : typeof pick === "number" ? `Place stop ${pick + 1}` : "Choose a stop";
+  const title = pick === "start" ? "Place the lander" : pick === "position" ? "Set crew position"
+    : pick === "block" ? "Mark blocked terrain" : typeof pick === "number" ? `Place stop ${pick + 1}` : "Choose a destination";
   return <div className="map-route">
-    {picking ? <div role="status" className="map-route__status"><strong>{title}</strong><span>Use the map, a site flag, or search.</span></div>
-      : <button type="button" className="map-route__status map-route__summary" aria-label="Route details" onClick={onDetails}>
-        <strong>{summary.complete ? `${distance(summary.distanceKm)} ${legs.at(-1)?.returning ? "round trip" : "one way"}`
-          : pending ? "Calculating legs…" : "Itinerary incomplete"}</strong>
-        {summary.regional && <span>Includes coarse MOLA terrain</span>}
-        <span>Route details ›</span>
-      </button>}
-    {!picking && summary.complete && comparison}
+    {pick !== null ? <div role="status" className="map-route__status"><strong>{title}</strong><span>Tap the map or search a site.</span></div>
+      : <>
+      <div role="status" className="map-route__status"><strong>{summary.complete ? `${summary.travel === null ? distance(summary.distanceKm) : minutes(summary.travel)} · ${remainingRoute ? "remaining" : legs.at(-1)?.returning ? "round trip" : "one way"}`
+        : pending ? "Calculating terrain…" : "Route unavailable"}</strong>{summary.regional && <span>Regional terrain estimate</span>}</div>
+      {comparison}
+      </>}
     <div className="map-route__actions">
-      {picking ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
+      {pick !== null ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
         {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>
           <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
             <path d="M4 11 20 4l-7 16-2.3-6.7L4 11Z" />
           </svg>
           Start route
         </button>}
-        {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
+        <button type="button" className="btn btn--small" onClick={onDetails}>Route info</button>
+        {!!legs.length && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
         <button type="button" className="btn btn--small" onClick={onClear}>Clear route</button>
       </>}
     </div>
   </div>;
-}
-
-export function RouteSettings({ legs, stops, mission, setMission, slope, setSlope, weighted, utc }: {
-  legs: readonly PlannedLeg[]; stops: Stop[]; mission: MissionOptions; setMission: (value: MissionOptions) => void;
-  slope: number; setSlope: (value: number) => void; weighted: boolean; utc: number;
-}) {
-  const estimate = routeProfile(legs, mission, weighted, slope);
-  const number = (label: string, field: "speed" | "budget" | "reserve" | "roverSpeed" | "roverSlope", min: number, max: number, step = 1) =>
-    <label>{label}<input type="number" min={min} max={max} step={step} value={Number.isFinite(mission[field]) ? mission[field] : ""}
-      onChange={(event) => setMission({ ...mission, [field]: event.target.valueAsNumber })} /></label>;
-  const arrival = (profile: "walk" | "rover") => {
-    if (!estimate || estimate[profile] === null) return null;
-    const speed = profile === "walk" ? mission.speed : mission.roverSpeed;
-    let time = utc;
-    return legs.map((leg) => {
-      time += selectedLeg(leg.result, weighted)!.distanceKm * 1_000_000 / speed;
-      const mars = marsAt(time, leg.to);
-      const value = { time, mars, point: leg.to, returning: leg.returning };
-      if (leg.toStop !== null) time += stops[leg.toStop].scienceMinutes * 60_000;
-      return value;
-    });
-  };
-  const arrivals = validMission(mission) && stops.every(validStop)
-    ? [["Walk", arrival("walk")], ["Rover", arrival("rover")]] as const : [];
-  return <>
-    <fieldset className="directions__options"><legend>Travel assumptions</legend>
-      <label>Travel mode<select value={mission.rover ? "rover" : "walk"}
-        onChange={(event) => setMission({ ...mission, rover: event.target.value === "rover" })}>
-        <option value="walk">Walk</option><option value="rover">Rover</option>
-      </select></label>
-      {number("Walking speed (m/s)", "speed", 0.1, 2, 0.1)}
-      <label>Walking slope limit (°)<input type="number" min={1} max={89} value={Number.isFinite(slope) ? slope : ""}
-        onChange={(event) => setSlope(event.target.valueAsNumber)} /></label>
-      {number("Rover speed (m/s)", "roverSpeed", 0.1, 20, 0.1)}
-      {number("Rover slope limit (°)", "roverSlope", 1, 89)}
-      {number("Available time (min)", "budget", 1, 10080)}
-      {number("Return reserve (min)", "reserve", 0, mission.budget)}
-    </fieldset>
-    {arrivals.some(([, values]) => values) && <details open><summary>Arrivals if leaving now</summary>
-      {arrivals.map(([profile, values]) => values && <section key={profile}><h3>{profile}</h3><ol>
-        {values.map(({ time, mars, point, returning }, index) => <li key={index}>
-          <strong>{returning ? "Lander" : labelPoint(point)}</strong> · <time dateTime={new Date(time).toISOString()}>{new Date(time).toLocaleString()}</time>
-          <br />Sol {mars.sol} · {mars.time} LTST · {mars.daylight}
-        </li>)}
-      </ol></section>)}
-    </details>}
-    {estimate?.regional && <p className="small">Coarse MOLA supports a regional distance estimate.</p>}
-    <p className="small muted">Travel times use the selected speeds and measured terrain. Arrival times include earlier science stops.</p>
-  </>;
 }
 
 function EndpointField({ label, point, active, events, onPick, onSelect }: {
@@ -145,7 +99,7 @@ function EndpointField({ label, point, active, events, onPick, onSelect }: {
           onKeyDown={(event) => {
             if (event.key !== "Enter" || !results[0]?.location) return;
             event.preventDefault();
-            onSelect({ ...results[0].location, name: results[0].title });
+            onSelect({ ...results[0].location, name: results[0].title, catalogEventId: results[0].id });
             setEditing(false);
             event.currentTarget.blur();
           }} />
@@ -157,34 +111,36 @@ function EndpointField({ label, point, active, events, onPick, onSelect }: {
     {editing && query.trim() && <div className="directions__suggestions">
       {results.length ? results.map((event) => <button type="button" key={event.id} onClick={() => {
         if (!event.location) return;
-        onSelect({ ...event.location, name: event.title }); setEditing(false); setQuery("");
+        onSelect({ ...event.location, name: event.title, catalogEventId: event.id }); setEditing(false); setQuery("");
       }}>{event.title}</button>) : <span>No matching sites</span>}
     </div>}
   </div>;
 }
 
 export function Directions({ start, stops, returning, setReturning, pick, setPick, clearStart, clearRoute, remove, move, swap, setScience,
-  legs, slope, fit, weighted, choice, setWeighted, mission, accept, preview, setPreview, retry, extra,
+  legs, slope, fit, weighted, choice, setWeighted, mission, onMode, onStart, onInfo, progress, science, accept, preview, setPreview, retry, extra,
   events, selectEndpoint, onDemo, onSave, walking, liveEligible }: {
   start: Endpoint | null; stops: Stop[]; returning: boolean; setReturning: (value: boolean) => void;
   pick: Pick | null; setPick: (pick: Pick | null) => void; clearStart: () => void; clearRoute: () => void; remove: (index: number) => void;
   move: (index: number, offset: number) => void; swap: () => void; setScience: (index: number, minutes: number) => void;
   legs: PlannedLeg[]; slope: number; fit: () => void;
-  weighted: boolean; choice: boolean | null; setWeighted: (value: boolean) => void; mission: MissionOptions;
+  weighted: RouteChoice; choice: RouteChoice; setWeighted: (value: RouteChoice) => void; mission: MissionOptions;
   accept: (index: number, endpoint: "start" | "end", point: Endpoint) => void;
   preview: number | null; setPreview: (index: number | null) => void; retry: () => void; extra: React.ReactNode;
   events: readonly CatalogEvent[]; selectEndpoint: (target: "start" | "add" | number, point: Endpoint) => void;
+  onMode: (rover: boolean) => void; onStart?: () => void; onInfo: () => void; progress?: NavigationProgress | null; science?: React.ReactNode;
   onDemo: () => void; onSave: () => void; walking: boolean;
   liveEligible: boolean;
 }) {
-  const totals = summarizeItinerary(legs, stops, mission, weighted);
+  const totals = summarizeItinerary(legs, stops, mission, weighted, progress);
   const hasResult = legs.some(({ result }) => result?.status === "ok");
   const started = legs.length > 0;
   const [addingAt, setAddingAt] = useState<number | null>(null);
   const adding = addingAt === stops.length;
   const availableEvents = events.filter((event) => event.location);
   return <div className="panel-body directions">
-    <h2>Directions</h2>
+    <header className="directions__heading"><h2>Directions</h2><button type="button" className="btn btn--small" onClick={onInfo}>Route info</button></header>
+    <TravelModes rover={mission.rover} choose={onMode} />
     <div className="directions__fields">
       <div className="directions__waypoint directions__waypoint--start">
         <span aria-hidden="true" className="directions__dot" />
@@ -200,11 +156,7 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
               onSelect={(value) => selectEndpoint(index, value)} />
           </div>
           <details className="itinerary-stop__actions">
-            <summary aria-label={`Edit stop ${index + 1}`}>Edit <span>· {Number.isFinite(scienceMinutes) ? minutes(scienceMinutes) + " science" : "Set science time"}</span></summary>
-            <label className="itinerary-science">Science at stop {index + 1} (min)
-              <input type="number" min={0} max={240} value={Number.isFinite(scienceMinutes) ? scienceMinutes : ""}
-                onChange={(event) => setScience(index, event.target.valueAsNumber)} />
-            </label>
+            <summary aria-label={`Edit stop ${index + 1}`}>Edit stop</summary>
             <div className="mission-row">
               <button className="btn btn--small" type="button" disabled={!index} aria-label={`Move stop ${index + 1} up`} onClick={() => move(index, -1)}>↑</button>
               <button className="btn btn--small" type="button" disabled={index === stops.length - 1} aria-label={`Move stop ${index + 1} down`} onClick={() => move(index, 1)}>↓</button>
@@ -231,11 +183,13 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
       <div className="directions__route-summary">
         <div><h3>{totals.complete ? totals.travel !== null ? minutes(totals.travel) : distance(totals.distanceKm)
           : legs.some(({ result }) => result && result.status !== "ok") ? "Route unavailable" : "Finding route…"}</h3>
-          {totals.complete && <span className="small">{totals.travel !== null ? `${distance(totals.distanceKm)} · ` : ""}{returning ? "Round trip" : "One way"}</span>}</div>
+          {totals.complete && <span className="small">{totals.travel !== null ? `${distance(totals.distanceKm)} · ` : ""}{progress ? "Remaining route" : returning ? "Round trip" : "One way"}</span>}</div>
       </div>
       {totals.regional && <p className="small muted">Regional estimate. Earth GPS can show your movement. Turn, slope, and walking detour guidance require detailed terrain.</p>}
-      {totals.complete && <RouteChoices legs={legs} mission={mission} walkingSlope={slope} choice={choice} choose={setWeighted} />}
+      {totals.complete && <RouteChoices legs={legs} mission={mission} choice={choice} choose={setWeighted} progress={progress} />}
+      {science}
       {hasResult && <div className="mission-row">
+        <button type="button" className="btn btn--small directions__start" disabled={!onStart} onClick={onStart}>Start route</button>
         <button type="button" className="btn btn--small" onClick={fit}>Fit route</button>
         <button type="button" className="btn btn--small" onClick={onSave}>Save</button>
       </div>}
@@ -260,16 +214,15 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
           </li>;
         })}
       </ol>
-      {totals.science !== null && <p className="small">{minutes(totals.science)} science time
+      {!mission.automatic && totals.science !== null && <p className="small">{minutes(totals.science)} science time
         {totals.remaining !== null && ` · ${minutes(Math.abs(totals.remaining))} ${totals.remaining < 0 ? "short" : "left"} after reserve`}</p>}
       </details>
     </section>}
-    <details>
-      <summary>Route options</summary>
+    <div className="directions__footer">
       {!liveEligible && !walking && <button type="button" className="btn btn--small" onClick={onDemo}>Load GPS practice route</button>}
       <label className="itinerary-return"><input type="checkbox" checked={returning} onChange={(event) => setReturning(event.target.checked)} />Return to lander</label>
       {start && !started && <button className="btn btn--small" type="button" onClick={clearStart}>Clear start</button>}
-    </details>
+    </div>
     {extra}
   </div>;
 }

@@ -4,7 +4,7 @@ import { defineConfig, loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => {
   const approvedInsignia = loadEnv(mode, process.cwd()).VITE_APPROVED_NASA_INSIGNIA;
-  return { base: "./", plugins: [{
+  return { base: "./", worker: { format: "es" }, plugins: [{
   name: "martian-map-offline-manifest",
   apply: "build",
   async writeBundle(options) {

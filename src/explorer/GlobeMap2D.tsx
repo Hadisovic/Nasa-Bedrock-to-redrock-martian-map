@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { clampLat, clusterScreen, formatLatLon, lonDelta, wrapLon } from "./geo.ts";
+import { localMapRegion, loadLocalMapImagery } from "./localMapImagery.ts";
+import { routeAtMapPoint } from "./mapRouteHit.ts";
 import type { LatLon } from "./geo.ts";
 import { FlagCluster, MapFlag, RocketIcon } from "./icons.tsx";
 import { MarkerButton } from "./MarkerButton.tsx";
@@ -51,6 +53,15 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
   const [hover, setHover] = useState<LatLon | null>(null);
   const [openCluster, setOpenCluster] = useState<string | null>(null);
   const [tileTick, setTileTick] = useState(0);
+  const [localImagery, setLocalImagery] = useState<Awaited<ReturnType<typeof loadLocalMapImagery>> | null>(null);
+  const localRegion = view.zoom > 3000 ? localMapRegion(view) : null;
+  useEffect(() => {
+    setLocalImagery(null);
+    if (!localRegion) return;
+    let live = true;
+    void loadLocalMapImagery(localRegion).then((image) => { if (live) setLocalImagery(image); }, () => {});
+    return () => { live = false; };
+  }, [localRegion]);
   const tileCache = useRef(new Map<string, HTMLImageElement | "error">());
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ pinch?: number; startX?: number; startY?: number; moved?: boolean }>({});
@@ -176,6 +187,10 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
       }
     }
 
+    if (localRegion && localImagery) {
+      const a = project(localImagery.northwest, v), b = project(localImagery.southeast, v);
+      ctx.drawImage(localImagery.image, a.x, a.y, b.x - a.x, b.y - a.y);
+    }
     if (sunPoint) {
       const r = Math.PI / 180, sunLat = sunPoint.lat * r;
       ctx.fillStyle = "rgba(1, 5, 18, 0.55)";
@@ -266,6 +281,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       for (const { points, returning, preview, selected = true, color } of paths) {
+        ctx.globalAlpha = selected ? 1 : .8;
         ctx.beginPath();
         let lastX = Infinity;
         for (const point of points) {
@@ -277,15 +293,16 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
         const dash = returning ? [7, 7] : [];
         ctx.setLineDash(dash);
         ctx.strokeStyle = "#0b1724";
-        ctx.lineWidth = returning ? 4 : 8;
+        ctx.lineWidth = selected ? 8 : 4.5;
         ctx.stroke();
         ctx.strokeStyle = color ?? (returning ? "#fff" : preview ? "#ffe689" : "#69d5ff");
-        ctx.lineWidth = returning ? 2.6 : selected ? 5 : 3;
+        ctx.lineWidth = selected ? 5 : 2.5;
         ctx.stroke();
       }
       ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     }
-  }, [basemap, overlays, markers, view, size, tiles, tileTick, project, selectedId, paths, sunPoint]);
+  }, [basemap, overlays, markers, view, size, tiles, tileTick, project, selectedId, paths, sunPoint, localRegion, localImagery]);
 
   // Screen-space clusters; the selected marker always stays on its own.
   const clusters = useMemo(() => {
@@ -314,17 +331,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
     }
   };
   const hitsRoute = ({ x, y }: RouteMapPoint, tolerance: number) => {
-    if (!paths.length) return false;
-    const view = viewRef.current;
-    const nearLeg = (points: readonly LatLon[]) => points.some((point, i) => {
-      if (!i) return false;
-      const a = project(points[i - 1], view), b = project(point, view);
-      if (Math.abs(a.x - b.x) > 180 * view.zoom) return false;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
-      return Math.hypot(x - a.x - t * dx, y - a.y - t * dy) <= tolerance;
-    });
-    return paths.some((path) => !path.preview && nearLeg(path.points));
+    return routeAtMapPoint(paths, { x, y }, (point) => project(point, viewRef.current), tolerance, 180 * viewRef.current.zoom);
   };
   const onPointerMove = (event: React.PointerEvent) => {
     const rect = host.current!.getBoundingClientRect();
@@ -357,7 +364,10 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
       if (onPick) {
         const lat = v.lat + (size.height / 2 - y) / v.zoom;
         if (Math.abs(lat) <= 90) onPick(unproject(x, y, v));
-      } else props.onRouteClick?.(hitsRoute({ x, y }, event.pointerType === "touch" ? 25 : 11) ? { x, y } : null);
+      } else {
+        const route = hitsRoute({ x, y }, event.pointerType === "touch" ? 25 : 11);
+        props.onRouteClick?.(route ? { x, y, choice: route.choice } : null);
+      }
     }
     pointers.current.delete(event.pointerId);
     gesture.current.pinch = undefined;

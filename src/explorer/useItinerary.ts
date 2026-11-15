@@ -18,6 +18,11 @@ export function useItinerary(legs: readonly Leg[], elevation: LayerEntry | undef
   useEffect(() => () => { worker.current?.terminate(); worker.current = null; jobs.current.clear(); }, []);
 
   useEffect(() => {
+    // A worker processes requests in order. Drop obsolete work so a changed
+    // destination or travel mode doesn't wait behind searches nobody needs.
+    if ([...jobs.current.keys()].some((key) => !keys.includes(key)) || !legs.length) {
+      worker.current?.terminate(); worker.current = null; jobs.current.clear();
+    }
     if (!elevation || !legs.length || !(slope >= 1 && slope <= 89)) return;
     const fail = (key: string) => {
       jobs.current.delete(key);

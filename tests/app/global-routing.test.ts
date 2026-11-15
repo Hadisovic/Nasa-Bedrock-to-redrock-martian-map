@@ -58,3 +58,34 @@ test("regional replans go around the reported obstacle cell without modifying ca
   assert.equal(routeGlobalLeg(grid, start, blocked, 15, blocked).status, "unavailable");
   assert.deepEqual(routeGlobalLeg(grid, start, end, 15), direct);
 });
+
+test("a sufficiently steep detour earns a distinct recommendation and obeys the slope limit", () => {
+  const width = 360, height = 180;
+  const start = { lat: -.5, lon: -5.5 }, end = { lat: -.5, lon: 5.5 };
+  const elevations = new Float32Array(width * height);
+  const grid = { width, height, elevations };
+  const flat = routeGlobalLeg(grid, start, end, 15);
+  assert.equal(flat.status, "ok");
+  assert.equal(flat.balanced, undefined);
+  assert.equal(flat.alternative, undefined);
+  assert.ok(flat.shortest.points.every(({ lat }) => lat === start.lat));
+  for (let row = 90; row <= 92; row++) {
+    for (let col = 178; col <= 181; col++) elevations[row * width + col] = row === 92 ? 7000 : 14000;
+  }
+  const route = routeGlobalLeg(grid, start, end, 15);
+  assert.equal(route.status, "ok");
+  assert.ok(route.balanced?.assessment);
+  assert.ok(route.shortest.assessment);
+  assert.ok(route.shortest.distanceKm < route.balanced.distanceKm);
+  assert.ok(route.balanced.assessment.equivalentDistanceKm < route.shortest.assessment.equivalentDistanceKm);
+  const strict = routeGlobalLeg(grid, start, end, 10);
+  assert.equal(strict.status, "ok");
+  assert.ok(strict.shortest.maxSlopeDeg <= 10);
+  assert.ok(strict.shortest.points.some(({ lat }) => lat !== start.lat));
+  const measuredKm = strict.shortest.points.slice(1).reduce((km, point, i) =>
+    km + greatCircleKm(strict.shortest.points[i], point), 0);
+  assert.equal(strict.shortest.distanceKm, measuredKm);
+  const blocked = routeGlobalLeg({ ...grid, elevations: new Float32Array(width * height) }, start, end, 15, { lat: -.5, lon: .5 });
+  assert.equal(blocked.status, "ok");
+  assert.ok(blocked.shortest.points.every(({ lat, lon }) => lat !== -.5 || lon !== .5));
+});

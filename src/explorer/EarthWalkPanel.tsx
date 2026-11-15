@@ -11,8 +11,8 @@ const modeLabel: Record<WalkMode, string> = {
   "Recorded Walk": "Recorded preview",
 };
 
-function RouteMetrics({ metres, speed, paused = false, recorded = false, beforeStart = false, regional = false }: {
-  metres: number; speed: number; paused?: boolean; recorded?: boolean; beforeStart?: boolean; regional?: boolean;
+function RouteMetrics({ metres, speed, paused = false, recorded = false, beforeStart = false, regional = false, movementSeconds, playbackRate = 1, simulationUtc }: {
+  metres: number; speed: number; movementSeconds?: number; playbackRate?: number; simulationUtc?: number | null; paused?: boolean; recorded?: boolean; beforeStart?: boolean; regional?: boolean;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -20,17 +20,18 @@ function RouteMetrics({ metres, speed, paused = false, recorded = false, beforeS
     const timer = window.setInterval(() => setNow(Date.now()), 5000);
     return () => window.clearInterval(timer);
   }, []);
-  const seconds = Number.isFinite(speed) && speed > 0 ? Math.ceil(metres / speed) : null;
+  const seconds = movementSeconds !== undefined ? Math.ceil(movementSeconds) : Number.isFinite(speed) && speed > 0 ? Math.ceil(metres / speed) : null;
   const minutes = seconds === null ? null : Math.ceil(seconds / 60);
   const duration = minutes === null ? "—" : minutes >= 60
     ? `${Math.floor(minutes / 60)} hr ${minutes % 60} min`
     : recorded && seconds !== null && seconds < 60 ? `${seconds} sec` : `${minutes} min`;
   const distance = metres >= 1000 ? `${(metres / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km` : `${Math.round(metres)} m`;
   return <dl className="route-metrics">
-    {(!regional || recorded) && <>
-    <div><dt>ETA</dt><dd>{paused || seconds === null ? "—" : new Date(now + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</dd></div>
-    <div><dt>{beforeStart ? recorded ? "Playback time" : "Travel time" : recorded ? "Playback left" : "Time left"}</dt><dd>{duration}</dd></div>
+    {!regional && <>
+    <div><dt>ETA{recorded ? " · mission" : ""}</dt><dd>{seconds === null ? "—" : new Date((simulationUtc ?? now) + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</dd></div>
+    <div><dt>{beforeStart ? "Travel time" : "Travel left"}</dt><dd>{duration}</dd></div>
     </>}
+    {!regional && recorded && playbackRate > 1 && seconds !== null && <div><dt>Preview left · {playbackRate}×</dt><dd>{seconds / playbackRate < 60 ? `${Math.ceil(seconds / playbackRate)} sec` : `${Math.ceil(seconds / playbackRate / 60)} min`}</dd></div>}
     <div><dt>{beforeStart ? "Distance" : "Distance left"}</dt><dd>{distance}</dd></div>
   </dl>;
 }
@@ -88,12 +89,12 @@ export function EarthWalkSetup({ walk, open, close, started }: {
   </dialog>;
 }
 
-export function EarthWalkControls({ walk, speed, recenter, exit, report, reporting, clearObstacle }: {
-  walk: Walk; speed: number; recenter: () => void; exit: () => void;
+export function EarthWalkControls({ walk, speed, recenter, exit, report, reporting, clearObstacle, onInfo }: {
+  onInfo?: () => void; walk: Walk; speed: number; recenter: () => void; exit: () => void;
   report: () => void; reporting: boolean; clearObstacle?: () => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => { if (!walk.session) setCollapsed(false); }, [walk.session]);
+  const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => { if (!walk.session) setCollapsed(true); }, [walk.session]);
   if (!walk.session) return null;
   const preview = walk.session.mode !== "Outdoor";
   const imminent = walk.guidance && walk.guidance.metres <= 12
@@ -112,14 +113,22 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
       <button type="button" className="btn btn--small" aria-expanded={!collapsed} aria-controls="navigation-steps"
         onClick={() => setCollapsed(!collapsed)}>{collapsed ? "Show" : "Hide"}</button>
     </header>
+    {walk.terrain && !walk.arrived && <p className="navigation-hud__terrain">{walk.terrain.label} · {walk.terrain.slopeDeg.toFixed(1)}° measured grade</p>}
+    {walk.remaining !== null && !walk.arrived && <RouteMetrics metres={walk.remaining} speed={speed} movementSeconds={walk.travelSecondsRemaining}
+      playbackRate={walk.playbackRate} simulationUtc={walk.simulationUtc} paused={walk.paused} recorded={preview} regional={!walk.detailed} />}
+    <div className="mission-row navigation-hud__primary">
+      {!walk.arrived && <button type="button" className="btn btn--small" disabled={walk.obstacleHold} onClick={walk.togglePause}>{walk.paused ? "Resume" : "Pause"}</button>}
+      {preview && !walk.arrived && <button type="button" className="btn btn--small" onClick={walk.cycleRate} title="Fast-forward movement and mission time together" aria-label={`Playback speed ${walk.playbackRate} times; change speed`}>
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="m3 5 8 7-8 7V5Zm10 0 8 7-8 7V5Z" /></svg> {walk.playbackRate}×</button>}
+      {onInfo && <button type="button" className="btn btn--small" onClick={onInfo}>Route info</button>}
+      <button type="button" className="btn btn--small earth-walk-controls__exit" onClick={exit}>Exit</button>
+    </div>
     <div className="navigation-hud__details" id="navigation-steps" hidden={collapsed}>
     {walk.nextStop && !walk.arrived && <strong>{walk.nextStop}</strong>}
     <span className="small">{walk.rover ? "Rover preview" : modeLabel[walk.session.mode]}{walk.paused && !walk.arrived ? " · Paused" : ""}</span>
     {!walk.detailed && <span className="small">Regional estimate · map overview</span>}
     {walk.session.mode === "Outdoor" && walk.accuracy !== null && <span className="small">GPS accuracy · ±{Math.round(walk.accuracy)} m</span>}
     {walk.session.mode === "Outdoor" && walk.pose && <span className="small">Simulated Mars position · {formatLatLon(walk.pose.point, 5)}</span>}
-    {walk.remaining !== null && !walk.arrived && <RouteMetrics metres={walk.remaining}
-      speed={walk.session.mode === "Recorded Walk" ? walk.playbackSpeed : speed} paused={walk.paused} recorded={preview} regional={!walk.detailed} />}
     {(walk.message || walk.cue) && <div role="status" className="small">
       {walk.message && <div>{walk.message}</div>}
       {walk.cue && <div>Mission Control · {walk.cue}</div>}
@@ -130,10 +139,8 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
       </li>)}
     </ol>}
     <div className="mission-row">
-      {!walk.arrived && <button type="button" className="btn btn--small" disabled={walk.obstacleHold} onClick={walk.togglePause}>{walk.paused ? "Resume" : "Pause"}</button>}
       <button type="button" className="btn btn--small" onClick={recenter}>Recenter</button>
       <button type="button" className="btn btn--small" disabled={!walk.cue || walk.muted} onClick={walk.repeat}>Repeat last cue</button>
-      <button type="button" className="btn btn--small earth-walk-controls__exit" onClick={exit}>Exit route</button>
       {!walk.arrived && <button type="button" className="btn btn--small" aria-pressed={reporting} onClick={report}>
         {reporting ? "Cancel obstacle report" : "Report obstacle"}</button>}
       {!!clearObstacle && <button type="button" className="btn btn--small" onClick={clearObstacle}>Clear obstacle</button>}

@@ -1,7 +1,10 @@
 import { greatCircleKm, wrapLon } from "./geo.ts";
 
-const DOWNHILL_WEIGHT = 0.5;
 import type { LatLon } from "./geo.ts";
+import { BALANCED_WEIGHT, LOWER_TERRAIN_WEIGHT, terrainPenalty } from "../analysis/terrainCost.ts";
+import { assessLeg, compareLegs } from "./routeAssessment.ts";
+import type { GlobalRouteLeg } from "./routeAssessment.ts";
+export type { GlobalRouteLeg } from "./routeAssessment.ts";
 
 export interface ElevationGrid {
   width: number;
@@ -9,18 +12,10 @@ export interface ElevationGrid {
   elevations: Float32Array;
 }
 
-export interface GlobalRouteLeg {
-  points: LatLon[];
-  distanceKm: number;
-  maxSlopeDeg: number;
-  climbM: number;
-  elevationsM: (number | null)[];
-}
-
 export interface RoutePair { outbound: GlobalRouteLeg; returnLeg: GlobalRouteLeg }
-export type LegTerrain = { label: string; spacingM: number; regional: boolean };
+export type LegTerrain = { label: string; spacingM: number; regional: boolean; source?: string; bounds?: { west: number; south: number; east: number; north: number } };
 export type DirectionalRoute =
-  | { status: "ok"; shortest: GlobalRouteLeg; alternative?: GlobalRouteLeg; terrain: LegTerrain }
+  | { status: "ok"; shortest: GlobalRouteLeg; balanced?: GlobalRouteLeg; alternative?: GlobalRouteLeg; terrain: LegTerrain }
   | { status: "unavailable" | "no-route"; detail: string; terrain?: LegTerrain; retryable?: boolean;
       suggestion?: { point: LatLon; endpoint: "start" | "end"; movedKm: number; preview: GlobalRouteLeg } };
 export type AvailableRoute = { status: "ok"; gridStepDeg: number; localSpacingM?: number; alternative?: RoutePair;
@@ -135,8 +130,7 @@ function searchGlobalLeg(grid: ElevationGrid, start: LatLon, end: LatLon, slopeL
       const distanceKm = distanceByRow[row][i];
       const rise = elevations[next] - elevations[current];
       if (Math.abs(rise) > distanceKm * 1000 * slopeRatio) continue;
-      const stepSlope = Math.atan2(Math.abs(rise), distanceKm * 1000) * 180 / Math.PI;
-      const penalty = weight * (rise < 0 ? DOWNHILL_WEIGHT : 1) * (stepSlope / slopeLimit) ** 2;
+      const penalty = weight && weight * terrainPenalty(rise, distanceKm * 1000, slopeLimit);
       const nextCost = cost[current] + distanceKm * (1 + penalty);
       if (nextCost >= cost[next]) continue;
       cost[next] = nextCost;
@@ -153,40 +147,28 @@ function searchGlobalLeg(grid: ElevationGrid, start: LatLon, end: LatLon, slopeL
   const centers = cells.map((node) => cellCenter(grid, node));
   const points = cells.length === 1 ? [start, end] : [start, ...centers, end];
   const profile = points.map((point) => elevationAt(grid, point));
-  let distanceKm = 0;
-  let maxSlopeDeg = 0;
-  let climbM = 0;
-  let returnClimbM = 0;
-  for (let i = 1; i < points.length; i++) distanceKm += greatCircleKm(points[i - 1], points[i]);
-  for (let i = 1; i < cells.length; i++) {
-    const rise = elevations[cells[i]] - elevations[cells[i - 1]];
-    const run = greatCircleKm(centers[i - 1], centers[i]) * 1000;
-    maxSlopeDeg = Math.max(maxSlopeDeg, Math.atan2(Math.abs(rise), run) * 180 / Math.PI);
-    climbM += Math.max(0, rise);
-    returnClimbM += Math.max(0, -rise);
-  }
-  return { status: "ok" as const, leg: { points, distanceKm, maxSlopeDeg, climbM, elevationsM: profile }, cells, returnClimbM };
+  return { status: "ok" as const, leg: assessLeg(points, profile, slopeLimit), cells, profile };
 }
 
 export function routeGlobalLeg(grid: ElevationGrid, start: LatLon, end: LatLon, slopeLimit: number, blocked?: LatLon): DirectionalRoute {
-  const spacingM = greatCircleKm({ lat: 0, lon: 0 }, { lat: 0, lon: 360 / grid.width }) * 1000;
-  const terrain = { label: "Global MOLA (equatorial spacing)", spacingM, regional: true };
   if (blocked && validPoint(blocked)) {
-    const cell = cellIndex(grid, blocked);
-    if ((validPoint(start) && cellIndex(grid, start) === cell) || (validPoint(end) && cellIndex(grid, end) === cell)) {
-      return { status: "unavailable", terrain, detail: "An endpoint and the reported obstacle occupy the same MOLA cell. Choose an endpoint outside that cell." };
-    }
     const elevations = grid.elevations.slice();
-    // The regional grid cannot locate a reported obstacle within its cell.
-    elevations[cell] = NaN;
+    elevations[cellIndex(grid, blocked)] = NaN;
     grid = { ...grid, elevations };
   }
+  const spacingM = greatCircleKm({ lat: 0, lon: 0 }, { lat: 0, lon: 360 / grid.width }) * 1000;
+  const terrain = { label: "Global MOLA (equatorial spacing)", spacingM, regional: true,
+    source: "https://trek.nasa.gov/mars/TrekWS/rest/cat/abstract?label=mola128_mola64_merge_90Nto90S_SimpleC_clon0" };
   const shortest = searchGlobalLeg(grid, start, end, slopeLimit, 0);
   if (shortest.status !== "ok") return { ...shortest, terrain };
-  const weighted = searchGlobalLeg(grid, start, end, slopeLimit, 4);
-  const distinct = weighted.status === "ok" && (shortest.cells.length !== weighted.cells.length
-    || shortest.cells.some((cell, index) => cell !== weighted.cells[index]));
-  return { status: "ok", shortest: shortest.leg, alternative: distinct ? weighted.leg : undefined, terrain };
+  const candidate = (weight: number) => {
+    const result = searchGlobalLeg(grid, start, end, slopeLimit, weight);
+    return result.status === "ok" && (shortest.cells.length !== result.cells.length ||
+      shortest.cells.some((cell, index) => cell !== result.cells[index])) ? result.leg : undefined;
+  };
+  const balanced = candidate(BALANCED_WEIGHT);
+  const alternative = candidate(LOWER_TERRAIN_WEIGHT);
+  return { status: "ok", ...compareLegs(shortest.leg, balanced, alternative), terrain };
 }
 
 export function routeAcrossMars(grid: ElevationGrid, start: LatLon, end: LatLon, slopeLimit: number): GlobalRoute {
@@ -194,5 +176,5 @@ export function routeAcrossMars(grid: ElevationGrid, start: LatLon, end: LatLon,
   if (result.status !== "ok") return result;
   const { leg } = result;
   return { status: "ok", outbound: leg, gridStepDeg: 360 / grid.width,
-    returnLeg: { ...leg, points: [...leg.points].reverse(), climbM: result.returnClimbM, elevationsM: [...leg.elevationsM].reverse() } };
+    returnLeg: assessLeg([...leg.points].reverse(), [...result.profile].reverse(), slopeLimit) };
 }

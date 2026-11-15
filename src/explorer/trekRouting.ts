@@ -6,7 +6,7 @@ import type { LatLon } from "./geo.ts";
 const gridSize = 256;
 const metresPerDegree = MARS_EQUIRECTANGULAR.radiusM * Math.PI / 180;
 const sources = [...regionalOnlineSources, globalSource];
-const grids = new Map<string, Float32Array>();
+const grids = new Map<string, Promise<Float32Array>>();
 
 export async function loadTrekRouting(points: LatLon[], signal: AbortSignal) {
   const latitudes = points.map((point) => point.lat);
@@ -22,24 +22,29 @@ export async function loadTrekRouting(points: LatLon[], signal: AbortSignal) {
     if (!points.every((point) => containsTerrain(bounds, point))) continue;
     const key = JSON.stringify([source.elevation, bounds]);
     try {
-      let elevationsM = grids.get(key);
-      if (!elevationsM) {
-        elevationsM = await readTrekElevation(source, bounds, gridSize, signal);
-        if (!elevationsM.some(Number.isFinite)) continue;
-        grids.set(key, elevationsM);
+      let request = grids.get(key);
+      if (!request) {
+        request = readTrekElevation(source, bounds, gridSize, signal);
+        grids.set(key, request);
+        void request.catch(() => { if (grids.get(key) === request) grids.delete(key); });
         if (grids.size > 4) grids.delete(grids.keys().next().value!);
       }
+      const elevationsM = await request;
       const pixelSizeM = (bounds.north - bounds.south) * metresPerDegree / gridSize;
+      const sourceUrl = source === globalSource
+        ? "https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m"
+        : `https://trek.nasa.gov/mars/TrekWS/rest/cat/abstract?label=${encodeURIComponent(source.elevation)}`;
       const terrain: TerrainGrid = {
         elevationsM,
         layout: { pixelSizeM, westM: bounds.west * metresPerDegree, northM: bounds.north * metresPerDegree,
           width: gridSize, height: gridSize },
         verticalDatum: "NASA Mars Trek source elevation",
         provenance: { mission: "NASA Mars Trek", instrument: source.label,
-          sources: [{ title: source.label, url: "https://trek.nasa.gov/mars/" }],
+          sources: [{ title: source.label, url: sourceUrl }],
           limitations: ["The sampled grid cannot resolve obstacles below the source resolution."] },
       };
-      return { terrain, spacingM: Math.max(source.spacing, Math.round(pixelSizeM)), regional: source === globalSource, label: source.label };
+      return { terrain, terrainInfo: { label: source.label, spacingM: Math.max(source.spacing, pixelSizeM),
+        regional: source === globalSource, source: sourceUrl, bounds } };
     } catch {
       if (signal.aborted) return null;
     }
