@@ -110,6 +110,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [showFlags, setShowFlags] = useState(true);
   const [showCoverage, setShowCoverage] = useState(false);
   const [requestedFlight, setRequestedFlight] = useState<{ site: DroneSite; signal: number } | null>(null);
+  const flightRequested = requestedFlight?.signal === flySignal;
   const flightOrigin = useRef<{ view: GlobeView; mode: "2d" | "3d" } | null>(null);
   const [preferredPanelWidth, setPreferredPanelWidth] = useState(400);
   const [preferredSheetHeight, setPreferredSheetHeight] = useState(310);
@@ -389,12 +390,12 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const lastFitted = useRef("");
   const fitKey = JSON.stringify(pointsToFit.map(({ lat, lon }) => [lat, lon]));
   useEffect(() => {
-    if (pick !== null || !legs.length || legs.some(({ result }) => !result)) return;
+    if (flightRequested || pick !== null || !legs.length || legs.some(({ result }) => !result)) return;
     const key = mode + fitKey;
     if (key === lastFitted.current) return;
     lastFitted.current = key;
     fit();
-  }, [fitKey, mode, pick, legs]);
+  }, [fitKey, mode, pick, legs, flightRequested]);
 
   const addStop = (point: Endpoint) => {
     setStops((previous) => {
@@ -589,7 +590,6 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     setTab(nextTab);
     setPanelOpen(true);
   };
-  const flightRequested = requestedFlight?.signal === flySignal;
   const tour = useMemo(() => flightRequested && requestedFlight ? droneTour(requestedFlight.site, allEvents) : null,
     [flightRequested, requestedFlight, allEvents]);
 
