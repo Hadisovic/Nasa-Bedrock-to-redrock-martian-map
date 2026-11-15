@@ -200,7 +200,8 @@ export function Globe3D(props: Globe3DProps) {
     props.onFlightStart();
     droneLook.current = region === "wildcat" ? 1.12 : 0.74;
     setRotationHintDismissed(false);
-    setFlightPosition({ point, heading: region === "gale" ? 180 : 0,
+    // Frame the catalogued Mary Anning and Groken drill sites southwest of the Gale start.
+    setFlightPosition({ point, heading: region === "gale" ? 226 : 0,
       height: region === "wildcat" ? 225 : 1380 });
     setNotice("");
     setTourOpen(false);
