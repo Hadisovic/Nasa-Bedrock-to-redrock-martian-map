@@ -1,16 +1,15 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import astronautUrl from "../assets/models/space-astronaut.glb?url";
-import { preloadRoverModel } from "./roverAsset.ts";
+import { preloadAstronautModel, preloadRoverModel } from "./crewAssets.ts";
 import { latLonToUnit, lonDelta } from "./geo.ts";
 import type { WalkPose } from "./earthWalk.ts";
 import type { LatLon } from "./geo.ts";
 
 export async function loadEarthAstronaut(rover = false) {
   const loader = new GLTFLoader();
-  const { scene, animations } = rover
-    ? await loader.parseAsync(await preloadRoverModel(), "") : await loader.loadAsync(astronautUrl);
+  const { scene, animations } = await loader.parseAsync(await (rover ? preloadRoverModel() : preloadAstronautModel()), "");
   const model = new THREE.Group();
+  model.visible = false;
   model.name = rover ? "Perseverance route preview" : "Astronaut route preview";
   if (rover) {
     const bounds = new THREE.Box3().setFromObject(scene);

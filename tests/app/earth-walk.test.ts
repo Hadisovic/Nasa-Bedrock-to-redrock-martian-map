@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
+import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, earthGpsScales, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
 import type { Catalog } from "../../src/explorer/catalog.ts";
-import { relativeToLander } from "../../src/explorer/geo.ts";
+import { greatCircleKm, relativeToLander } from "../../src/explorer/geo.ts";
 
 const north = { lat: 18.456, lon: 77.406 };
 const south = { lat: 18.455, lon: 77.406 };
@@ -32,6 +32,18 @@ test("1000× GPS demo maps a metre east and north to a kilometre on Mars", () =>
   const scaled = relativeToLander(south, marsFromEarth(anchor, fix, south, 1000), null, null);
   assert.ok(Math.abs(scaled.eastM - 1000) < 1);
   assert.ok(Math.abs(scaled.northM - 1000) < 1);
+});
+
+test("planetwide demo scales map one Earth metre to 10 km and 100 km across the Mars longitude seam", () => {
+  const anchor = { lat: 0, lon: 0, accuracy: 1, timestamp: 1 };
+  const eastward = { ...anchor, lon: 180 / Math.PI / 6_371_008.8 };
+  const lander = { lat: 0, lon: 179.99 };
+  for (const scale of [10_000, 100_000] as const) {
+    assert.ok(earthGpsScales.includes(scale));
+    const point = marsFromEarth(anchor, eastward, lander, scale);
+    assert.ok(point.lon < 0);
+    assert.ok(Math.abs(greatCircleKm(lander, point) * 1000 - scale) < .01);
+  }
 });
 
 test("GPS rejects weak, stale and out-of-order fixes", () => {

@@ -10,6 +10,7 @@ import { badgeBounds, badgeOutline, teamBadgeUrl } from "./teamBadge.tsx";
  */
 
 let rocketTemplate: Promise<THREE.Group> | null = null;
+let readyRocket: THREE.Group | undefined;
 
 /** Loads the team-supplied Redrock lander once, normalised to height 1 with its base at y = 0. */
 export function loadRocket(): Promise<THREE.Group> {
@@ -23,27 +24,40 @@ export function loadRocket(): Promise<THREE.Group> {
     wrapper.scale.setScalar(1 / height);
     const outer = new THREE.Group();
     outer.add(wrapper);
-    return outer;
+    return readyRocket = outer;
+  }).catch((error) => {
+    rocketTemplate = null;
+    throw error;
   });
   return rocketTemplate;
 }
 
-/** A rocket instance; a simple placeholder block shows until the model loads (or if it fails). */
+/** A rocket instance with a compact fallback while the bundled model loads. */
 export function createRocket(onReady?: () => void): THREE.Group {
   const group = new THREE.Group();
-  const placeholder = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1, 8), new THREE.MeshLambertMaterial({ color: "#EAF2FF" }));
-  placeholder.position.y = 0.5;
-  group.add(placeholder);
-  loadRocket().then((template) => {
-    group.remove(placeholder);
-    placeholder.geometry.dispose();
-    (placeholder.material as THREE.Material).dispose();
-    // Share geometry and materials with the template; never dispose them per instance.
+  const addRocket = (template: THREE.Group) => {
     const instance = template.clone(true);
     instance.userData.sharedTemplate = true;
     group.add(instance);
     onReady?.();
-  }, () => { /* keep the placeholder if the model cannot load */ });
+  };
+  if (readyRocket) {
+    addRocket(readyRocket);
+    return group;
+  }
+  const fallback = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(.19, .22, .62, 6), new THREE.MeshLambertMaterial({ color: "#b34d36" }));
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(.19, .38, 6), new THREE.MeshLambertMaterial({ color: "#e6cdb6" }));
+  body.position.y = .31;
+  nose.position.y = .81;
+  fallback.add(body, nose);
+  group.add(fallback);
+  void loadRocket().then((template) => {
+    if (group.userData.disposed) return;
+    group.remove(fallback);
+    disposeMarker(fallback);
+    addRocket(template);
+  }, () => { /* Keep the colored fallback when the model cannot load. */ });
   return group;
 }
 
@@ -56,6 +70,7 @@ export function setMarkerSelected(group: THREE.Object3D, selected: boolean, acce
 
 /** Dispose geometry and materials a marker owns, skipping the shared rocket template. */
 export function disposeMarker(object: THREE.Object3D) {
+  object.userData.disposed = true;
   object.traverse((child) => {
     if (child.userData.sharedTemplate) return;
     let shared = false;

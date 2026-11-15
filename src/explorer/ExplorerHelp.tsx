@@ -6,7 +6,7 @@ const steps = [
   { tab: "Discover", text: "Tap a flag to read about a mission. Use Layers to see the data behind the map." },
   { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors gentler terrain, and dashes lead home. One available path is selected automatically. Use Navigation tools to report a blocked cell on detailed terrain and recalculate around it." },
   { tab: "Save", text: "Tap the route for details or save options. Name it, share a link, or export a file." },
-  { tab: "Drone", text: "Interactive flight and local route playback cover two terrain packs: Wildcat Ridge and Mount Sharp. Additional areas need aligned NASA or USGS imagery and elevation. Hold arrows to fly, pinch or scroll for altitude, and tap a science flag to read about it." },
+  { tab: "Drone", text: "Fly over Wildcat Ridge or Mount Sharp. Place a lander and tap terrain or a science flag to add stops. Choose a recorded walk or rover preview, then fly around the moving crew. Additional areas need aligned NASA or USGS imagery and elevation." },
   { tab: "Earth Walk", text: "On a phone or tablet, allow precise location and use an open area. Earth GPS maps your real movement and chosen scale onto Mars. On any device, replay the route as an astronaut or rover. Operational Mars navigation would need local sensors and positioning infrastructure." },
 ];
 

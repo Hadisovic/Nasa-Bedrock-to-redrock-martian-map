@@ -202,6 +202,12 @@
 .flight-story label { display:block; margin-top:.45rem; }
 .flight-story__links { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; }
 .flight-story__links a { color:var(--ice); }
+.flight-route-stops { margin:.5rem 0; padding-inline-start:1.4rem; }
+.flight-route-stops li + li { margin-top:.45rem; }
+.flight-route-stops .mission-row { margin-top:.24rem; }
+.flight-route-modes { margin:.45rem 0; }
+.flight-route-modes svg { width:17px; height:17px; }
+.flight-route-modes .btn[aria-pressed=true] { background:#234c71; border-color:#86a2bc; }
 .drone-simulation-options { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.45rem; }
 .flight-geology-labels { position:absolute; inset:0; pointer-events:none; z-index:3; overflow:hidden; }
 .flight-geology-labels button { position:absolute; left:0; top:0; pointer-events:auto; color:#fff5db; background:none;
@@ -333,8 +339,10 @@
 .gps-maneuver > svg { color:#a0edff; width:26px; height:26px; flex:none; }
 .gps-maneuver strong { display:block; color:#fff; font-size:1.1rem; letter-spacing:0; text-shadow:none; }
 .gps-maneuver span { color:#ceecfa; line-height:1.15; letter-spacing:0; }
-.explorer .btn.btn--locate { color:#061d2a; background:#8adbf3; border:1px solid #c5f4ff; gap:.35rem; }
-.explorer .btn.btn--locate:hover, .explorer .btn.btn--locate:focus-visible { background:#c5f4ff; box-shadow:0 0 14px #6cc6e566; }
+.explorer .btn.btn--locate { color:#061d2a; background:#a8e5f8; border:1px solid #c5f4ff; gap:.35rem; }
+.explorer .btn.btn--locate::before { content:none; }
+.explorer .btn.btn--locate:hover { background:#d1f5ff; }
+.explorer .btn.btn--locate:focus-visible { background:#d1f5ff; box-shadow:inset 0 0 0 2px #167294; }
 .rover-suggestion { padding:.58rem .7rem; border-left:3px solid #88d3e8; background:#163044; border-radius:4px; }
 .drone-coverage { display:flex; align-items:center; flex-wrap:wrap; gap:.35rem; margin-top:.5rem; padding-top:.35rem;
   border-top:1px solid var(--map-border); color:#b9bfcc; font-size:.81rem; }
@@ -574,7 +582,7 @@
   max-width:calc(100% - 24px); display:flex; gap:.55rem; align-items:center; background:var(--map-panel);
   color:#f3f6fa; border:1px solid #6d8099; border-radius:12px; font-size:.82rem; }
 .flight-pick-prompt { top:196px; bottom:auto; left:92px; max-width:calc(100% - 104px); margin:0; }
-.flight-walk-status { position:absolute; z-index:6; top:197px; left:92px; display:flex; align-items:center;
+.flight-walk-status { position:absolute; z-index:6; top:197px; left:92px; display:flex; align-items:center; flex-wrap:wrap;
   gap:.4rem; max-width:calc(100% - 102px); padding:.35rem .45rem; border-radius:10px; background:var(--map-panel); }
 .drone-controls, .drone-controls * { touch-action:none; -webkit-touch-callout:none; user-select:none; }
 .explorer .map-route { max-width:min(530px, calc(100% - 40px)); max-height:min(33dvh,300px); overflow:auto; }
@@ -600,5 +608,6 @@
   .explorer-credit { left:9px; max-width:58%; overflow-wrap:anywhere; }
   .explorer .map-hud--scale { right:9px; max-width:37%; text-align:right; overflow-wrap:anywhere; }
   .flight-walk-status { left:73px; top:163px; max-width:calc(100% - 83px); }
+  .flight-walk-status > span { flex-basis:100%; }
   .flight-pick-prompt { left:65px; top:162px; max-width:calc(100% - 75px); }
 }

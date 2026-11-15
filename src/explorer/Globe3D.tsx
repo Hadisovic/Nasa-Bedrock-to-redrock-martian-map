@@ -21,7 +21,7 @@ import { globeSurface, loadGaleTerrain, loadWildcatTerrain, nearWildcat } from "
 import type { SurfaceTerrain } from "./galeTerrain.ts";
 import { nearGale } from "./galeLayout.ts";
 import { MarkerButton } from "./MarkerButton.tsx";
-import { FlightIcon, FlagCluster, RoverIcon } from "./icons.tsx";
+import { FlightIcon, FlagCluster, NavigationIcon, RoverIcon } from "./icons.tsx";
 import { Astronaut } from "../components/Astronaut.tsx";
 import { MapControls } from "./MapControls.tsx";
 import { imageBounds } from "./catalog.ts";
@@ -34,7 +34,7 @@ import { createAtmosphere, createStarfield } from "./globeAtmosphere.ts";
 import { globeTileWindow, makeGlobeTileTexture } from "./globeTiles.ts";
 import { discreteOverlay } from "./overlaySampling.ts";
 import { loadEarthAstronaut } from "./earthAstronaut.ts";
-import { earthGpsDevice } from "./earthWalk.ts";
+import { preloadRoverModel } from "./crewAssets.ts";
 import type { WalkPose } from "./earthWalk.ts";
 
 export interface Globe3DProps {
@@ -60,6 +60,8 @@ export interface Globe3DProps {
   routeGrid?: LayerEntry;
   routeSlope: number;
   routeSpeed: number;
+  roverSlope: number;
+  roverSpeed: number;
   events: readonly CatalogEvent[];
   observations: EnvironmentObservation[];
   onFlightExit: () => void;
@@ -124,24 +126,63 @@ export function Globe3D(props: Globe3DProps) {
   const [flightStart, setFlightStart] = useState<Endpoint | null>(null);
   const [flightStops, setFlightStops] = useState<Stop[]>([]);
   const [flightReturning, setFlightReturning] = useState(true);
-  const [flightPick, setFlightPick] = useState<"start" | "stop" | null>(null);
+  const [flightRover, setFlightRover] = useState(false);
+  const [flightPick, setFlightPick] = useState<"start" | "stop" | number | null>(null);
+  const [flightFlagDestination, setFlightFlagDestination] = useState<Endpoint | null>(null);
+  const flightSlope = flightRover ? props.roverSlope : props.routeSlope;
   const flightRequests = useMemo(() => itineraryLegs(flightStart, flightStops, flightReturning), [flightStart, flightStops, flightReturning]);
-  const flightLegs = useItinerary(flightRequests, props.routeGrid, props.routeSlope, null, 0);
-  const flightWalk = useEarthWalk(flightStart, flightStops, flightReturning, flightLegs, props.routeGrid, props.routeSlope,
-    null, false, props.routeSpeed, props.observations, props.events, false, null);
-  earthPose.current = drone ? flightWalk.pose : props.earthWalkPose;
+  const flightLegs = useItinerary(flightRequests, props.routeGrid, flightSlope, null, 0);
+  const flightWalk = useEarthWalk(flightStart, flightStops, flightReturning, flightLegs, props.routeGrid, flightSlope,
+    null, false, flightRover ? props.roverSpeed : props.routeSpeed, props.observations, props.events, flightRover, null);
+  const crewPose = drone ? flightWalk.pose : props.earthWalkPose;
+  const crewIsRover = drone ? flightWalk.rover : !!props.roverPreview;
+  earthPose.current = crewPose;
   const flightFailure = flightLegs.find(({ result }) => result && (result.status !== "ok" || result.terrain.regional))?.result;
-  const placeFlightPoint = (point: LatLon) => {
-    if (!activeDetail?.verifiedImagery?.(point) || !Number.isFinite(activeDetail?.sample(point))) {
+  const hasFlightTerrain = (point: LatLon) => Number.isFinite(activeDetail?.sample(point));
+  const commitFlightStop = (point: Endpoint, index?: number) => {
+    setFlightStops((previous) => {
+      if (index === undefined && previous.length >= 8) return previous;
+      const stop = { point: { ...point, name: point.name ?? formatLatLon(point, 5) }, scienceMinutes: 0 };
+      return index === undefined ? [...previous, stop] : previous.map((item, i) => i === index ? stop : item);
+    });
+    setFlightPick(null);
+    setFlightFlagDestination(null);
+    setFlightFlagGroup([]);
+    setTourStop(null);
+    setGeologyUnit(null);
+    setTourOpen(true);
+    setNotice("");
+  };
+  const placeFlightPoint = (point: Endpoint, catalogFlag = false) => {
+    if (!hasFlightTerrain(point) || (!catalogFlag && !activeDetail?.verifiedImagery?.(point))) {
       setNotice("Choose a point inside this terrain pack."); return;
     }
-    if (flightPick === "start") { setFlightStart({ ...point, name: "Lander" }); setFlightPick("stop"); }
-    else if (flightPick === "stop" && flightStops.length < 8) {
-      setFlightStops((previous) => [...previous, { point: { ...point, name: `Stop ${previous.length + 1}` }, scienceMinutes: 0 }]);
-      setFlightPick(null);
-      setTourOpen(true);
+    if (flightPick === "start") {
+      setFlightStart({ ...point, name: "Lander" });
+      if (flightFlagDestination) commitFlightStop(flightFlagDestination);
+      else setFlightPick("stop");
+    } else if (flightPick !== null) {
+      commitFlightStop(point, typeof flightPick === "number" ? flightPick : undefined);
     }
     setNotice("");
+  };
+  const flagEndpoint = (id: string): Endpoint | null => {
+    const event = props.events.find((item) => item.id === id);
+    return event?.location ? { ...event.location, name: event.title } : null;
+  };
+  const routeFlightFlag = (id: string) => {
+    const point = flagEndpoint(id);
+    if (!point || !hasFlightTerrain(point)) { setNotice("This flag is outside the detailed routing coverage."); return; }
+    if (flightStops.length >= 8) { setNotice("Remove a stop before adding another flag."); return; }
+    if (flightStart) commitFlightStop(point);
+    else {
+      setFlightFlagDestination(point);
+      setFlightPick("start");
+      setFlightFlagGroup([]);
+      setTourStop(null);
+      setTourOpen(false);
+      setNotice("");
+    }
   };
   const [notice, setNotice] = useState("");
   const [arrivedSignal, setArrivedSignal] = useState<number | null>(null);
@@ -164,12 +205,14 @@ export function Globe3D(props: Globe3DProps) {
   const compass = useRef<SVGGElement>(null);
   const touchTilt = useRef(0);
   const closeFlight = () => {
+    flightWalk.stop();
     droneRef.current = null;
     setDrone(null);
     setTourOpen(false);
     setTourStop(null);
     setFlightFlagGroup([]);
     setFlightStart(null); setFlightStops([]); setFlightPick(null);
+    setFlightFlagDestination(null); setFlightRover(false);
     setFlightReturning(true);
     setGeologyUnit(null);
   };
@@ -198,6 +241,7 @@ export function Globe3D(props: Globe3DProps) {
   };
   const enterDrone = (point: LatLon, region: "wildcat" | "gale") => {
     props.onFlightStart();
+    void preloadRoverModel().catch(() => { /* Rover preview can retry the local asset. */ });
     droneLook.current = region === "wildcat" ? 1.12 : 0.74;
     setRotationHintDismissed(false);
     // Frame the catalogued Mary Anning and Groken drill sites southwest of the Gale start.
@@ -317,27 +361,25 @@ export function Globe3D(props: Globe3DProps) {
   onViewChangeRef.current = onViewChange;
   const press = useRef<{ x: number; y: number; id: number } | null>(null);
   const landing = useRef<{ key: string; time: number } | null>(null);
-  const hasEarthWalk = !!(drone ? flightWalk.pose : props.earthWalkPose);
-  const handheldAstronaut = !drone && !props.roverPreview &&
-    earthGpsDevice(navigator.userAgent, navigator.maxTouchPoints, matchMedia("(pointer: coarse)").matches);
-  const showCrewSprite = hasEarthWalk && !drone && (handheldAstronaut || !crewModelReady);
+  const hasEarthWalk = !!crewPose;
+  const showCrewSprite = hasEarthWalk && !crewModelReady;
   useEffect(() => {
     const view = s.current;
     setCrewModelReady(false);
-    if (!view || !hasEarthWalk || handheldAstronaut) return;
+    if (!view || !hasEarthWalk) return;
     let live = true;
-    void loadEarthAstronaut(!drone && props.roverPreview).then((astronaut) => {
+    void loadEarthAstronaut(crewIsRover).then((astronaut) => {
       if (!live) { astronaut.dispose(); return; }
       earthAstronaut.current = astronaut;
       view.scene.add(astronaut.model);
       setCrewModelReady(true);
-    }, () => { if (live) setNotice(props.roverPreview ? "The rover model could not load." : "The astronaut model could not load."); });
+    }, () => { if (live) setNotice(crewIsRover ? "The rover model could not load." : "The astronaut model could not load."); });
     return () => {
       live = false;
       earthAstronaut.current?.dispose();
       earthAstronaut.current = null;
     };
-  }, [ready, hasEarthWalk, props.roverPreview, !!drone, handheldAstronaut]);
+  }, [ready, hasEarthWalk, crewIsRover, !!drone]);
 
   useEffect(() => {
     const element = host.current!;
@@ -582,12 +624,12 @@ export function Globe3D(props: Globe3DProps) {
         camera.position.applyAxisAngle(orbitAxis, orbitRadiansPerSecond * seconds);
         starfield.material.uniforms.twinkleTime.value += seconds;
       }
-      if (pose && !droneRef.current) {
+      if (pose) {
         const factor = reduceMotion.matches ? 1 : 1 - Math.exp(-frameMs / 140);
         if (!smoothPoint) smoothPoint = { ...pose.point };
         smoothPoint.lat = THREE.MathUtils.lerp(smoothPoint.lat, pose.point.lat, factor);
         smoothPoint.lon = wrapLon(smoothPoint.lon + lonDelta(smoothPoint.lon, pose.point.lon) * factor);
-        if (!flight) {
+        if (!flight && !droneRef.current) {
           const location = unitToLatLon([camera.position.x, camera.position.y, camera.position.z]);
           const altitude = Math.max(MIN_CLEARANCE, camera.position.length() - surfaceRef.current(location).length());
           const anchor = surfaceRef.current(smoothPoint);
@@ -1177,7 +1219,7 @@ export function Globe3D(props: Globe3DProps) {
         const point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
         const ray = mapRay(point, bounds);
         if (flyingTour) {
-          if (!flightPick) return;
+          if (flightPick === null) return;
           const hit = ray.intersectObjects(st.relief.children.filter((surface) => surface.visible))[0]?.point;
           if (hit) placeFlightPoint(unitToLatLon([hit.x, hit.y, hit.z]));
           else setNotice("Tap the terrain to place this point.");
@@ -1215,12 +1257,15 @@ export function Globe3D(props: Globe3DProps) {
                   onSelect={() => {
                     const marker = cluster.members[0];
                     if (!drone) onSelect(marker.id);
-                    else if (flightPick && marker.kind !== "rocket") placeFlightPoint(marker);
+                    else if (flightPick !== null && marker.kind === "flag") placeFlightPoint(flagEndpoint(marker.id) ?? marker, true);
                     else if (marker.kind === "flag") {
                       setFlightFlagGroup([]); setTourStop(marker.id); setGeologyUnit(null); setTourOpen(true);
                     }
                   }}
-                  onRoute={!drone && cluster.members[0].kind === "flag" ? () => onRoute(cluster.members[0].id) : undefined}>
+                  onRoute={cluster.members[0].kind === "flag" ? () => {
+                    const { id } = cluster.members[0];
+                    if (drone) routeFlightFlag(id); else onRoute(id);
+                  } : undefined}>
                 {cluster.members[0].order && <span className="itinerary-number">{cluster.members[0].order}</span>}
               </MarkerButton>
             )}
@@ -1228,9 +1273,9 @@ export function Globe3D(props: Globe3DProps) {
         ))}
       </div>
       {showCrewSprite && <div ref={crewSprite}
-        className={`map-crew-sprite${!props.roverPreview && props.earthWalkPose?.moving ? " map-crew-sprite--moving" : ""}`}
-        role="img" aria-label={props.roverPreview ? "Simulated rover" : "Simulated astronaut"}>
-        {props.roverPreview ? <span className="map-crew-rover"><RoverIcon /></span> : <Astronaut decorative />}</div>}
+        className={`map-crew-sprite${!crewIsRover && crewPose?.moving ? " map-crew-sprite--moving" : ""}`}
+        role="img" aria-label={crewIsRover ? "Simulated rover" : "Simulated astronaut"}>
+        {crewIsRover ? <span className="map-crew-rover"><RoverIcon /></span> : <Astronaut decorative />}</div>}
       {geologyMap && flyingTour && <div className="flight-geology-labels" ref={geologyLabels} aria-label="Mapped geology">
         {flyingTour.geology.labels.map((unit, index) => <button key={unit.title} type="button" hidden
           data-lat={unit.lat} data-lon={unit.lon} style={{ "--unit-color": unit.color } as React.CSSProperties}
@@ -1267,9 +1312,10 @@ export function Globe3D(props: Globe3DProps) {
         </>}
         {notice && <span className="badge" role="status">{notice}</span>}
       </div>
-      {drone && flightPick && !tourOpen && <p className="flight-pick-prompt" role="status">
-        <span>{flightPick === "start" ? "Tap terrain to place the lander." : "Tap terrain or a flag to add a stop."}</span>
-        <button type="button" className="btn btn--small" onClick={() => { setFlightPick(null); setTourOpen(true); }}>Cancel</button>
+      {drone && flightPick !== null && !tourOpen && <p className="flight-pick-prompt" role="status">
+        <span>{flightPick === "start" ? (flightFlagDestination ? `Place the lander to route to ${flightFlagDestination.name}.` : "Tap terrain to place the lander.")
+          : typeof flightPick === "number" ? `Tap terrain or a flag to replace stop ${flightPick + 1}.` : "Tap terrain or a flag to add a stop."}</span>
+        <button type="button" className="btn btn--small" onClick={() => { setFlightPick(null); setFlightFlagDestination(null); setTourOpen(true); }}>Cancel</button>
       </p>}
       {flyingTour && tourOpen && <aside className="flight-story" aria-label="Flyover guide">
         <header><h3>{selectedStop?.title ?? activeUnit?.title ?? (flightFlagGroup.length ? "Discoveries at this flag" : flyingTour.title)}</h3>
@@ -1281,34 +1327,54 @@ export function Globe3D(props: Globe3DProps) {
         {!selectedStop && !!flightFlagGroup.length && <div className="flight-story__links">
           {flightFlagGroup.map((marker) => <button key={marker.id} type="button" className="btn btn--small"
             onClick={() => {
-              if (flightPick) { setFlightFlagGroup([]); placeFlightPoint(marker); }
+              if (flightPick !== null) placeFlightPoint(flagEndpoint(marker.id) ?? marker, true);
               else setTourStop(marker.id);
             }}>{marker.label}</button>)}
         </div>}
         {!selectedStop && !activeUnit && !flightFlagGroup.length && <div className="flight-story__route">
           <h4>Your route</h4>
-          <p>{flightPick === "start" ? "Tap terrain to place the lander." : flightPick === "stop" ? "Tap terrain to add a stop."
-            : `${flightStart ? "Lander set" : "Place a lander"} · ${flightStops.length} stops`}</p>
+          <p>{flightPick === "start" ? "Tap terrain to place the lander." : flightPick !== null ? "Tap terrain or a flag to set the stop."
+            : `${flightStart ? "Lander set" : "Place a lander"} · ${flightStops.length} ${flightStops.length === 1 ? "stop" : "stops"}`}</p>
           <div className="mission-row">
-            <button type="button" className="btn btn--small" onClick={() => { setFlightPick("start"); setTourOpen(false); }}>{flightStart ? "Move lander" : "Place lander"}</button>
+            <button type="button" className="btn btn--small" onClick={() => { setFlightFlagDestination(null); setFlightPick("start"); setTourOpen(false); }}>{flightStart ? "Move lander" : "Place lander"}</button>
             <button type="button" className="btn btn--small" disabled={!flightStart || flightStops.length >= 8}
               onClick={() => { setFlightPick("stop"); setTourOpen(false); }}>Add stop</button>
             <button type="button" className="btn btn--small" disabled={!flightStart} onClick={() => {
-              setFlightStart(null); setFlightStops([]); setFlightPick(null);
-            }}>Clear</button>
-            <button type="button" className="btn btn--small" disabled={!flightWalk.eligible || !!flightFailure || !!flightWalk.session}
-              onClick={() => { void flightWalk.start({ mode: "Recorded Walk" }).then((started) => { if (started) setTourOpen(false); }); }}>Preview walk</button>
+              setFlightStart(null); setFlightStops([]); setFlightPick(null); setFlightFlagDestination(null);
+            }}>Clear route</button>
           </div>
+          {!!flightStops.length && <ol className="flight-route-stops" aria-label="Drone route stops">
+            {flightStops.map(({ point }, index) => <li key={index}>
+              <span>{point.name}</span>
+              <div className="mission-row">
+                <button type="button" className="btn btn--small" aria-label={`Replace stop ${index + 1}`}
+                  onClick={() => { setFlightPick(index); setTourOpen(false); }}>Replace</button>
+                <button type="button" className="btn btn--small" aria-label={`Remove stop ${index + 1}`}
+                  onClick={() => setFlightStops((previous) => previous.filter((_, i) => i !== index))}>Remove</button>
+              </div>
+            </li>)}
+          </ol>}
           <label className="itinerary-return"><input type="checkbox" checked={flightReturning}
             onChange={(event) => setFlightReturning(event.target.checked)} /> Return to lander</label>
+          <div className="mission-row flight-route-modes" role="group" aria-label="Recorded travel mode">
+            <button type="button" className="btn btn--small" aria-pressed={!flightRover} onClick={() => setFlightRover(false)}>
+              <NavigationIcon kind="astronaut" /> Walk</button>
+            <button type="button" className="btn btn--small" aria-pressed={flightRover} onClick={() => setFlightRover(true)}>
+              <RoverIcon /> Rover</button>
+          </div>
           {flightWalk.eligible && !flightFailure && <p>{Math.round(flightLegs.reduce((metres, { result }) =>
             metres + (selectedLeg(result, false)?.distanceKm ?? 0) * 1000, 0)).toLocaleString()} m · {flightReturning ? "Round trip" : "One way"}</p>}
           {flightLegs.some(({ result }) => !result) && <p role="status">Calculating route…</p>}
           {flightFailure && <p role="status">{flightFailure.status === "ok" ? "Choose a route inside the detailed terrain." : flightFailure.detail}</p>}
+          <button type="button" className="btn btn--small" disabled={!flightWalk.eligible || !!flightFailure || !!flightWalk.session}
+            onClick={() => { void flightWalk.start({ mode: "Recorded Walk" }).then((started) => { if (started) setTourOpen(false); }); }}>
+            {flightRover ? "Preview rover" : "Preview walk"}</button>
         </div>}
         {activeUnit && <button type="button" className="btn btn--small" onClick={() => setGeologyUnit(null)}>Back to guide</button>}
         {selectedStop
           ? <div className="flight-story__links">
+            {selectedStop.location && hasFlightTerrain(selectedStop.location) &&
+              <button type="button" className="btn btn--small" onClick={() => routeFlightFlag(selectedStop.id)}>Route to this flag</button>}
             <button type="button" className="btn btn--small" onClick={() => setTourStop(null)}>{flightFlagGroup.length ? "Back to flag" : "All science stops"}</button>
             {selectedStop.evidence.slice(0, 2).map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}</a>)}
           </div>
@@ -1333,7 +1399,8 @@ export function Globe3D(props: Globe3DProps) {
         </details>}
       </aside>}
       {drone && flightWalk.session && <div className="flight-walk-status">
-        <span>{flightWalk.cue ?? (flightWalk.arrived ? "Arrived" : "Walking to the next stop")}</span>
+        <span>{flightWalk.arrived ? "Arrived" : `${flightWalk.rover ? "Rover" : "Walk"} preview · ${Math.round(flightWalk.remaining ?? 0)} m left`}</span>
+        {!flightWalk.arrived && <button type="button" className="btn btn--small" onClick={flightWalk.togglePause}>{flightWalk.paused ? "Resume" : "Pause"}</button>}
         <button type="button" className="btn btn--small" onClick={flightWalk.toggleMute}>{flightWalk.muted ? "Unmute" : "Mute"}</button>
         <button type="button" className="btn btn--small" onClick={flightWalk.stop}>End preview</button>
       </div>}

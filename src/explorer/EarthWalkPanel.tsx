@@ -6,7 +6,7 @@ import { formatLatLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import { NavigationIcon, RoverIcon } from "./icons.tsx";
 import { marsAt } from "./marsTime.ts";
-import { preloadRoverModel } from "./roverAsset.ts";
+import { preloadRoverModel } from "./crewAssets.ts";
 import type { previewTravelRecommendation } from "./itinerary.ts";
 import type { useEarthWalk } from "./useEarthWalk.ts";
 
@@ -23,6 +23,8 @@ const scaleLabel: Record<(typeof earthGpsScales)[number], string> = {
   10: "1 m becomes 10 m",
   100: "10 m becomes 1 km",
   1000: "1 m becomes 1 km",
+  10000: "1 m becomes 10 km",
+  100000: "1 m becomes 100 km",
 };
 
 function duration(seconds: number) {
@@ -102,9 +104,10 @@ export function EarthWalkSetup({ walk, open, close, started, comparison, pathSel
         <fieldset disabled={!!gpsIssue}>
           <legend className="sr-only">Earth GPS settings</legend>
           <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
-            {earthGpsScales.map((ratio) => <option key={ratio} value={ratio}>{ratio}× · {scaleLabel[ratio]}</option>)}
+            {earthGpsScales.map((ratio) => <option key={ratio} value={ratio}>{ratio.toLocaleString()}× · {scaleLabel[ratio]}</option>)}
           </select></label>
-          {scale > 1 && <p>The demo scales GPS uncertainty as well. Use 1× for short routes on detailed terrain.</p>}
+          {scale >= 10_000 ? <p>Planetwide demo. Confirmed Earth movement and GPS uncertainty both scale up. Use 1× to test precise stops and detours.</p>
+            : scale > 1 && <p>The demo scales GPS uncertainty as well. Use 1× for short routes on detailed terrain.</p>}
           <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the camera and compass with this device</label>
           {canNotify
             ? <label><input type="checkbox" checked={notices} onChange={(event) => {

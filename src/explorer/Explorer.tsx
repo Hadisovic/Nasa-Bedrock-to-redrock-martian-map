@@ -708,7 +708,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             <Suspense fallback={<div className="loading" role="status"><span className="spinner" aria-hidden="true" />Loading the 3D globe…</div>}>
               <Globe3D basemap={basemap.image} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
                 paths={mapPaths} switchView={switchView} mapActions={mapActions} earthWalkPose={earthWalk.pose} roverPreview={earthWalk.rover}
-                tour={tour} routeGrid={grid} routeSlope={slope} routeSpeed={mission.speed} events={events} observations={data?.environment ?? []}
+                tour={tour} routeGrid={grid} routeSlope={slope} routeSpeed={mission.speed} roverSlope={mission.roverSlope}
+                roverSpeed={mission.roverSpeed} events={events} observations={data?.environment ?? []}
                 onFlightExit={() => exitDrone()}
                 sunPoint={subsolar} onPick={chooseOnMap} onRoute={planTo} elevationAt={elevationAt}
                 onRouteClick={paths.length ? tapRoute : undefined} onRouteHover={paths.length ? hoverRoute : undefined}

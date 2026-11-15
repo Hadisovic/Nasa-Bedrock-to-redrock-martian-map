@@ -82,8 +82,9 @@ with envelope `-6400,1092000,-3900,1097000`. Use the Gale supplement ZIP and the
 `python scripts/data/layers/drone_geology.py GALE_ZIP JEZERO_QUERY_JSON` to regenerate overlays.
 
 Earth GPS Demo uses a phone or tablet’s fixes to simulate astronaut or rover movement from the selected
-lander. Choose 1×, 10×, or 100× distance scaling in the setup. The larger scales amplify location
-uncertainty, so use 1× for precise local detours.
+lander. GPS options offer 1× through 100,000×. The two largest options map one metre on Earth to
+10 km or 100 km on Mars for regional playback testing with live Earth movement. The scale also
+amplifies location uncertainty. Use 1× for precise local detours.
 On coarse MOLA it gives the regional route, estimated position, and GPS status. Detailed turns,
 terrain alerts, and off-route detours are limited to a route within the local terrain packs.
 Routine GPS voice prompts are bundled in the core offline pack. Nearby site cues are derived from
@@ -99,7 +100,10 @@ waits for a reliable fix and is best tested outdoors in an open area.
 The [Perseverance model](https://science.nasa.gov/resource/mars-perseverance-rover-3d-model/) is
 credited to NASA/JPL-Caltech. The app starts fetching it when the Start route dialog opens and reuses
 the download for 3D rover navigation. It is included in the offline app download. The flat map and the
-3D loading fallback use a rover marker. Rover estimates use user-entered speeds and limits and the selected route's
+3D loading fallback use a rover marker. The bundled lander and blocky astronaut start loading when
+the app opens. In either drone area, the route guide accepts map and science-flag stops and
+reuses the terrain planner for recorded Walk or Rover previews. The drone camera remains independent
+during playback. Rover estimates use user-entered speeds and limits and the selected route's
 measured slope. A spoken Earth GPS suggestion requires a complete detailed round trip, a walking time over budget,
 and a rover time within budget and reserve. The visual model represents Perseverance.
 
