@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { greatCircleKm } from "../../src/explorer/geo.ts";
-import { routeAcrossMars } from "../../src/explorer/globalRouting.ts";
+import { routeAcrossMars, routeGlobalLeg } from "../../src/explorer/globalRouting.ts";
 
 test("global routes cross the longitude seam by the short edge", () => {
   const elevations = new Float32Array(8 * 4);
@@ -41,4 +41,20 @@ test("bundled MOLA data supports finite routes outside Jezero and near the pole"
     assert.ok(route.outbound.maxSlopeDeg <= 15);
     assert.equal(route.gridStepDeg, 0.25);
   }
+});
+
+test("regional replans go around the reported obstacle cell without modifying cached elevations", () => {
+  const elevations = new Float32Array(32);
+  const grid = { width: 8, height: 4, elevations };
+  const start = { lat: 22.5, lon: -67.5 }, end = { lat: 22.5, lon: 22.5 };
+  const blocked = { lat: 22.5, lon: -22.5 };
+  const direct = routeGlobalLeg(grid, start, end, 15);
+  const detour = routeGlobalLeg(grid, start, end, 15, blocked);
+  assert.equal(direct.status, "ok");
+  assert.equal(detour.status, "ok");
+  assert.ok(direct.shortest.points.some(({ lat, lon }) => lat === blocked.lat && lon === blocked.lon));
+  assert.ok(detour.shortest.points.every(({ lat, lon }) => lat !== blocked.lat || lon !== blocked.lon));
+  assert.ok(detour.shortest.distanceKm > direct.shortest.distanceKm);
+  assert.equal(routeGlobalLeg(grid, start, blocked, 15, blocked).status, "unavailable");
+  assert.deepEqual(routeGlobalLeg(grid, start, end, 15), direct);
 });

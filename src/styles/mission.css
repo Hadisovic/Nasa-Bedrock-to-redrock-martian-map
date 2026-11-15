@@ -75,15 +75,23 @@
   width:min(400px, calc(100% - 28px)); padding:.7rem .85rem; border:1px solid var(--map-border);
   border-radius:14px; background:var(--map-panel); color:var(--map-text); box-shadow:var(--map-shadow); }
 @media (max-width:760px) {
-  .earth-walk-controls { bottom:140px; }
+  .earth-walk-controls { bottom:140px; max-height:calc(100% - 250px); overflow:auto; }
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .earth-walk-controls {
     bottom:calc(var(--explorer-sheet-height,35%) + 50px);
+    max-height:calc(100% - var(--explorer-sheet-height,35%) - 160px);
   }
 }
 .stage:has(.map-route) .flight-tools { bottom:9rem; }
 .flight-tools--flying { display:flex; justify-content:flex-start; max-width:calc(100% - 1.4rem); }
 .drone-controls { position:absolute; z-index:5; left:18px; right:18px; bottom:56px; display:flex; align-items:end;
   justify-content:space-between; pointer-events:none; }
+.drone-controls__steering { display:flex; align-items:end; gap:8px; }
+.drone-controls__stick { display:grid; place-items:center; width:96px; height:96px; border:1px solid var(--map-border);
+  border-radius:50%; background:var(--map-panel); box-shadow:inset 0 0 24px #0009,0 4px 16px #0009;
+  touch-action:none; pointer-events:auto; cursor:grab; }
+.drone-controls__stick:active { cursor:grabbing; }
+.drone-controls__stick > span { width:34px; height:34px; border:1px solid #89a9c5; border-radius:50%;
+  background:#344b64; box-shadow:0 3px 8px #0009; pointer-events:none; }
 .drone-controls__pad, .drone-controls__altitude { display:grid; gap:4px; padding:6px; background:var(--map-panel);
   border:1px solid var(--map-border); border-radius:18px; box-shadow:0 4px 16px #0009; pointer-events:auto; }
 .drone-controls__pad { grid-template-columns:repeat(3,44px); grid-template-rows:repeat(2,44px); }
@@ -101,6 +109,12 @@
 .drone-controls__button--up, .drone-controls__button--down { min-width:48px; }
 .drone-controls__button--slideLeft { grid-area:1 / 1; }
 .drone-controls__button--slideRight { grid-area:1 / 3; }
+.globe3d--flying canvas { touch-action:none; cursor:grab; }
+.globe3d--flying canvas:active { cursor:grabbing; }
+@media (max-width:380px) {
+  .drone-controls__steering { gap:5px; }
+  .drone-controls__stick { width:74px; height:74px; }
+}
 .profile-comparison { margin-block:.75rem; overflow-x:auto; }
 .profile-comparison table { border-collapse:collapse; width:100%; font-size:.8rem; }
 .profile-comparison caption { font-weight:700; text-align:left; margin-block-end:.35rem; }
@@ -164,10 +178,35 @@
 .explorer .flight-tools:not(.flight-tools--flying) { left:20px; right:auto; bottom:33px; justify-content:flex-start; }
 .explorer .flight-tools--flying,
 .explorer .explorer__workspace:has(.globe3d--flying) .stage .flight-tools--flying { left:93px; right:auto; top:142px; bottom:auto; max-width:calc(100% - 105px); }
-.stage:has(.globe3d--flying) :is(.map-route,.route-tools,.route-quick-menu,.explorer-credit) { display:none; }
+.stage:has(.globe3d--flying) :is(.map-route,.route-tools,.route-quick-menu,.explorer-credit,.mars-clock),
+.explorer__workspace:has(.globe3d--flying) .explorer__panel-handle--closed { display:none; }
 .flight-readout { position:absolute; z-index:4; bottom:12px; left:18px; right:18px; display:flex; justify-content:center;
   flex-wrap:wrap; gap:4px 11px; color:var(--map-text); font-size:.72rem; text-shadow:0 1px 3px #000; text-align:center; }
 .flight-readout a { color:inherit; }
+.flight-story { position:absolute; z-index:6; right:18px; top:132px; width:min(330px,calc(100% - 110px));
+  max-height:calc(100% - 270px); overflow:auto; padding:.65rem .8rem; border:1px solid var(--map-border);
+  border-radius:14px; background:var(--map-panel); color:var(--map-text); font-size:.83rem; box-shadow:var(--map-shadow); }
+.flight-story header { display:flex; justify-content:space-between; align-items:center; gap:.5rem; }
+.flight-story h3 { margin:0; font-size:1rem; }
+.flight-story p { margin:.45rem 0; }
+.flight-story select { width:100%; margin:.25rem 0; }
+.flight-story label { display:block; margin-top:.45rem; }
+.flight-story__links { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; }
+.flight-story__links a { color:var(--ice); }
+.drone-simulation-options { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.45rem; }
+.flight-geology-labels { position:absolute; inset:0; pointer-events:none; z-index:3; overflow:hidden; }
+.flight-geology-labels button { position:absolute; left:0; top:0; pointer-events:auto; color:#fff5db; background:none;
+  border:0; padding:0; cursor:pointer; font:italic 600 clamp(.73rem,1.35vw,1.1rem) Inter,sans-serif; }
+.flight-geology-labels button span { display:block; transform:translate(-50%,-130%); padding:5px 7px;
+  border-bottom:2px solid var(--unit-color); text-shadow:0 1px 4px #000,0 0 10px #000; white-space:nowrap; }
+.flight-legend { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem .7rem; margin-top:.55rem; }
+.flight-legend button { display:flex; align-items:center; gap:.32rem; background:none; color:inherit; padding:.2rem 0;
+  border:0; cursor:pointer; text-align:left; }
+.flight-legend button span { width:.7rem; height:.7rem; border-radius:2px; }
+.flight-legend a { flex-basis:100%; color:var(--ice); font-size:.73rem; }
+.route-analysis > .mission-row { margin-top:.65rem; }
+.route-analysis__chart { margin:.6rem 0; color:var(--map-text); font-size:.8rem; }
+.route-analysis__chart svg { display:block; width:100%; }
 .explorer__workspace:has(.explorer__sidebar:not([hidden])) .drone-controls { right:18px; }
 .explorer .explorer__workspace, .explorer .explorer__workspace--wide { position:relative; display:block; }
 .explorer .stage { position:absolute; inset:0; }
@@ -279,6 +318,15 @@
   text-shadow:2px 2px #8a563d, 4px 4px #080a10; }
 .mars-clock span { color:#ffc6a8; font-size:clamp(.75rem,1vw,.95rem); font-weight:700; letter-spacing:.04em; }
 .mars-clock time { font-size:clamp(.7rem,.95vw,.83rem); color:#f1e8dc; }
+.gps-maneuver { display:flex; align-items:center; gap:.6rem;
+  padding:.48rem .65rem; text-align:left; border-radius:10px;
+  color:#effaff; background:#112b40f2; border:1px solid #73bed8; box-shadow:0 4px 20px #000a; text-shadow:none; font-family:Inter, sans-serif; }
+.gps-maneuver > b { color:#a0edff; font-size:1.8rem; line-height:1; }
+.gps-maneuver strong { display:block; color:#fff; font-size:1.1rem; letter-spacing:0; text-shadow:none; }
+.gps-maneuver span { color:#ceecfa; line-height:1.15; letter-spacing:0; }
+.explorer .btn.btn--locate { color:#061d2a; background:#8adbf3; border:1px solid #c5f4ff; gap:.35rem; }
+.explorer .btn.btn--locate:hover, .explorer .btn.btn--locate:focus-visible { background:#c5f4ff; box-shadow:0 0 14px #6cc6e566; }
+.rover-suggestion { padding:.58rem .7rem; border-left:3px solid #88d3e8; background:#163044; border-radius:4px; }
 .drone-coverage { display:flex; align-items:center; flex-wrap:wrap; gap:.35rem; margin-top:.5rem; padding-top:.35rem;
   border-top:1px solid var(--map-border); color:#b9bfcc; font-size:.81rem; }
 .drone-coverage p { margin:.3rem 0; flex-basis:100%; }
@@ -291,6 +339,8 @@
   .explorer .explorer__topbar .search { flex:1; max-width:280px; }
   .explorer .explorer__topbar .search input { font-size:.78rem; }
   .explorer-toolbar { top:63px; left:10px; right:10px; max-width:calc(100% - 20px); }
+  .explorer-toolbar__actions { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+  .explorer-toolbar__actions > .btn { flex:none; }
   .explorer .explorer__sidebar { top:auto; bottom:0; right:0; width:100%; height:var(--explorer-sheet-height,35%); max-height:72%;
     margin:0; border-radius:20px 20px 0 0; }
   .explorer .explorer__sidebar--directions { height:max(var(--explorer-sheet-height,35%), min(370px, 58%)); }
@@ -309,9 +359,14 @@
   .explorer-map-controls { top:111px; left:10px; gap:4px; }
   .explorer-map-controls .explorer-compass { width:56px; height:56px; }
   .explorer .flight-tools:not(.flight-tools--flying) { bottom:65px; left:10px; }
-  .explorer .flight-tools--flying, .explorer .explorer__workspace:has(.globe3d--flying) .stage .flight-tools--flying { top:121px; left:73px; max-width:calc(100% - 83px); }
+  .explorer .flight-tools--flying, .explorer .explorer__workspace:has(.globe3d--flying) .stage .flight-tools--flying {
+    top:118px; left:73px; right:10px; max-width:none; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+  }
+  .flight-tools--flying > .btn { flex:none; white-space:nowrap; }
+  .flight-tools--flying > .badge { flex:none; max-width:240px; }
   .drone-controls { left:10px; right:10px; bottom:107px; }
   .flight-readout { bottom:44px; }
+  .flight-story { top:176px; right:10px; width:calc(100% - 86px); max-height:calc(100% - 355px); }
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .drone-controls { right:10px; bottom:calc(var(--explorer-sheet-height,35%) + 58px); }
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .flight-readout { bottom:calc(var(--explorer-sheet-height,35%) + 8px); }
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .stage :is(.flight-tools,.map-route) {
@@ -322,9 +377,7 @@
   .mars-clock { top:178px; }
 }
 @media (max-width:360px) {
-  .explorer-map-controls { top:155px; }
-  .mars-clock { top:218px; }
-  .explorer .explorer__workspace:has(.globe3d--flying) .stage .flight-tools--flying { top:165px; }
+  .mars-clock { top:178px; }
 }
 @keyframes crew-step { from { transform:translateY(-1px) rotate(-5deg) } to { transform:translateY(-4px) rotate(5deg) } }
 @media (max-width:640px) {

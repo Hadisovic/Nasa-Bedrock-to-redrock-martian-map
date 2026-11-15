@@ -1,0 +1,49 @@
+{
+  "gale": {
+    "reference": "https://doi.org/10.1130/GSAB.S.25938268",
+    "credit": "Meyer et al., GSA Bulletin \u00b7 CC BY 4.0 \u00b7 clipped and recolored",
+    "labels": [
+      {
+        "title": "Mapped pediments",
+        "color": "#16b8b4",
+        "description": "Mapped areas of gently sloping ground include part of the Greenheugh Pediment. The source groups the pediments in one layer.",
+        "lat": -4.7492535,
+        "lon": 137.37473485
+      },
+      {
+        "title": "Marker bed",
+        "color": "#ffd238",
+        "description": "An orbitally mapped, dark-toned bed that researchers traced between separate exposures.",
+        "lat": -4.75637957,
+        "lon": 137.40740706
+      },
+      {
+        "title": "Distinctive layer boundary",
+        "color": "#f56748",
+        "description": "A line traced from orbital imagery where the appearance of the rock layers changes.",
+        "lat": -4.7228401,
+        "lon": 137.44049497
+      }
+    ]
+  },
+  "wildcat": {
+    "reference": "https://doi.org/10.3133/sim3464",
+    "credit": "Sun and Stack, USGS SIM 3464 \u00b7 clipped and recolored",
+    "labels": [
+      {
+        "title": "Jezero fan 2 unit",
+        "color": "#72c738",
+        "description": "Orbital geologic interpretation from USGS Scientific Investigations Map 3464 (1:75,000).",
+        "lat": 18.45879922,
+        "lon": 77.40584417
+      },
+      {
+        "title": "Jezero floor unit",
+        "color": "#28b1be",
+        "description": "Orbital geologic interpretation from USGS Scientific Investigations Map 3464 (1:75,000).",
+        "lat": 18.45554988,
+        "lon": 77.40716739
+      }
+    ]
+  }
+}

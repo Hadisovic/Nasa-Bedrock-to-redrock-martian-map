@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { itineraryLegs, legKey, roundRouteCorners, summarizeItinerary } from "../../src/explorer/itinerary.ts";
+import { itineraryLegs, legKey, roundRouteCorners, suggestRover, summarizeItinerary } from "../../src/explorer/itinerary.ts";
 import type { PlannedLeg } from "../../src/explorer/itinerary.ts";
 import { defaultMission, PLAN_DATA_VERSION, planReturns, planStops, readPlan } from "../../src/explorer/missionPlan.ts";
 import type { Plan } from "../../src/explorer/missionPlan.ts";
@@ -48,6 +48,12 @@ test("a failed middle leg keeps measured legs and suppresses whole-itinerary tim
   assert.equal(coarse.complete, true);
   assert.equal(coarse.travel, null);
   assert.equal(coarse.remaining, null);
+  const tightBudget = { ...mission, budget: 61, reserve: 36 };
+  assert.match(suggestRover(results, [a, b], tightBudget, false) ?? "", /600 metres.*14.3 minutes on foot or 8.3 minutes by rover/);
+  assert.equal(suggestRover(results, [a, b], { ...tightBudget, reserve: 37 }, false), null);
+  assert.equal(suggestRover(results, [a, b], { ...tightBudget, budget: 62 }, false)?.startsWith("Consider a rover"), true);
+  assert.equal(suggestRover(results, [a, b], { ...tightBudget, roverSlope: 6 }, false), null);
+  assert.equal(suggestRover(regional, [a, b], tightBudget, false), null);
 });
 
 test("one-way share inputs retain order, location uncertainty and per-stop science", () => {

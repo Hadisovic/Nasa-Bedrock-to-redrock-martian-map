@@ -74,6 +74,22 @@ def add(d, rel=None):
 
 
 # ---------------- terrain ----------------
+L = "Mars_Viking_MDIM21_ClrMosaic_global_232m"
+add({
+    "id": "viking-color", "title": "Viking Orbiter global color mosaic", "group": "terrain",
+    "trekLayerId": L, "productId": L, "mission": "Viking Orbiter", "instrument": "Viking Visual Imaging Subsystem",
+    "measures": "Visible-light imagery", "units": None, "verticalDatum": None, "treatment": "colorized-imagery",
+    "legend": {"type": "none", "stops": []}, "global": True, "coverage": GLOBAL,
+    "sourceResolution": "232 m/px in the USGS source mosaic",
+    "shippedResolution": "2048 × 1024, assembled from level 2 Trek tiles",
+    "observationDates": "Viking Orbiter imaging; the mosaic combines observations",
+    "credit": "NASA/JPL-Caltech/USGS; NASA Solar System Treks",
+    "terms": "USGS lists the source mosaic as public domain. Credit NASA/JPL-Caltech/USGS and NASA Solar System Treks.",
+    "sourceUrls": [TREK.format(L=L), "https://astrogeology.usgs.gov/search/map/mars_viking_colorized_global_mosaic_232m"],
+    "downloaded": "NASA Mars Trek geographic tile matrix, level 2",
+    "processing": "Assembled tiles in row and column order. Uses the geographic footprint from longitude −180 to 180° and latitude −90 to 90°.",
+}, "layers/global/viking-color.jpg")
+
 L = "Mars_MGS_MOLA_ClrShade_merge_global_463m"; U = "833ace00-106b-45d2-8144-aeb1bea43105"
 d = {
     "id": "mola-color-hillshade", "title": "MGS MOLA, Global Color Hillshade", "group": "terrain",
@@ -426,8 +442,9 @@ on_demand = {
     "maxZoom": 7,
     "maxZoomNote": "maxZoom is for the basemap; per-layer limits are in 'layerDetails'.",
     "cors": "Access-Control-Allow-Origin: * (observed on tile GETs with Origin http://localhost:5173 for .jpg and .png tiles, and on OPTIONS). The ArcGIS ImageServer echoes the request origin with credentials; the TrekServices searchItems index sends no CORS header.",
-    "layers": ["Mars_MGS_MOLA_ClrShade_merge_global_463m", "Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw", "THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018", "THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018", "TES_Thermal_Inertia", "TES_Dust", "TES_Plagioclase", "TES_Clinopyroxene", "TES_Glass_Clay", "mola_roughness", "h2942_0000_nd3", "Hebrus_CTX_BlockAdj_dd"],
+    "layers": ["Mars_Viking_MDIM21_ClrMosaic_global_232m", "Mars_MGS_MOLA_ClrShade_merge_global_463m", "Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw", "THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018", "THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018", "TES_Thermal_Inertia", "TES_Dust", "TES_Plagioclase", "TES_Clinopyroxene", "TES_Glass_Clay", "mola_roughness", "h2942_0000_nd3", "Hebrus_CTX_BlockAdj_dd"],
     "layerDetails": {
+        "Mars_Viking_MDIM21_ClrMosaic_global_232m": {"ext": "jpg", "maxZoom": 7},
         "Mars_MGS_MOLA_ClrShade_merge_global_463m": {"ext": "jpg", "maxZoom": 7},
         "Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw": {"ext": "jpg", "maxZoom": 8},
         "THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018": {"ext": "png", "maxZoom": 9},
@@ -442,7 +459,7 @@ on_demand = {
 manifest = {
     "generatedAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "projection": "Equirectangular (plate carrée), Mars 2000 sphere, lon -180..180, lat 90..-90",
-    "basemap": "mola-color-hillshade",
+    "basemap": "viking-color",
     "pathsRelativeTo": "public/",
     "onDemandTiles": on_demand,
     "layers": layers,

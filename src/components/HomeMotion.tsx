@@ -55,10 +55,9 @@ export function HomeMotion() {
       ctx.globalCompositeOperation = "screen";
       for (const [x, y, size, delay, period] of stars) {
         const phase = ((now / 1000 + delay) % period) / period;
-        const twinkle = Math.pow(Math.max(0, Math.sin(Math.PI * phase)), 16);
-        if (twinkle < 0.025) continue;
+        const twinkle = .17 + .83 * Math.pow(Math.max(0, Math.sin(Math.PI * phase)), 8);
         const px = ox + iw * x, py = oy + ih * y;
-        const radius = (size * 2 + 1) * Math.max(.8, Math.min(1.5, iw / 850));
+        const radius = (size * 2.4 + 1) * Math.max(.85, Math.min(1.5, iw / 850));
         if (px < -radius || px > w + radius || py < -radius || py > h + radius) continue;
         const glow = ctx.createRadialGradient(px, py, 0, px, py, radius);
         glow.addColorStop(0, `rgba(240, 250, 255, ${twinkle * .8})`);

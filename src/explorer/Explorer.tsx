@@ -9,7 +9,7 @@ import { CatalogPanel, EMPTY_FILTER, EvidenceCard, GlobalLayersPanel, SearchBox 
 import type { LayerState } from "./ExplorerPanels.tsx";
 import { Directions, MapRouteControls, routeStartId, stopId } from "./Directions.tsx";
 import type { Pick } from "./Directions.tsx";
-import { itineraryLegs, roundRouteCorners, selectedLeg, summarizeItinerary } from "./itinerary.ts";
+import { itineraryLegs, roundRouteCorners, selectedLeg, suggestRover, summarizeItinerary } from "./itinerary.ts";
 import type { MapLeg } from "./itinerary.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { GlobeMap2D } from "./GlobeMap2D.tsx";
@@ -17,7 +17,7 @@ import { bearingDeg, formatLatLon, greatCircleKm, lonDelta, relativeToLander, wr
 import type { LatLon } from "./geo.ts";
 import type { GlobeMarker, GlobeOverlay, GlobeView, OverlayFeature, RouteMapPoint } from "./types.ts";
 import { zoomForPrecision } from "./types.ts";
-import { nasaInsignia } from "./nasaMark.ts";
+import { explorerBadge, nasaInsignia } from "./nasaMark.ts";
 import { nearGale } from "./galeLayout.ts";
 import { defaultMission, MAX_STOPS, planReturns, planStops, readPlan, PLAN_DATA_VERSION, validMission, validStop } from "./missionPlan.ts";
 import type { Endpoint, Plan, Stop } from "./missionPlan.ts";
@@ -26,19 +26,20 @@ import { OfflinePacks } from "./OfflinePacks.tsx";
 import { makePosition, Navigation } from "./Navigation.tsx";
 import type { Position } from "./Navigation.tsx";
 import { marsAt, marsSun } from "./marsTime.ts";
-import { droneCenter, droneSites } from "./droneCoverage.ts";
-import { listSavedDroneWindows } from "./dronePacks.ts";
-import type { SavedDronePack } from "./dronePacks.ts";
+import { droneCenter, droneSites, droneTour } from "./droneCoverage.ts";
+import type { DroneSite, DroneTour } from "./droneCoverage.ts";
 import { terrainSlopeOverlays } from "./slopeLayer.ts";
 import { ExplorerHelp } from "./ExplorerHelp.tsx";
 import { useEarthWalk } from "./useEarthWalk.ts";
 import { EarthWalkControls, EarthWalkSetup } from "./EarthWalkPanel.tsx";
+import { GoToLocation } from "./icons.tsx";
+import { RouteAnalysis } from "./RouteAnalysis.tsx";
 
 const Globe3D = lazy(() => import("./Globe3D.tsx").then((m) => ({ default: m.Globe3D })));
 
-type Tab = "catalog" | "card" | "layers" | "marswalk";
+type Tab = "catalog" | "card" | "layers" | "marswalk" | "drone";
 const panelTitles: Record<Tab, string> = {
-  catalog: "Discoveries", card: "Read about", layers: "Map layers", marswalk: "Directions",
+  catalog: "Discoveries", card: "Read about", layers: "Map layers", marswalk: "Directions", drone: "Drone simulations",
 };
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 640;
@@ -86,7 +87,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [data, setData] = useState<ExplorerData | null>(null);
   const [mode, setMode] = useState<"2d" | "3d">(initial.mode);
   const [webglIssue, setWebglIssue] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>(initial.plan || initial.tab === "layers" || initial.tab === "marswalk" ? (initial.plan ? "marswalk" : initial.tab as Tab) : "catalog");
+  const [tab, setTab] = useState<Tab>(initial.tab === "drone" ? "drone" : initial.plan ? "marswalk"
+    : initial.tab === "layers" || initial.tab === "marswalk" ? initial.tab : "catalog");
   const [view, setView] = useState<GlobeView>(planetView);
   const [flySignal, setFlySignal] = useState(0);
   const flyTarget = useRef<GlobeView | null>(null);
@@ -98,7 +100,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [panelOpen, setPanelOpen] = useState(!!initial.plan || !!initial.tab || !!initial.site);
   const [showFlags, setShowFlags] = useState(true);
   const [showCoverage, setShowCoverage] = useState(false);
-  const [savedDronePacks, setSavedDronePacks] = useState<SavedDronePack[]>([]);
+  const [requestedFlight, setRequestedFlight] = useState<{ site: DroneSite; signal: number } | null>(null);
+  const flightOrigin = useRef<{ view: GlobeView; mode: "2d" | "3d" } | null>(null);
+  const [loadedTour, setLoadedTour] = useState<{ signal: number; data: DroneTour } | null>(null);
+  const [tourError, setTourError] = useState<number | null>(null);
   const [showSlope, setShowSlope] = useState(false);
   const [slopeLayers, setSlopeLayers] = useState<GlobeOverlay[]>([]);
   const [slopeLoading, setSlopeLoading] = useState(false);
@@ -121,6 +126,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [savedTerrain, setSavedTerrain] = useState(initial.plan?.data ?? PLAN_DATA_VERSION);
   const [retry, setRetry] = useState(0);
   const [previewLeg, setPreviewLeg] = useState<number | null>(null);
+  const [pendingSuggestion, setPendingSuggestion] = useState<{ start: Endpoint; stops: Stop[]; origin: LatLon | null; affected: number[] } | null>(null);
+  const [suggestionNotice, setSuggestionNotice] = useState("");
   const [routeToolsOpen, setRouteToolsOpen] = useState(false);
   const routeToolsClose = useRef<HTMLButtonElement>(null);
   const [routeMenu, setRouteMenu] = useState<{ point: RouteMapPoint; pinned: boolean } | null>(null);
@@ -234,9 +241,15 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const grid = manifest?.layers.find((l) => l.id === "mola-elevation");
   const legRequests = useMemo(() => itineraryLegs(start, stops, returning, origin?.point), [start, stops, returning, origin]);
   const legs = useItinerary(legRequests, grid, activeSlope, blocked, retry);
+  const suggestionLegs = useMemo(() => pendingSuggestion
+    ? itineraryLegs(pendingSuggestion.start, pendingSuggestion.stops, returning, pendingSuggestion.origin ?? undefined)
+      .filter((_, index) => pendingSuggestion.affected.includes(index))
+    : [], [pendingSuggestion, returning]);
+  const suggestionResults = useItinerary(suggestionLegs, grid, activeSlope, blocked, retry);
   const [earthWalkSetupOpen, setEarthWalkSetupOpen] = useState(false);
-  const earthWalk = useEarthWalk(mission.rover ? null : start, stops, returning, legs, grid, activeSlope, blocked, weighted, mission.speed,
-    manifest?.layers.find((layer) => layer.id === "tes-dust-cover"), data?.environment ?? []);
+  const roverSuggestion = suggestRover(legs, stops, mission, weighted);
+  const earthWalk = useEarthWalk(start, stops, returning, legs, grid, activeSlope, blocked, weighted,
+    mission.rover ? mission.roverSpeed : mission.speed, data?.environment ?? [], events, mission.rover, roverSuggestion);
   const routeSummary = summarizeItinerary(legs, stops, mission, weighted);
   const resolvedLegs = useMemo(() => legs.flatMap((leg) => {
     const path = selectedLeg(leg.result, weighted);
@@ -245,10 +258,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const visibleLegs = earthWalk.planned ?? legs;
   const paths = useMemo<MapLeg[]>(() => visibleLegs.flatMap((leg) => {
     const path = selectedLeg(leg.result, weighted);
-    return path ? [{ points: roundRouteCorners(path.points), returning: leg.returning, distanceKm: path.distanceKm }] : [];
+    return path ? [{ points: path.points, returning: leg.returning, distanceKm: path.distanceKm }] : [];
   }), [visibleLegs, weighted]);
-  const replayPoints = useMemo(() => routeSummary.complete && !routeSummary.regional
-    ? resolvedLegs.flatMap((leg, index) => index ? leg.points.slice(1) : leg.points) : [], [resolvedLegs, routeSummary.complete, routeSummary.regional]);
   const previewResult = previewLeg == null ? null : legs[previewLeg]?.result;
   const suggestion = previewResult && previewResult.status !== "ok" ? previewResult.suggestion : undefined;
   const mapPaths = useMemo(() => suggestion ? [...paths, { points: roundRouteCorners(suggestion.preview.points),
@@ -310,7 +321,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   };
   const centerEarthWalk = (point: LatLon) => {
     setMode("3d");
-    flyTo({ ...point, zoom: earthWalk.liveEligible ? 110_000 : Math.max(8.2, Math.min(view.zoom, 4_000)) });
+    flyTo({ ...point, zoom: earthWalk.detailed ? (insideMarswalkCoverage(point) ? 110_000 : 12_000) : Math.max(8.2, Math.min(view.zoom, 4_000)) });
   };
   const fitPoints = useCallback((points: readonly LatLon[], localView: boolean) => {
     if (!points.length) return;
@@ -364,7 +375,12 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     setPreviewLeg(null);
   };
   const selectEndpoint = (target: "start" | "add" | number, point: Endpoint) => {
-    if (target === "start") { resetNavigation(); setStart(point); }
+    if (target === "start") {
+      resetNavigation();
+      setStart(point);
+      setPick(stops.length ? null : "add");
+      return;
+    }
     else if (target === "add") addStop(point);
     else replaceStop(target, point);
     setPick(null);
@@ -375,6 +391,43 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     if (pick !== null) selectEndpoint(pick, point);
   };
   const showRouteDetails = () => { setRouteMenu(null); setRouteToolsOpen(false); setTab("marswalk"); setPanelOpen(true); };
+  const clearRoute = () => {
+    earthWalk.stop();
+    resetNavigation();
+    setStart(null);
+    setStops([]);
+    setPick("start");
+    setRouteMenu(null);
+    setPreviewLeg(null);
+    setRouteToolsOpen(false);
+    setEarthWalkSetupOpen(false);
+    setPendingSuggestion(null);
+    setSuggestionNotice("");
+  };
+  useEffect(() => {
+    if (!pendingSuggestion) return;
+    setPendingSuggestion(null);
+    setSuggestionNotice("");
+  }, [start, stops, returning, origin, activeSlope, blocked]);
+  useEffect(() => {
+    if (!pendingSuggestion || !suggestionResults.length || suggestionResults.some(({ result }) => !result)) return;
+    setPendingSuggestion(null);
+    const failure = suggestionResults.find(({ result }) => result?.status !== "ok");
+    if (failure?.result && failure.result.status !== "ok") {
+      setSuggestionNotice(`Suggested point could not connect to ${failure.to.name ?? formatLatLon(failure.to, 4)}. ${failure.result.detail}`);
+      return;
+    }
+    setStart(pendingSuggestion.start);
+    setStops(pendingSuggestion.stops);
+    if (pendingSuggestion.origin && (pendingSuggestion.origin.lat !== origin?.point.lat || pendingSuggestion.origin.lon !== origin?.point.lon)) {
+      const fix = makePosition(pendingSuggestion.origin, "manual");
+      setOrigin(fix);
+      setCurrent(fix);
+    }
+    setPick(null);
+    setPreviewLeg(null);
+    setSuggestionNotice("");
+  }, [pendingSuggestion, suggestionResults, origin]);
   const showRouteTools = () => { setRouteMenu(null); setRouteToolsOpen(true); };
   const openPanel = (section: Tab) => {
     const currentSection = tab === "card" ? "catalog" : tab;
@@ -467,20 +520,40 @@ export function Explorer({ onHome }: { onHome: () => void }) {
       : zoomForPrecision(event.location.precision, event.location.precision === "regional" ? event.location.footprintKm : null);
     flyTo({ lat: event.location.lat, lon: event.location.lon, zoom });
   }, [mode, flyTo]);
-  const goToDrone = (site: typeof droneSites[number]) => {
+  const goToDrone = (site: DroneSite, enterFlight = false) => {
+    if (enterFlight) {
+      earthWalk.stop();
+      flightOrigin.current ??= { view, mode };
+      setTab("drone");
+      setPanelOpen(false);
+      setPick(null);
+      setRouteMenu(null);
+      setRouteToolsOpen(false);
+      setRequestedFlight({ site, signal: flySignal + 1 });
+    }
     setWebglIssue(null); setMode("3d");
     flyTo({ ...droneCenter(site), zoom: site.zoom });
   };
+  const exitDrone = (nextTab: Tab = "drone") => {
+    const origin = flightOrigin.current;
+    flightOrigin.current = null;
+    setRequestedFlight(null);
+    if (origin) { setMode(origin.mode); flyTo(origin.view); }
+    setTab(nextTab);
+    setPanelOpen(true);
+  };
+  const flightRequested = requestedFlight?.signal === flySignal;
   useEffect(() => {
-    if (!showCoverage) return;
+    if (requestedFlight?.signal !== flySignal) return;
     let live = true;
-    const refresh = () => {
-      void listSavedDroneWindows().then((packs) => { if (live) setSavedDronePacks(packs); }, () => {});
-    };
-    refresh();
-    window.addEventListener("martian-map:drone-area-saved", refresh);
-    return () => { live = false; window.removeEventListener("martian-map:drone-area-saved", refresh); };
-  }, [showCoverage]);
+    void droneTour(requestedFlight.site, allEvents).then((data) => {
+      if (live) setLoadedTour({ signal: flySignal, data });
+    }, () => {
+      if (live) setTourError(flySignal);
+    });
+    return () => { live = false; };
+  }, [requestedFlight, flySignal, allEvents]);
+  const tour = loadedTour?.signal === flySignal ? loadedTour.data : null;
 
   // A shared link selects and centres its site once the catalog has loaded.
   useEffect(() => {
@@ -498,7 +571,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     const visible = Object.entries(layerState).filter(([, s]) => s.visible).map(([id]) => id);
     if (visible.length) query.set("layers", visible.join(","));
     if (basemapId) query.set("base", basemapId);
-    if (tab === "layers" || tab === "marswalk") query.set("tab", tab);
+    if (tab === "layers" || tab === "marswalk" || tab === "drone") query.set("tab", tab);
     const next = `#/explore${query.size ? `?${query}` : ""}`;
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [selectedId, mode, layerState, basemapId, tab, displayedPlan, savedTerrain]);
@@ -521,13 +594,13 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     }}>
       <header className="topbar explorer__topbar">
         <button type="button" className="brand explorer__brand" onClick={onHome} aria-label="Martian Map, back to the intro page">
-          {nasaInsignia ? <img src={nasaInsignia} className="explorer__brand-mark" alt="NASA" /> : <small className="explorer__brand-mark">NASA</small>}
+          <img src={explorerBadge} className="explorer__brand-mark" alt={nasaInsignia ? "NASA" : ""} />
           <div className="explorer__wordmark">
             <strong className="explorer__brand-title" aria-hidden="true">Martian Map</strong>
-            <small>Bedrock to Redrock</small>
+            <small>Bedrock to Redrock{!nasaInsignia && <span className="explorer__data-credit"> · NASA data</span>}</small>
           </div>
         </button>
-        <div className="explorer__search-help">{data && <SearchBox events={events} unlocated={unlocated} onGo={(event) => {
+        <div className="explorer__search-help">{data && <SearchBox events={events} unlocated={unlocated} center={view} onGo={(event) => {
           const point = siteEndpoint(event);
           if (pick !== null && point) choosePoint(point); else goTo(event);
         }} onRead={read} onRoute={planTo} routeLabel={pick === "start" ? "Set lander" : typeof pick === "number" ? "Replace stop"
@@ -537,22 +610,34 @@ export function Explorer({ onHome }: { onHome: () => void }) {
       <section className="explorer-toolbar" aria-label="Explorer toolbar">
         <div className="explorer-toolbar__actions" role="group" aria-label="Map tools">
           <button type="button" className="btn" aria-pressed={panelOpen && (tab === "catalog" || tab === "card")}
-            onClick={() => openPanel("catalog")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h14l-3 4 3 4H5" /></svg>Discover</button>
+            onClick={() => flightRequested ? exitDrone("catalog") : openPanel("catalog")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h14l-3 4 3 4H5" /></svg>Discover</button>
           <button type="button" className="btn" aria-pressed={panelOpen && tab === "layers"}
-            onClick={() => openPanel("layers")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" /></svg>Layers</button>
+            onClick={() => flightRequested ? exitDrone("layers") : openPanel("layers")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" /></svg>Layers</button>
           <button type="button" className="btn explorer-toolbar__solar" aria-pressed={solar} onClick={() => setSolar(!solar)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></svg>
             {solar ? "Day & night" : "Fully lit"}
           </button>
           <button type="button" className="btn explorer-toolbar__directions" aria-pressed={panelOpen && tab === "marswalk"}
             onClick={() => {
+              if (flightRequested) { exitDrone("marswalk"); return; }
               if (panelOpen && tab === "marswalk") setPick(null);
+              else if (!earthWalk.session && !start) setPick("start");
+              else if (!earthWalk.session && !stops.length) setPick("add");
               openPanel("marswalk");
             }}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 18-8-8 18-2-8z" /></svg>
             Directions
           </button>
-          <button type="button" className="btn" onClick={() => { setRouteMenu(null); flyTo(planetView); }}>Reset view</button>
+          <button type="button" className="btn" aria-pressed={panelOpen && tab === "drone"}
+            onClick={() => {
+              if (flightRequested) { exitDrone(); return; }
+              setPick(null);
+              openPanel("drone");
+            }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17M4 4h5v5H4zm11 0h5v5h-5zM4 15h5v5H4zm11 0h5v5h-5z" /></svg>Drone</button>
+          <button type="button" className="btn" onClick={() => {
+            if (flightRequested) exitDrone();
+            setRouteMenu(null); flyTo(planetView);
+          }}>Reset view</button>
         </div>
       </section>
       <main ref={workspace} className={`workspace explorer__workspace${panelOpen ? "" : " explorer__workspace--wide"}`}
@@ -564,14 +649,20 @@ export function Explorer({ onHome }: { onHome: () => void }) {
           {fineBasemap?.error && basemap?.image && <p className="map-banner map-banner--warn" role="status">The selected basemap did not load. Showing Viking overview imagery.</p>}
           {basemap?.image && (threeD ? (
             <Suspense fallback={<div className="loading" role="status"><span className="spinner" aria-hidden="true" />Loading the 3D globe…</div>}>
-              <Globe3D basemap={basemap.image} droneBasemap={natural ? basemap.image : fastBasemap?.image ?? null} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
-                paths={mapPaths} switchView={switchView} replayPoints={replayPoints} earthWalkPose={earthWalk.pose}
+              <Globe3D basemap={basemap.image} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
+                paths={mapPaths} switchView={switchView} earthWalkPose={earthWalk.pose} roverPreview={mission.rover}
+                tour={tour}
+                onFlightExit={() => exitDrone()}
                 sunPoint={subsolar} onPick={chooseOnMap} onRoute={planTo} elevationAt={elevationAt}
                 onRouteClick={paths.length ? tapRoute : undefined} onRouteHover={paths.length ? hoverRoute : undefined}
                 view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current}
                 tiles={tiles} naturalColor={natural}
                 onFlightStart={() => { setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null); }}
-                onUnavailable={(detail) => { earthWalk.stop(); setWebglIssue(detail); setMode("2d"); }} />
+                onUnavailable={(detail) => {
+                  earthWalk.stop();
+                  if (flightRequested) exitDrone();
+                  setWebglIssue(detail); setMode("2d");
+                }} />
             </Suspense>
           ) : (
             <GlobeMap2D basemap={basemap.image} overlays={overlays} markers={markers} selectedId={selectedId} onSelect={chooseMarker}
@@ -585,13 +676,13 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             <time dateTime={new Date(utc).toISOString()}>{new Date(utc).toISOString().slice(0, 19).replace("T", " ")} UTC</time>
           </div>
           <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
-          <EarthWalkControls walk={earthWalk} speed={mission.speed} exit={() => { earthWalk.stop(); showRouteDetails(); }} recenter={() => {
+          <EarthWalkControls walk={earthWalk} speed={mission.rover ? mission.roverSpeed : mission.speed} exit={() => { earthWalk.stop(); showRouteDetails(); }} recenter={() => {
             earthWalk.recenter();
             if (earthWalk.pose) centerEarthWalk(earthWalk.pose.point);
           }} />
           {!routeToolsOpen && !earthWalk.session && (pick !== null || !panelOpen || tab !== "marswalk") &&
             <MapRouteControls pick={pick} legs={legs} summary={routeSummary}
-              onCancel={() => setPick(null)} onDetails={showRouteDetails} onFit={fit}
+              onCancel={() => setPick(null)} onDetails={showRouteDetails} onFit={fit} onClear={clearRoute}
               onStart={earthWalk.eligible ? () => setEarthWalkSetupOpen(true) : undefined} />}
           {routeMenu && !routeToolsOpen && <div className="route-quick-menu" role="group" aria-label="Route actions"
             style={{ "--route-menu-x": `${routeMenu.point.x}px`, "--route-menu-y": `${routeMenu.point.y}px` } as CSSProperties}
@@ -606,6 +697,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             <SavedRoutes current={displayedPlan} load={loadPlan} />
           </section>}
           {webglIssue && <p className="map-banner map-banner--warn" role="alert">{webglIssue}</p>}
+          {tourError === flySignal && <p className="map-banner map-banner--warn" role="alert">The flyover guide could not load. Drone View is available when the terrain pack is ready.</p>}
           {initial.invalidPlan && <p className="map-banner" role="status">This route link has invalid or unsupported inputs.</p>}
           {data && data.missing.length > 0 && <p className="map-banner map-banner--warn map-banner--top" role="alert">Not bundled in this build: {data.missing.join(" and ")}. The map still works with the basemap.</p>}
         </section>
@@ -664,20 +756,13 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                   <span aria-hidden="true" className="discovery-toggle-state">{showCoverage ? "On" : "Off"}</span>
                 </button>
               </div>
-              {showCoverage && <div className="drone-coverage">
-                <p>Pan to any part of Mars and open Drone View. It searches for detailed terrain at the center and uses the global elevation where available. The links below jump to selected flyovers.</p>
-                {savedDronePacks.length > 0 && <details className="drone-coverage__saved">
-                  <summary>Saved flyovers ({savedDronePacks.length})</summary>
-                  {savedDronePacks.map((pack) => <button key={pack.key} type="button" className="btn" onClick={() => {
-                    setWebglIssue(null); setMode("3d");
-                    flyTo({ lat: (pack.bounds.north + pack.bounds.south) / 2, lon: (pack.bounds.west + pack.bounds.east) / 2,
-                      zoom: 350 / (pack.bounds.north - pack.bounds.south) });
-                  }}>{pack.label} · {pack.spacing} m</button>)}
-                </details>}
-                <details className="drone-coverage__saved"><summary>Flyover shortcuts</summary>
-                  {droneSites.map((site) => <button key={site.id} type="button" className="btn" onClick={() => goToDrone(site)}>{site.label} · {site.spacingM} m</button>)}
-                </details>
-              </div>}
+            </section>}
+            {tab === "drone" && <section className="panel-body drone-coverage">
+              <h2>Try drone simulation ({droneSites.length})</h2>
+              <div className="drone-simulation-options" role="group" aria-label="Drone simulations">
+                {droneSites.map((site) => <button key={site.id} type="button" className="btn"
+                  onClick={() => goToDrone(site, true)}>{site.label} · {site.spacingM} m</button>)}
+              </div>
             </section>}
             {tab === "catalog" && (data?.catalog
               ? <CatalogPanel catalog={data.catalog} filter={filter} setFilter={setFilter} onGo={goTo} onRead={read} visibleCount={showFlags ? catalogMarkers.length : 0} />
@@ -685,7 +770,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
             {tab === "card" && (cardEvent
               ? <>
                   {cardEvent.location && <div className="explorer__site-actions">
-                    <button type="button" className="btn btn--small" onClick={() => goTo(cardEvent)}>Go to location</button>
+                    <GoToLocation onClick={() => goTo(cardEvent)} />
                     <button type="button" className="btn btn--small btn--primary" onClick={() => planTo(cardEvent.id)}>{stops.length ? "Add stop" : "Directions from rocket"}</button>
                   </div>}
                   <EvidenceCard event={cardEvent} environment={data?.environment ?? []} onClose={() => { setSelectedId(null); setCardId(null); setTab("catalog"); }} />
@@ -721,7 +806,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               onStart={earthWalk.eligible && !earthWalk.session && pick === null ? () => setEarthWalkSetupOpen(true) : undefined}
               walking={!!earthWalk.session} liveEligible={earthWalk.liveEligible}
               pick={pick} setPick={setPick} clearStart={() => { resetNavigation(); setStart(null); setPick("start"); }}
-              clearRoute={() => { resetNavigation(); setStart(null); setStops([]); setPick(null); setRouteMenu(null); setPreviewLeg(null); }}
+              clearRoute={clearRoute}
               remove={(index) => { setStops((previous) => previous.filter((_, order) => index !== order)); setPick(null); setPreviewLeg(null); }}
               move={(index, offset) => {
                 setStops((previous) => {
@@ -746,12 +831,22 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               accept={(index, endpoint, point) => {
                 const leg = legs[index];
                 const stop = endpoint === "start" ? leg.fromStop : leg.toStop;
-                if (stop !== null) replaceStop(stop, point);
-                else if (endpoint === "start" && origin) { const fix = makePosition(point, "manual"); setCurrent(fix); setOrigin(fix); }
-                else setStart(point);
-                setPick(null); setPreviewLeg(null);
+                if (!start) return;
+                setSuggestionNotice("Checking the affected legs…");
+                if (stop !== null) {
+                  const affected = legs.flatMap((candidate, i) => candidate.fromStop === stop || candidate.toStop === stop ? [i] : []);
+                  setPendingSuggestion({ start, stops: stops.map((item, i) => i === stop ? { ...item, point } : item),
+                    origin: origin?.point ?? null, affected });
+                } else if (endpoint === "start" && origin) {
+                  setPendingSuggestion({ start, stops, origin: point, affected: [0] });
+                } else {
+                  const affected = legs.flatMap((candidate, i) => ((i === 0 && !origin) || candidate.returning) ? [i] : []);
+                  setPendingSuggestion({ start: point, stops, origin: origin?.point ?? null, affected });
+                }
               }}
               extra={<>
+                {suggestionNotice && <p className="small" role="status">{suggestionNotice}</p>}
+                <RouteAnalysis legs={legs} stops={stops} mission={mission} weighted={weighted} observations={data?.environment ?? []} />
                 {savedTerrain !== PLAN_DATA_VERSION && <p className="small" role="status">Saved with terrain {savedTerrain}. Recalculating from the same inputs with terrain {PLAN_DATA_VERSION}. The route may change.</p>}
                 <Navigation route={routeSummary.complete && !routeSummary.regional ? resolvedLegs : []} returning={returning}
                   local={legs.some(({ result }) => result?.terrain && !result.terrain.regional)} fix={() => setPick("position")}
@@ -769,7 +864,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
         </aside>
       </main>
       <EarthWalkSetup walk={earthWalk} open={earthWalkSetupOpen} close={() => setEarthWalkSetupOpen(false)}
-        distanceM={routeSummary.distanceKm * 1000} speed={mission.speed} started={() => {
+        distanceM={routeSummary.distanceKm * 1000} speed={mission.rover ? mission.roverSpeed : mission.speed} roverSuggestion={roverSuggestion} started={() => {
         setEarthWalkSetupOpen(false);
         if (start) centerEarthWalk(start);
         setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null);

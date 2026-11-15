@@ -4,9 +4,10 @@ import { searchEvents } from "./catalog.ts";
 import type { CatalogEvent } from "./catalog.ts";
 import { MAX_STOPS, validMission } from "./missionPlan.ts";
 import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
-import { selectedLeg, summarizeItinerary } from "./itinerary.ts";
+import { selectedLeg, suggestRover, summarizeItinerary } from "./itinerary.ts";
 import type { PlannedLeg } from "./itinerary.ts";
 import { marsAt } from "./marsTime.ts";
+import { RoverIcon } from "./icons.tsx";
 
 export type Pick = "start" | "add" | "position" | "block" | number;
 export const routeStartId = "directions-start";
@@ -19,9 +20,9 @@ const labelPoint = (point: Endpoint) => point.name ?? formatLatLon(point, 4);
 const terrainName = ({ label, spacingM, regional }: { label: string; spacingM: number; regional: boolean }) =>
   `${label} · ${spacingM < 1000 ? `${Math.round(spacingM)} m` : `~${(spacingM / 1000).toFixed(1)} km`}${regional ? " · regional estimate" : ""}`;
 
-export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart }: {
+export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onFit, onStart, onClear }: {
   pick: Pick | null; legs: readonly PlannedLeg[]; summary: ReturnType<typeof summarizeItinerary>;
-  onCancel: () => void; onDetails: () => void; onFit: () => void; onStart?: () => void;
+  onCancel: () => void; onDetails: () => void; onFit: () => void; onStart?: () => void; onClear: () => void;
 }) {
   if (pick === null && !legs.length) return null;
   const picking = pick !== null;
@@ -42,6 +43,7 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
         {onStart && <button type="button" className="btn btn--small directions__start" onClick={onStart}>Start route</button>}
         <button type="button" className="btn btn--small" onClick={onDetails}>Directions</button>
         {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
+        <button type="button" className="btn btn--small" onClick={onClear}>Clear route</button>
       </>}
     </div>
   </div>;
@@ -99,9 +101,15 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
   liveEligible: boolean;
 }) {
   const { rover, departure, budget } = mission;
+  const roverSuggestion = suggestRover(legs, stops, mission, weighted);
   const totals = summarizeItinerary(legs, stops, mission, weighted);
   const hasResult = legs.some(({ result }) => result?.status === "ok");
   const hasAlternative = legs.some(({ result }) => result?.status === "ok" && result.alternative);
+  const routeOptions = hasAlternative && totals.complete ? [false, true].map((lowerSlope) => ({
+    lowerSlope,
+    ...summarizeItinerary(legs, stops, mission, lowerSlope),
+    steepest: Math.max(...legs.map(({ result }) => selectedLeg(result, lowerSlope)?.maxSlopeDeg ?? 0)),
+  })) : [];
   const started = legs.length > 0;
   const [addingAt, setAddingAt] = useState<number | null>(null);
   const adding = addingAt === stops.length;
@@ -123,19 +131,21 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
     <div className="directions__heading"><h2>Directions</h2>
       <div className="directions__travel" role="group" aria-label="Travel profile">
         <button type="button" className="btn btn--small" aria-pressed={!rover} onClick={() => setMission({ ...mission, rover: false })}>Walk</button>
-        <button type="button" className="btn btn--small" aria-pressed={rover} onClick={() => setMission({ ...mission, rover: true })}>Rover</button>
+        <button type="button" className="btn btn--small" aria-pressed={rover} onClick={() => setMission({ ...mission, rover: true })}><RoverIcon /> Rover</button>
       </div>
     </div>
     <div className="directions__launch">
       <button type="button" className="btn directions__start" disabled={!onStart}
         aria-describedby={!onStart ? "directions-start-hint" : undefined} onClick={onStart}>Start route</button>
-      {!liveEligible && !walking && <button type="button" className="btn btn--small" onClick={onDemo}>Try Wildcat Ridge</button>}
+      {(start || stops.length > 0) && <button type="button" className="btn btn--small" onClick={() => {
+        setAddingAt(null);
+        clearRoute();
+      }}>Clear route</button>}
     </div>
     {!onStart && <p id="directions-start-hint" className="small directions__start-hint">
       {walking ? "A route is already running." : !start || !stops.length ? "Choose a start and destination to enable Start route."
         : legs.some(({ result }) => !result) ? "Finding your route…"
         : !totals.complete ? "Adjust your stops or check the route details below."
-        : rover ? "Switch to Walk to start navigation."
         : pick !== null ? "Finish selecting a point on the map to start."
         : "Choose a destination farther from the start."}
     </p>}
@@ -186,7 +196,17 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
           : legs.some(({ result }) => result && result.status !== "ok") ? "Route unavailable" : "Finding route…"}</h3>
           {totals.complete && <span className="small">{totals.travel !== null ? `${distance(totals.distanceKm)} · ` : ""}{returning ? "Round trip" : "One way"}</span>}</div>
       </div>
-      {totals.regional && <p className="small muted">Regional route · Live Earth Walk is available at Wildcat Ridge.</p>}
+      {totals.regional && <p className="small muted">Regional estimate. Earth GPS can show your movement. Turn, slope, and walking detour guidance require detailed terrain.</p>}
+      {roverSuggestion && <p className="small rover-suggestion">{roverSuggestion}</p>}
+      {routeOptions.length > 0 && <div className="mission-row" role="group" aria-label="Compare routes">
+        {routeOptions.map((option) => <button key={String(option.lowerSlope)} type="button" className="btn btn--small"
+          aria-pressed={weighted === option.lowerSlope} onClick={() => setWeighted(option.lowerSlope)}>
+          {option.lowerSlope ? "Lower slope cost" : "Shortest distance"}<br />
+          {distance(option.distanceKm)} · {option.travel !== null && `${minutes(option.travel)} · `}{option.steepest.toFixed(1)}° max
+        </button>)}
+      </div>}
+      {totals.complete && !hasAlternative && <p className="small muted">Both route settings use the same mapped path.</p>}
+      {routeOptions.length > 0 && <p className="small muted">Lower slope cost penalizes steep steps and can add distance.</p>}
       {hasResult && <div className="mission-row">
         <button type="button" className="btn btn--small" onClick={fit}>Fit route</button>
         <button type="button" className="btn btn--small" onClick={onSave}>Save</button>
@@ -225,11 +245,8 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
     </section>}
     <details>
       <summary>Route options</summary>
+      {!liveEligible && !walking && <button type="button" className="btn btn--small" onClick={onDemo}>Load GPS practice route</button>}
       <label className="itinerary-return"><input type="checkbox" checked={returning} onChange={(event) => setReturning(event.target.checked)} />Return to lander</label>
-      {hasAlternative && <div className="mission-row">
-        <button type="button" className="btn btn--small" aria-pressed={!weighted} onClick={() => setWeighted(false)}>Shortest distance</button>
-        <button type="button" className="btn btn--small" aria-pressed={weighted} onClick={() => setWeighted(true)}>Lower slope cost</button>
-      </div>}
       <div className="directions__options">
         <label>Departure (UTC) <input type="datetime-local" value={departure} onChange={(e) => setMission({ ...mission, departure: e.target.value })} /></label>
         {rover ? number("Rover speed (m/s)", "roverSpeed", 0.1, 20, 0.1) : number("Walking speed (m/s)", "speed", 0.1, 2, 0.1)}
@@ -241,7 +258,6 @@ export function Directions({ start, stops, returning, setReturning, pick, setPic
       {(!validMission(mission) || totals.science === null) && <p className="error small">Check the departure, speed, science times, budget and reserve.</p>}
       <p className="small muted">Times assume a constant speed. Mars has about 38% of Earth’s surface gravity. Verify obstacles below grid resolution, traction and power separately.</p>
       <details><summary>Equipment and supplies</summary><p>Check oxygen, CO₂ removal, cooling, water, food, power, communications, science tools and terrain equipment.</p></details>
-      {started && <button className="btn btn--small" type="button" onClick={clearRoute}>Clear route</button>}
       {start && !started && <button className="btn btn--small" type="button" onClick={clearStart}>Clear start</button>}
     </details>
     {extra}

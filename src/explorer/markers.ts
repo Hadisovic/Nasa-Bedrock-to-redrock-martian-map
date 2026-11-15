@@ -76,19 +76,21 @@ function nasaFlagTexture() {
   canvas.width = 256;
   canvas.height = 160;
   const ctx = canvas.getContext("2d")!;
-  const drawFlag = () => {
-    ctx.fillStyle = "#134579";
+  const drawFlag = (color: string) => {
+    ctx.fillStyle = color;
     ctx.fillRect(0, 0, 256, 160);
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 5;
     ctx.strokeRect(2.5, 2.5, 251, 155);
   };
-  drawFlag();
+  drawFlag("#153655");
+  ctx.fillStyle = "#e78759";
+  ctx.fillRect(5, 129, 246, 9);
   ctx.fillStyle = "#fff";
   ctx.font = "700 76px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("NASA", 128, 83);
+  ctx.fillText("NASA", 128, 78);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   nasaSourceTexture = texture;
@@ -96,9 +98,10 @@ function nasaFlagTexture() {
     const logo = new Image();
     logo.crossOrigin = "anonymous";
     logo.onload = () => {
-      const width = 138 * logo.naturalWidth / logo.naturalHeight;
-      drawFlag();
-      ctx.drawImage(logo, (256 - width) / 2, 11, width, 138);
+      const height = 150;
+      const width = height * logo.naturalWidth / logo.naturalHeight;
+      drawFlag("#f5f7fb");
+      ctx.drawImage(logo, (256 - width) / 2, (160 - height) / 2, width, height);
       texture.needsUpdate = true;
     };
     logo.src = nasaInsignia;

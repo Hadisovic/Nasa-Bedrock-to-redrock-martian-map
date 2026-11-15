@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { clampLat, clusterScreen, formatLatLon, lonDelta, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
-import { MapFlag, RocketIcon } from "./icons.tsx";
+import { FlagCluster, MapFlag, RocketIcon } from "./icons.tsx";
 import { MarkerButton } from "./MarkerButton.tsx";
 import { MapControls } from "./MapControls.tsx";
 import { Astronaut } from "../components/Astronaut.tsx";
@@ -416,7 +416,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
                   const at = { x: cluster.x, y: cluster.y };
                   zoomAt(Math.min(4, Math.max(2, (CLUSTER_RADIUS_PX * 1.5) / Math.max(1, spread))), at.x, at.y);
                 }}>
-                <span className="flag-cluster">{cluster.members.length}</span>
+                <FlagCluster count={cluster.members.length} />
               </button>
               {open && (
                 <ul className="cluster-list" onPointerDown={(e) => e.stopPropagation()}>
@@ -438,7 +438,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
               {m.order ? <span className="itinerary-number">{m.order}</span>
                 : m.kind === "rocket" ? <span key={`${m.lat},${m.lon}`} className="map-rocket-landing"><RocketIcon size={Math.round(iconSize * 1.15)} /></span> :
                 m.kind === "crew" ? <Astronaut decorative className="crew-replay-icon" /> :
-                <MapFlag size={m.kind === "flag" ? Math.max(27, iconSize) : iconSize} color={m.accent} nasaSource={m.kind === "flag"} />}
+                <MapFlag size={m.kind === "flag" ? Math.max(36, iconSize) : iconSize} color={m.accent} nasaSource={m.kind === "flag"} />}
             </MarkerButton>
           </div>
         );

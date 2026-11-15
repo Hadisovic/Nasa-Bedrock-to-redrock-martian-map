@@ -116,7 +116,7 @@ const normalise = (text: string) => text.toLowerCase().normalize("NFKD").replace
 
 /** Simple ranked search over titles, aliases, missions, regions, types and sols. */
 export function searchEvents(events: readonly CatalogEvent[], query: string, limit = 12): CatalogEvent[] {
-  const terms = normalise(query).split(/\s+/).filter(Boolean);
+  const terms = normalise(query).split(/\s+/).filter(Boolean).map((term) => term === "samples" ? "sample" : term);
   if (!terms.length) return [];
   const scored: { event: CatalogEvent; score: number }[] = [];
   for (const event of events) {

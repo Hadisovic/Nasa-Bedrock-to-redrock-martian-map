@@ -31,19 +31,28 @@ python3 -m http.server 8000 --directory dist --bind 127.0.0.1
 Opening `index.html` directly from disk (`file://`) is not supported, because the browser blocks
 the raster fetches.
 
+The team confirmed permission for the NASA insignia in the intro artwork, app header, and map flags.
+Both desktop intro images include the insignia. Production builds use the bundled SVG at
+`public/images/nasa-insignia.svg` for the header, mobile intro, and map flags. The production setting
+in `.env.production` also includes it in the core offline pack. See the [NASA Brand Guidelines](https://www.nasa.gov/nasa-brand-center/brand-guidelines/).
+
 ## Local testing milestone (current phase)
 
-The prompt extensions replace deployment for this phase. The team runs, tests and tunes the pushed
-branch locally, then handles hosting. For local QA:
+Run these commands from the branch under test for local QA:
 
 ```sh
-git fetch origin && git checkout implementation/full-app
 npm ci && npm test && npm run build
 npm run preview -- --host 127.0.0.1 --port 4173   # production build at http://127.0.0.1:4173/
 ```
 
-To test on a phone or tablet on the same Wi-Fi network, start the server with `--host 0.0.0.0`
-and open `http://<laptop-ip>:4173/`. The URL paths are:
+To test GPS on Android, connect it by USB and use [Chrome DevTools port forwarding](https://developer.chrome.com/docs/devtools/remote-debugging/local-server/)
+from device port `4173` to `localhost:4173` on the computer. Open `http://localhost:4173/` in Chrome on the Android device.
+Under **Directions → Route options → Offline maps**, download **Planet map and app** and the
+terrain pack for your route. Verify the route opens on the phone before disconnecting the cable.
+For a walk away from the computer, open the same build from a trusted HTTPS host reachable by the phone.
+A hosted preview uses `npm run build` and the `dist/` output directory. Open the HTTPS link directly
+in Safari or Chrome, choose **Directions → Start route → Earth GPS Demo**, and allow precise location.
+A regular Wi-Fi HTTP preview is suitable for checking the layout. The URL paths are:
 - `#/` for the intro;
 - `#/explore` for the whole planet (add `?site=<id>&mode=3d&layers=a,b` for a shared link);
 - `#/map?tab=mission` for the Marswalk planner;
@@ -52,6 +61,37 @@ and open `http://<laptop-ip>:4173/`. The URL paths are:
 Finer basemap tiles in the 2D explorer stream from NASA Trek (`trek.nasa.gov`, which allows any
 origin) when you zoom past the bundled 4096 px basemap. Offline, the bundled basemap, catalog,
 layers and Wildcat Ridge data all still work.
+
+**Drone → Try drone simulation (2)** opens the two local games. Mount Sharp loads the
+[NASA MMGIS Curiosity traverse](https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json)
+segments within the existing Gale terrain bounds. The bundled snapshot retains source vertices
+and gaps. The 2019 proposed flyover is linked separately in the guide. Wildcat Ridge uses the
+existing Perseverance waypoints, connected in travel order. The terrain pack for the chosen
+flyover must be installed for an offline session.
+
+The map colors come from [Meyer et al., supplemental orbital mapping](https://doi.org/10.1130/GSAB.S.25938268)
+(CC BY 4.0) and [Sun and Stack, USGS SIM 3464](https://doi.org/10.3133/sim3464).
+The app clips and recolors these features to the terrain pack bounds. The [NASA 2019 animation](https://science.nasa.gov/resource/curiositys-proposed-path-up-mount-sharp/)
+shows a wider area and uses a different set of annotations. The exported Jezero polygon layer is
+USGS ArcGIS item `b602bd9a573d447eb07388e5fb9ca884`, layer 8, queried in its native coordinates
+with envelope `-6400,1092000,-3900,1097000`. Use the Gale supplement ZIP and the Jezero JSON with
+`python scripts/data/layers/drone_geology.py GALE_ZIP JEZERO_QUERY_JSON` to regenerate overlays.
+
+Earth GPS Demo uses a phone or tablet’s fixes to simulate movement from the selected lander.
+On coarse MOLA it gives the regional route, estimated position, and GPS status. Detailed turns,
+terrain alerts, and off-route detours are limited to a route within the local terrain packs.
+Routine GPS voice prompts are bundled in the core offline pack. Nearby site cues are derived from
+observed catalog locations near the active leg. The phone's offline English voice reads the name,
+distance, and compass direction when available. The same message appears in the navigation panel.
+The app keeps Earth coordinates in the phone tab's memory and shares only the planned Mars coordinates.
+For a short indoor test, use **Recorded preview** to verify the camera, route, and voice or
+**Step-powered preview** to verify the device's motion input. Earth GPS Demo waits for a reliable fix.
+
+The [Perseverance model](https://science.nasa.gov/resource/mars-perseverance-rover-3d-model/) is
+credited to NASA/JPL-Caltech. The app loads it when rover playback starts and includes it in the
+offline app download. Rover estimates use user-entered speeds and limits and the selected route's
+measured slope. A suggestion requires a complete detailed round trip, a walking time over budget,
+and a rover time within budget and reserve. The visual model represents Perseverance.
 
 ## Data reproduction
 

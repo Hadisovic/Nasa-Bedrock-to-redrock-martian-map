@@ -1,5 +1,21 @@
 import { nasaInsignia } from "./nasaMark.ts";
 
+export function GoToLocation({ onClick }: { onClick: () => void }) {
+  return <button type="button" className="btn btn--small btn--locate" onClick={onClick}>
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+      <path d="M3 11 21 3l-8 18-2.2-7.8L3 11Z" />
+    </svg>
+    Go to location
+  </button>;
+}
+
+export function RoverIcon() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+    <path d="M3 16h18v-4l-4-2h-6V6h5M7 16v-3h4M3 16v-3" />
+    <circle cx="5" cy="18" r="2" /><circle cx="12" cy="18" r="2" /><circle cx="19" cy="18" r="2" />
+  </svg>;
+}
+
 export function RocketIcon({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 12 14" shapeRendering="crispEdges" aria-hidden="true" focusable="false">
@@ -33,13 +49,20 @@ export function SourceFlag() {
 }
 export function MapFlag({ size = 24, color = "#ffcc80", nasaSource = false }: { size?: number; color?: string; nasaSource?: boolean }) {
   if (nasaSource) return <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
-    <path d="M4 25V4h23v15H4" fill="#134579" stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
+    <path d="M4 25V3h23v17H4" fill={nasaInsignia ? "#f5f7fb" : "#153655"} stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
     {nasaInsignia
-      ? <image href={nasaInsignia} x="8" y="4.6" width="15" height="14" />
-      : <text x="15.5" y="14.5" fill="#fff" textAnchor="middle" fontFamily="sans-serif" fontSize="7.8" fontWeight="700">NASA</text>}
+      ? <image href={nasaInsignia} x="5.5" y="3.5" width="20" height="16" />
+      : <><path d="M5 16.5h21" stroke="#e78759" /><text x="15.5" y="13.8" fill="#fff" textAnchor="middle"
+          fontFamily="sans-serif" fontSize="7.8" fontWeight="700">NASA</text></>}
   </svg>;
   return <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
     <path d="M6 25V4h17l-4 6 4 6H6" fill={color} stroke="#111827" strokeWidth="3" strokeLinejoin="round" />
     <path d="M6 25V4h17l-4 6 4 6H6" fill="none" stroke="#fff" strokeWidth="1.25" strokeLinejoin="round" />
   </svg>;
+}
+
+export function FlagCluster({ count }: { count: number }) {
+  return nasaInsignia
+    ? <span className="cluster-icon"><MapFlag size={33} nasaSource /><b>{count}</b></span>
+    : <span className="gpin__count">{count}</span>;
 }

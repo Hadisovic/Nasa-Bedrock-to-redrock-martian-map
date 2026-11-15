@@ -168,9 +168,19 @@ function searchGlobalLeg(grid: ElevationGrid, start: LatLon, end: LatLon, slopeL
   return { status: "ok" as const, leg: { points, distanceKm, maxSlopeDeg, climbM, elevationsM: profile }, cells, returnClimbM };
 }
 
-export function routeGlobalLeg(grid: ElevationGrid, start: LatLon, end: LatLon, slopeLimit: number): DirectionalRoute {
+export function routeGlobalLeg(grid: ElevationGrid, start: LatLon, end: LatLon, slopeLimit: number, blocked?: LatLon): DirectionalRoute {
   const spacingM = greatCircleKm({ lat: 0, lon: 0 }, { lat: 0, lon: 360 / grid.width }) * 1000;
   const terrain = { label: "Global MOLA (equatorial spacing)", spacingM, regional: true };
+  if (blocked && validPoint(blocked)) {
+    const cell = cellIndex(grid, blocked);
+    if ((validPoint(start) && cellIndex(grid, start) === cell) || (validPoint(end) && cellIndex(grid, end) === cell)) {
+      return { status: "unavailable", terrain, detail: "An endpoint and the reported obstacle occupy the same MOLA cell. Choose an endpoint outside that cell." };
+    }
+    const elevations = grid.elevations.slice();
+    // The regional grid cannot locate a reported obstacle within its cell.
+    elevations[cell] = NaN;
+    grid = { ...grid, elevations };
+  }
   const shortest = searchGlobalLeg(grid, start, end, slopeLimit, 0);
   if (shortest.status !== "ok") return { ...shortest, terrain };
   const weighted = searchGlobalLeg(grid, start, end, slopeLimit, 4);
