@@ -20,6 +20,9 @@ test("Earth offsets are mapped 1:1, including a longitude seam crossing", () => 
   const result = relativeToLander(south, marsFromEarth(start, finish, south), null, null);
   assert.ok(Math.abs(result.eastM - 20) < 0.01);
   assert.ok(Math.abs(result.northM - 10) < 0.01);
+  const scaled = relativeToLander(south, marsFromEarth(start, finish, south, 100), null, null);
+  assert.ok(Math.abs(scaled.eastM - 2000) < 1.1);
+  assert.ok(Math.abs(scaled.northM - 1000) < 1.1);
 });
 
 test("GPS rejects weak, stale and out-of-order fixes", () => {

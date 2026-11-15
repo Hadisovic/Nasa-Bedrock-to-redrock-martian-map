@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { itineraryLegs, legKey, roundRouteCorners, suggestRover, summarizeItinerary } from "../../src/explorer/itinerary.ts";
+import { itineraryLegs, legKey, roundRouteCorners, routeProfile, suggestRover, summarizeItinerary } from "../../src/explorer/itinerary.ts";
 import type { PlannedLeg } from "../../src/explorer/itinerary.ts";
 import { defaultMission, PLAN_DATA_VERSION, planReturns, planStops, readPlan } from "../../src/explorer/missionPlan.ts";
 import type { Plan } from "../../src/explorer/missionPlan.ts";
@@ -48,6 +48,11 @@ test("a failed middle leg keeps measured legs and suppresses whole-itinerary tim
   assert.equal(coarse.complete, true);
   assert.equal(coarse.travel, null);
   assert.equal(coarse.remaining, null);
+  const profile = routeProfile(results, mission, false, 15)!;
+  assert.ok(Math.abs(profile.walk! - 600 / mission.speed / 60) < 1e-9);
+  assert.ok(Math.abs(profile.rover! - 600 / mission.roverSpeed / 60) < 1e-9);
+  assert.equal(routeProfile(results, { ...mission, roverSlope: 6 }, false, 15)?.rover, null);
+  assert.equal(routeProfile(regional, mission, false, 15)?.walk, null);
   const tightBudget = { ...mission, budget: 61, reserve: 36 };
   assert.match(suggestRover(results, [a, b], tightBudget, false) ?? "", /600 metres.*14.3 minutes on foot or 8.3 minutes by rover/);
   assert.equal(suggestRover(results, [a, b], { ...tightBudget, reserve: 37 }, false), null);

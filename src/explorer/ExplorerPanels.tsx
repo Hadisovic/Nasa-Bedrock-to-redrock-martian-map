@@ -56,17 +56,17 @@ export function SearchBox({ events, unlocated, onGo, onRead, onRoute, routeLabel
   );
 }
 
-export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visibleCount }: {
+export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visibleCount, filtersOpen, onFilters }: {
   catalog: Catalog; filter: CatalogFilter; setFilter: (f: CatalogFilter) => void;
   onGo: (event: CatalogEvent) => void; onRead: (event: CatalogEvent) => void; visibleCount: number;
+  filtersOpen: boolean; onFilters: (open: boolean) => void;
 }) {
   const missions = useMemo(() => {
     const map = new Map<string, string>();
-    for (const e of [...catalog.events, ...catalog.unlocated]) map.set(e.missionId, e.mission);
+    for (const e of catalog.events) map.set(e.missionId, e.mission);
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [catalog]);
   const types = useMemo(() => [...new Set(catalog.events.map((e) => e.type))].sort(), [catalog]);
-  const [showUnlocated, setShowUnlocated] = useState(false);
   const toggle = <T,>(set: ReadonlySet<T>, value: T) => { const next = new Set(set); if (next.has(value)) next.delete(value); else next.add(value); return next; };
   const list = catalog.events.filter((e) => matchesFilter(e, filter))
     .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999") || a.title.localeCompare(b.title));
@@ -76,10 +76,9 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
     <div className="panel-body catalog">
       <h2>Historical events and discoveries</h2>
       <p className="muted small">
-        {catalog.counts.total.mapped} precise, {catalog.counts.total.approximate} approximate or regional, {catalog.counts.total.unlocated} without a defensible location.
-        Showing {visibleCount} on the map. Every record links to its NASA source.
+        {catalog.counts.total.mapped} precise and {catalog.counts.total.approximate} approximate or regional. Showing {visibleCount} on the map.
       </p>
-      <details className="filters" open>
+      <details className="filters" open={filtersOpen} onToggle={(event) => onFilters(event.currentTarget.open)}>
         <summary>Filter by mission, type, sol or year</summary>
         <fieldset><legend>Mission</legend>
           {missions.map(([id, name]) => (
@@ -118,28 +117,6 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
         ))}
         {list.length === 0 && <li className="muted">No mapped records match these filters.</li>}
       </ul>
-      <h3><button type="button" className="linklike" aria-expanded={showUnlocated} onClick={() => setShowUnlocated((v) => !v)}>Location unavailable ({catalog.unlocated.length})</button></h3>
-      {showUnlocated && (
-        <ul className="event-list">
-          {catalog.unlocated.map((event) => (
-            <li key={event.id} className="event-row">
-              <div>
-                <strong>{event.title}</strong> <span className="muted small">{event.mission}{event.sol != null ? ` · sol ${event.sol}` : ""}</span>
-                <p className="muted small">{event.reasonUnlocated}</p>
-                <button type="button" className="btn btn--small" onClick={() => onRead(event)}>Read about</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      <details className="small">
-        <summary>Counts by source</summary>
-        <table className="counts"><thead><tr><th>Source</th><th>Precise</th><th>Approx.</th><th>Unlocated</th></tr></thead>
-          <tbody>{Object.entries(catalog.counts.bySource).map(([id, c]) => {
-            const source = catalog.sources.find((s) => s.id === id);
-            return <tr key={id}><td>{source ? <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : id}</td><td>{c.mapped}</td><td>{c.approximate}</td><td>{c.unlocated}</td></tr>;
-          })}</tbody></table>
-      </details>
     </div>
   );
 }
@@ -228,15 +205,15 @@ const layerFilters = [
   { name: "All", matches: () => true },
   { name: "Minerals", matches: (layer: LayerEntry) => /^(aqueous-|hydrous-|chloride-|grs-silicon|grs-iron|tes-plagioclase|tes-high-ca|tes-sheet)/.test(layer.id) },
   { name: "Water", matches: (layer: LayerEntry) => /^(grs-water|aqueous-|hydrous-)/.test(layer.id) },
+  { name: "Ice indicators", matches: (layer: LayerEntry) => layer.id === "grs-water" },
   { name: "Dust & weather", matches: (layer: LayerEntry) => layer.group === "weather" || /^(themis-|tes-thermal)/.test(layer.id) },
 ] as const;
 
-export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBasemapId, failed, zoomToLayer, retryLayer, localSlope }: {
+export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBasemapId, failed, zoomToLayer, retryLayer }: {
   manifest: LayerManifest; state: Record<string, LayerState>; setState: (id: string, s: LayerState) => void;
   basemapId: string; setBasemapId: (id: string) => void; failed: ReadonlySet<string>;
   zoomToLayer: (entry: LayerEntry) => void;
   retryLayer: (id: string) => void;
-  localSlope: React.ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<(typeof layerFilters)[number]["name"]>("All");
@@ -244,7 +221,6 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
   const filter = layerFilters.find((item) => item.name === category) ?? layerFilters[0];
   const showOverview = terms.length === 0 && category === "All";
   const search = (value: string) => terms.every((term) => value.toLowerCase().includes(term));
-  const showSlope = category === "All" && search("calculated local slope terrain elevation steepness hazards wildcat ridge gale");
   const baseCandidates = manifest.layers.filter((l) => isImageLayer(l) && l.group === "terrain" && l.global && !l.hasTransparency && l.treatment !== "false-color");
   const base = baseCandidates.find((l) => l.id === basemapId);
   const numeric = manifest.layers.filter((l) => !isImageLayer(l));
@@ -280,8 +256,7 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
         </div>
       )}
       {showOverview && numeric.length > 0 && <p className="muted small">Numerical data used for readouts, not drawn: {numeric.map((l) => l.title).join(", ")}. Hover the flat map to read MOLA elevation.</p>}
-      {showSlope && localSlope}
-      {!showSlope && filtered.every(({ entries }) => entries.length === 0) && <p className="muted small" role="status">No matching layers.</p>}
+      {filtered.every(({ entries }) => entries.length === 0) && <p className="muted small" role="status">No matching layers.</p>}
       {filtered.map(({ entries, ...group }) => {
         if (!entries.length) return null;
         return (
@@ -291,14 +266,20 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
               const s = state[l.id] ?? { visible: false, opacity: 0.7 };
               const { west, south, east, north } = l.coverage;
               const planetwide = west === -180 && east === 180 && south === -90 && north === 90;
-              const extent = l.featuresFile ? "Mapped detections" : planetwide ? "Planetwide"
-                : east - west < 30 ? "Regional" : east - west > 350 && north - south < 145 ? "Latitude band" : "With gaps";
               return (
                 <div key={l.id} className="layer">
-                  <label className="layer__toggle"><input type="checkbox" checked={s.visible} onChange={(e) => setState(l.id, { ...s, visible: e.target.checked })} /> <strong>{l.title}</strong>
-                    {l.treatment === "false-color" && <span className="tag">False colour</span>}
-                    <span className="tag">{extent}</span>
-                  </label>
+                  <div className="layer__row"><label className="layer__toggle"><input type="checkbox" checked={s.visible}
+                    onChange={(e) => setState(l.id, { ...s, visible: e.target.checked })} /> <strong>{l.title}</strong></label>
+                  <details className="small muted">
+                    <summary aria-label={`About ${l.title}`} title="Layer details" />
+                    <p>{l.measures}{l.units ? ` (${l.units})` : ""}.</p>
+                    <p>{l.instrument ? `${l.instrument}, ` : ""}{l.mission}. Coverage: {l.featuresFile ? "Recorded locations within the source footprint"
+                      : planetwide ? "All longitudes and latitudes" : `Longitude ${west}° to ${east}°, latitude ${south}° to ${north}°`}.
+                      {l.hasTransparency && !l.featuresFile ? " Clear areas show where this layer has no data." : ""}
+                      {l.sourceResolution ? ` Source resolution ${l.sourceResolution}; shipped at ${l.shippedResolution}.` : ""} {l.observationDates ? `Observed ${l.observationDates}.` : ""}
+                      {l.verticalDatum ? ` Vertical datum: ${l.verticalDatum}.` : ""}</p>
+                    <p>Credit: {l.credit}. {l.sourceUrls?.[0] && <a href={l.sourceUrls[0]} target="_blank" rel="noreferrer">Metadata</a>}</p>
+                  </details></div>
                   {failed.has(l.id) && <div className="mission-row"><p className="error small">This layer's file did not load.</p>
                     <button className="btn btn--small" onClick={() => retryLayer(l.id)}>Retry layer</button></div>}
                   {s.visible && (
@@ -311,27 +292,12 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
                       {l.coverage.east - l.coverage.west < 30 && <button className="btn btn--small" onClick={() => zoomToLayer(l)}>Zoom to coverage</button>}
                     </>
                   )}
-                  <details className="small muted">
-                    <summary>What it measures and source</summary>
-                    <p>{l.measures}{l.units ? ` (${l.units})` : ""}.</p>
-                    <p>{l.instrument ? `${l.instrument}, ` : ""}{l.mission}. Coverage: {l.featuresFile ? "Recorded locations within the source footprint"
-                      : planetwide ? "All longitudes and latitudes" : `Longitude ${west}° to ${east}°, latitude ${south}° to ${north}°`}.
-                      {l.hasTransparency && !l.featuresFile ? " Clear areas show where this layer has no data." : ""}
-                      {l.sourceResolution ? ` Source resolution ${l.sourceResolution}; shipped at ${l.shippedResolution}.` : ""} {l.observationDates ? `Observed ${l.observationDates}.` : ""}
-                      {l.verticalDatum ? ` Vertical datum: ${l.verticalDatum}.` : ""}</p>
-                    <p>Credit: {l.credit}. {l.sourceUrls?.[0] && <a href={l.sourceUrls[0]} target="_blank" rel="noreferrer">Metadata</a>}</p>
-                  </details>
                 </div>
               );
             })}
           </section>
         );
       })}
-      {showOverview && manifest.excluded.length > 0 && (
-        <details className="small"><summary>Searched but not shipped ({manifest.excluded.length})</summary>
-          <ul>{manifest.excluded.map((x) => <li key={x.id}><strong>{x.title}:</strong> {x.reason}</li>)}</ul>
-        </details>
-      )}
     </div>
   );
 }

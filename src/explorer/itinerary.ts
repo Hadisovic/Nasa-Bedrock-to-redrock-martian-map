@@ -12,7 +12,21 @@ export interface Leg {
   toStop: number | null;
 }
 export type PlannedLeg = Leg & { result: DirectionalRoute | null };
-export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean; history?: boolean };
+export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean;
+  color?: string; selected?: boolean };
+
+export const routeColors = { shortest: "#6bd5ff", lowerSlope: "#ffc377" };
+
+export function routeProfile(legs: readonly PlannedLeg[], mission: MissionOptions, weighted: boolean, walkingSlope: number) {
+  const measured = legs.map(({ result }) => selectedLeg(result, weighted));
+  if (!legs.length || measured.some((leg) => !leg)) return null;
+  const distanceKm = measured.reduce((sum, leg) => sum + (leg?.distanceKm ?? 0), 0);
+  const steepest = Math.max(...measured.map((leg) => leg?.maxSlopeDeg ?? 0));
+  const regional = legs.some(({ result }) => result?.terrain?.regional);
+  const travel = (speed: number, limit: number) => regional || !Number.isFinite(speed) || speed <= 0 || !(limit >= 1 && limit <= 89) || steepest > limit
+    ? null : distanceKm * 1000 / speed / 60;
+  return { distanceKm, steepest, regional, walk: travel(mission.speed, walkingSlope), rover: travel(mission.roverSpeed, mission.roverSlope) };
+}
 
 export function itineraryLegs(start: Endpoint | null, stops: readonly Stop[], returning: boolean, position?: LatLon): Leg[] {
   if (!start || !stops.length) return [];

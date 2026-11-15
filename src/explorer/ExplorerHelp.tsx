@@ -4,10 +4,10 @@ import { usePixelSound } from "../components/usePixelSound.ts";
 const steps = [
   { tab: "Map", text: "Drag to explore. Zoom in for detail. Use 2D or 3D to switch views." },
   { tab: "Discover", text: "Tap a flag to read about a mission. Use Layers to see the data behind the map." },
-  { tab: "Directions", text: "Place your lander, then add stops on the map or through search. Blue is outbound. Dashes lead home." },
+  { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors gentler terrain, and dashes lead home. Pick a route before starting." },
   { tab: "Save", text: "Tap the route for details or save options. Name it, share a link, or export a file." },
-  { tab: "Drone", text: "Open Drone View at Wildcat Ridge or Mount Sharp. Use the joystick or arrows to fly, drag to look, and use Up and Down to change altitude." },
-  { tab: "Earth Walk", text: "Earth GPS Demo maps a phone or tablet’s outdoor movement onto Mars from the lander. Your Earth coordinates stay in this tab. Tilt moves the camera. On desktop, preview the simulated walk. The terrain and route cues use Mars data." },
+  { tab: "Drone", text: "Wildcat Ridge and Mount Sharp are interactive samples of detailed terrain, inspired by NASA’s Curiosity flyover. Use the joystick and altitude controls. Turn on geology to see mapped units." },
+  { tab: "Earth Walk", text: "On a phone or tablet, allow precise location and use a large open area. Earth GPS moves the simulation using your actual heading and your chosen distance scale. Recorded preview plays the route on desktop. Operational Mars navigation would need local sensors and positioning infrastructure." },
 ];
 
 export function ExplorerHelp() {
@@ -16,12 +16,45 @@ export function ExplorerHelp() {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
+  const ambience = useRef<AudioContext | null>(null);
+  const [musicOn, setMusicOn] = useState(false);
   const current = steps[step];
   const sound = usePixelSound();
   function select(index: number) {
     setStep(index);
     setShown(matchMedia("(prefers-reduced-motion: reduce)").matches ? steps[index].text.length : 0);
   }
+
+  function toggleMusic() {
+    if (ambience.current) {
+      void ambience.current.close().catch(() => {});
+      ambience.current = null;
+      setMusicOn(false);
+      return;
+    }
+    if (typeof AudioContext !== "function") return;
+    const context = new AudioContext();
+    const volume = context.createGain();
+    volume.gain.setValueAtTime(0, context.currentTime);
+    volume.gain.linearRampToValueAtTime(0.024, context.currentTime + 1.8);
+    volume.connect(context.destination);
+    for (const [index, frequency] of [82.41, 123.47, 164.81].entries()) {
+      const tone = context.createOscillator();
+      tone.frequency.value = frequency;
+      tone.detune.value = index * 3;
+      tone.connect(volume);
+      tone.start(context.currentTime + index * .6);
+    }
+    const pulse = context.createOscillator(), depth = context.createGain();
+    pulse.frequency.value = 0.09;
+    depth.gain.value = 0.009;
+    pulse.connect(depth).connect(volume.gain);
+    pulse.start();
+    ambience.current = context;
+    void context.resume().then(() => setMusicOn(ambience.current === context), () => {});
+  }
+
+  useEffect(() => () => { void ambience.current?.close().catch(() => {}); }, []);
 
   useEffect(() => {
     if (!open || shown >= current.text.length) return;
@@ -54,6 +87,7 @@ export function ExplorerHelp() {
         <p aria-hidden="true">{current.text.slice(0, shown)}{shown < current.text.length && <span className="mission-home__cursor">▍</span>}</p>
       </div>
       <div className="mission-home__actions">
+        <button type="button" aria-pressed={musicOn} onClick={toggleMusic}>{musicOn ? "Mute ambience" : "Play ambience"}</button>
         <button type="button" disabled={step === 0} onClick={() => select(step - 1)}>Back</button>
         {step + 1 < steps.length ? <button type="button" onClick={() => select(step + 1)}>Next</button>
           : <form method="dialog"><button type="submit">Done</button></form>}

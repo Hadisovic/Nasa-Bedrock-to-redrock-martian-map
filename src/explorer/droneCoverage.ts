@@ -3,7 +3,6 @@ import { ELEVATION_LAYOUT } from "../data/sites.ts";
 import { unprojectMars } from "../contracts/coordinates.ts";
 import perseverance from "../../data/mars/jezero/rover-waypoints.json" with { type: "json" };
 import geology from "../../data/mars/layers/drone-geology.json" with { type: "json" };
-import { greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import type { CatalogEvent } from "./catalog.ts";
 
@@ -24,33 +23,19 @@ export const droneCenter = (site: typeof droneSites[number]) => ({
 });
 
 export type DroneSite = typeof droneSites[number];
-export type DroneTour = Awaited<ReturnType<typeof droneTour>>;
+export type DroneTour = ReturnType<typeof droneTour>;
 
-export async function droneTour(site: DroneSite, events: readonly CatalogEvent[]) {
+export function droneTour(site: DroneSite, events: readonly CatalogEvent[]) {
   const gale = site.id === "gale";
-  const curiosity = gale ? (await import("../../data/mars/catalog/curiosity-traverse-gale.json", { with: { type: "json" } })).default : null;
   const contains = ({ lat, lon }: LatLon) => lat <= site.north && lat >= site.south && lon >= site.west && lon <= site.east;
-  const points = curiosity ? curiosity.tracks.map((line) => line.map(([lon, lat]) => ({ lat, lon })))
-    : [perseverance.waypoints.map((point) => ({ lat: point.latitude_planetocentric_deg, lon: point.longitude_east_deg }))];
-  const paths = points.flatMap((line) => {
-    const segments: LatLon[][] = [[]];
-    for (const point of line) {
-      if (contains(point)) segments.at(-1)!.push(point);
-      else if (segments.at(-1)!.length) segments.push([]);
-    }
-    return segments.filter((segment) => segment.length > 1).map((segment) => ({
-      points: segment, history: true, returning: false,
-      distanceKm: segment.slice(1).reduce((km, point, i) => km + greatCircleKm(segment[i], point), 0),
-    }));
-  });
   const stops = events.filter((event) => event.observed && event.location && contains(event.location) &&
     (gale ? event.missionId === "msl" : event.missionId === "m2020"));
   return {
-    site, paths, stops, geology: geology[site.id],
+    site, stops, geology: geology[site.id],
     title: gale ? "Curiosity’s drive" : "Perseverance waypoints",
-    description: gale ? "Follow NASA’s mapped Curiosity drive segments across lower Mount Sharp. Open the science stops to see what the rover studied."
-      : "The line connects localized rover stops at Wildcat Ridge. Open a science stop to read the evidence and see its mapped position.",
-    source: curiosity?.source ?? perseverance.source,
+    description: gale ? "Fly over the mapped terrain of lower Mount Sharp. Turn on geology or open a Curiosity science stop."
+      : "Fly over the HiRISE terrain at Wildcat Ridge. Open a Perseverance pin or place your own walking route.",
+    source: gale ? "https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json" : perseverance.source,
     reference: gale ? "https://science.nasa.gov/resource/curiositys-proposed-path-up-mount-sharp/" : null,
   };
 }

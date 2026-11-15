@@ -32,6 +32,7 @@ export function missionAudio() {
   const context = typeof AudioContext === "function" ? new AudioContext() : null;
   const buffers = new Map<string, Promise<AudioBuffer>>();
   let playing: AudioBufferSourceNode | null = null;
+  let replanTone: OscillatorNode | null = null;
   const speech = window.speechSynthesis;
   let speaking = false;
   let current = 0;
@@ -41,6 +42,8 @@ export function missionAudio() {
     audio.pause();
     playing?.stop();
     playing = null;
+    replanTone?.stop();
+    replanTone = null;
     if (speaking) speech?.cancel();
     speaking = false;
   }
@@ -79,7 +82,21 @@ export function missionAudio() {
         playing = context.createBufferSource();
         playing.buffer = buffer;
         playing.connect(context.destination);
-        playing.start();
+        let startsAt = context.currentTime;
+        if (cue === "recalculating") {
+          const tone = context.createOscillator(), gain = context.createGain();
+          tone.frequency.setValueAtTime(440, startsAt);
+          tone.frequency.setValueAtTime(620, startsAt + .08);
+          gain.gain.setValueAtTime(.055, startsAt);
+          gain.gain.linearRampToValueAtTime(0, startsAt + .2);
+          tone.connect(gain).connect(context.destination);
+          tone.onended = () => { tone.disconnect(); gain.disconnect(); if (replanTone === tone) replanTone = null; };
+          replanTone = tone;
+          tone.start(startsAt);
+          startsAt += .2;
+          tone.stop(startsAt);
+        }
+        playing.start(startsAt);
       }).catch(() => buffers.delete(clip));
     };
     fallback();

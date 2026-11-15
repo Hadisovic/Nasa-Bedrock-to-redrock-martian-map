@@ -1,15 +1,15 @@
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 
 const ticks = Array.from({ length: 36 }, (_, index) => index);
 
-export function MapControls({ switchView, zoomIn, zoomOut, resetNorth, needle, flying = false, canSwitch = true }: {
+export function MapControls({ switchView, zoomIn, zoomOut, resetNorth, needle, flying = false, extras }: {
   switchView: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
   resetNorth?: () => void;
   needle?: Ref<SVGGElement>;
   flying?: boolean;
-  canSwitch?: boolean;
+  extras?: ReactNode;
 }) {
   const dial = <svg viewBox="0 0 72 72" aria-hidden="true">
     <circle cx="36" cy="36" r="33" fill="#121925" stroke="#6b7989" />
@@ -35,9 +35,10 @@ export function MapControls({ switchView, zoomIn, zoomOut, resetNorth, needle, f
       onClick={resetNorth}>{dial}</button>
       : <span className="explorer-compass" role="img" aria-label="North is up">{dial}</span>}
     {!flying && <>
-      {canSwitch && <button type="button" aria-label={resetNorth ? "Switch to 2D map" : "Switch to 3D globe"} onClick={switchView}>{resetNorth ? "2D" : "3D"}</button>}
+      <button type="button" aria-label={resetNorth ? "Switch to 2D map" : "Switch to 3D globe"} onClick={switchView}>{resetNorth ? "2D" : "3D"}</button>
       <button type="button" className="explorer-map-controls__zoom" onClick={zoomIn} aria-label="Zoom in">+</button>
       <button type="button" className="explorer-map-controls__zoom" onClick={zoomOut} aria-label="Zoom out">−</button>
+      {extras}
     </>}
   </div>;
 }

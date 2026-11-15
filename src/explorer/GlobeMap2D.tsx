@@ -27,6 +27,7 @@ export interface GlobeMap2DProps {
   tiles: TileSource | null;
   paths: readonly MapLeg[];
   switchView: () => void;
+  mapActions?: React.ReactNode;
   onRouteClick?: (point: RouteMapPoint | null) => void;
   onRouteHover?: (point: RouteMapPoint | null) => void;
   onPick?: (point: LatLon) => void;
@@ -264,7 +265,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
     if (paths.length) {
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      for (const { points, returning, preview } of paths) {
+      for (const { points, returning, preview, selected = true, color } of paths) {
         ctx.beginPath();
         let lastX = Infinity;
         for (const point of points) {
@@ -278,8 +279,8 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
         ctx.strokeStyle = "#0b1724";
         ctx.lineWidth = returning ? 4 : 8;
         ctx.stroke();
-        ctx.strokeStyle = returning ? "#fff" : preview ? "#ffe689" : "#69d5ff";
-        ctx.lineWidth = returning ? 2.6 : 5;
+        ctx.strokeStyle = color ?? (returning ? "#fff" : preview ? "#ffe689" : "#69d5ff");
+        ctx.lineWidth = returning ? 2.6 : selected ? 5 : 3;
         ctx.stroke();
       }
       ctx.setLineDash([]);
@@ -444,7 +445,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
         );
       })}
       <MapControls switchView={props.switchView} zoomIn={() => zoomAt(1.6, size.width / 2, size.height / 2)}
-        zoomOut={() => zoomAt(1 / 1.6, size.width / 2, size.height / 2)} />
+        zoomOut={() => zoomAt(1 / 1.6, size.width / 2, size.height / 2)} extras={props.mapActions} />
       <div className="map-hud map-hud--scale" aria-label={`Scale bar ${barKm} kilometres along a meridian`}>
         <div className="scalebar" style={{ width: `${barKm / kmPerPx}px` }} />
         <span>{barKm} km</span>

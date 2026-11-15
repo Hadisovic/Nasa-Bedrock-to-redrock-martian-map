@@ -1,6 +1,6 @@
 /* Glass controls and full-bleed landing treatments adapted from the Frontend branch. */
 .mission-home { position: relative; height: 100dvh; background: #030407; }
-.mission-home__enter { position: absolute; inset: 0; display: block; width: 100%; border: 0; background: #030407; cursor: pointer; overflow: hidden; transition: opacity .45s ease, transform .45s ease; }
+.mission-home__enter { position: absolute; inset: 0; display: block; width: 100%; border: 0; background: #030407; cursor: pointer; overflow: hidden; transition: opacity .45s ease-in-out, transform .45s ease-out; }
 .mission-home__enter.is-leaving { opacity: 0; transform: scale(1.02); }
 .mission-home__scene { position:absolute; inset:0; display:block; }
 .mission-home__phone-title { display:none; }
@@ -38,27 +38,15 @@
 }
 .explorer .stage__tools .btn--primary { background: #25445b; color: #f3f5f8; }
 .explorer .search input { background: #212229; border-color: #ffffff2a; }
-@media (max-aspect-ratio: 4/3) {
-  .mission-home__enter::before, .mission-home__enter::after { content:""; position:absolute; inset-inline:0; pointer-events:none; }
-  .mission-home__enter::before { top:0; height:55%;
-    background:linear-gradient(180deg, transparent 35%, #080f1d), url("../../public/images/martian-map-cinematic.jpg") right top / auto 480% no-repeat; }
-  .mission-home__enter::after { bottom:0; height:44%;
-    background:linear-gradient(180deg, #23151b, transparent 30%), url("../../public/images/martian-map-cinematic.jpg") center bottom / auto 350% no-repeat; }
-  .mission-home__scene { z-index:1; width:100%; height:auto; aspect-ratio:4 / 3; top:50%; bottom:auto; transform:translateY(-50%);
-    mask-image:linear-gradient(transparent,#000 7% 94%,transparent); }
-  .mission-home__art { object-position:50% 50%; }
-  .mission-home__prompt { z-index:2; bottom:max(65px,calc(env(safe-area-inset-bottom) + 50px),10dvh);
-    font-size:clamp(.73rem,2.6vw,1rem); text-wrap:balance; }
-  .mission-home__help { top:max(14px,env(safe-area-inset-top)); right:max(14px,env(safe-area-inset-right)); }
-}
-@media (max-aspect-ratio: 3/5) {
-  .mission-home__scene { left:auto; right:0; width:172%; top:59%; mask-image:linear-gradient(transparent,#000 19% 83%,transparent); }
-  .mission-home__phone-title { position:absolute; z-index:2; display:grid; justify-items:center; gap:6px; inset:8% 17% auto;
+@media (max-aspect-ratio: 9/10) {
+  .mission-home__art { object-position:right center; }
+  .mission-home__phone-title { position:absolute; z-index:2; display:grid; justify-items:center; gap:6px;
+    inset:8% auto auto 50%; transform:translateX(-50%); width:min(330px,70vw);
     color:#f2f2f4; text-shadow:0 2px 5px #050611; }
-  .mission-home__phone-title img:first-child:not(.mission-home__phone-wordmark) { width:clamp(52px,17vw,82px); }
+  .mission-home__phone-title img:first-child { width:clamp(47px,14vw,76px); }
   .mission-home__phone-title small { font:400 .86rem Workbench, monospace; }
   .mission-home__phone-title .mission-home__phone-wordmark { width:100%; }
-  .mission-home__prompt { bottom:max(64px,calc(env(safe-area-inset-bottom) + 49px),9dvh); }
+  .mission-home__prompt { bottom:max(44px,calc(env(safe-area-inset-bottom) + 32px),8dvh); text-wrap:balance; }
 }
 @media (max-height: 520px) and (min-aspect-ratio: 4/3) {
   .mission-home__art { object-position:50% 26%; }
@@ -212,7 +200,7 @@
 .explorer .stage { position:absolute; inset:0; }
 .explorer .explorer__sidebar, .explorer .route-tools, .explorer .map-route { background:var(--map-panel); border-color:var(--map-border);
   border-radius:18px; box-shadow:0 16px 48px #0009,0 2px 10px #0006; color:#e8eaed; }
-.explorer .explorer__sidebar { position:absolute; top:129px; right:76px; z-index:7; width:var(--explorer-panel-width,400px);
+.explorer .explorer__sidebar { position:absolute; top:129px; right:12px; z-index:7; width:var(--explorer-panel-width,400px);
   max-height:calc(100% - 185px); border:1px solid var(--map-border); backdrop-filter:blur(20px); }
 .explorer__panel-handle { position:absolute; top:18px; left:-37px; z-index:2; padding:0; width:37px; min-height:70px;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--map-text);
@@ -310,14 +298,12 @@
   font-style: normal;
   font-weight: 400;
 }
-.mars-clock { position:absolute; top:20px; right:20px; z-index:4; display:grid; gap:.28rem; justify-items:end;
-  padding:.42rem .6rem; text-align:right; color:#fff7eb; background:#131722e0; border:2px solid #737a85;
-  box-shadow:3px 3px #080b13, inset -2px -2px #303745; pointer-events:none;
-  font-family:Consolas, "Courier New", monospace; font-variant-numeric:tabular-nums; text-shadow:2px 2px #080a10; }
-.mars-clock strong { color:#fffaf2; font-size:clamp(1.9rem,3.8vw,3rem); line-height:1; font-weight:700; letter-spacing:.06em;
-  text-shadow:2px 2px #8a563d, 4px 4px #080a10; }
-.mars-clock span { color:#ffc6a8; font-size:clamp(.75rem,1vw,.95rem); font-weight:700; letter-spacing:.04em; }
-.mars-clock time { font-size:clamp(.7rem,.95vw,.83rem); color:#f1e8dc; }
+.mars-clock { margin-left:auto; flex:none; display:grid; grid-template-columns:auto auto; align-items:center;
+  gap:2px .55rem; padding:.42rem .6rem; color:#fff7eb; background:#131722ed; border:1px solid #737a85;
+  border-radius:10px; box-shadow:2px 2px #080b13; pointer-events:none;
+  font-family:Workbench,monospace; font-variant-numeric:tabular-nums; }
+.mars-clock strong { grid-row:span 2; color:#fffaf2; font-size:clamp(1.18rem,2.6vw,2rem); line-height:1; }
+.mars-clock span,.mars-clock time { color:#f2c8b1; font-size:.66rem; white-space:nowrap; }
 .gps-maneuver { display:flex; align-items:center; gap:.6rem;
   padding:.48rem .65rem; text-align:left; border-radius:10px;
   color:#effaff; background:#112b40f2; border:1px solid #73bed8; box-shadow:0 4px 20px #000a; text-shadow:none; font-family:Inter, sans-serif; }
@@ -354,7 +340,6 @@
     display:grid; place-items:start center; height:13px; min-height:13px; padding-top:5px; touch-action:none; cursor:row-resize; }
   .explorer__resize-sheet::before { content:""; width:42px; height:5px; border-radius:5px; background:#6b7e99; }
   .explorer .explorer-toolbar .btn { height:40px; min-height:40px; }
-  .mars-clock { top:116px; right:14px; }
   .explorer-credit, .explorer .map-hud--scale { bottom:45px; }
   .explorer-map-controls { top:111px; left:10px; gap:4px; }
   .explorer-map-controls .explorer-compass { width:56px; height:56px; }
@@ -372,12 +357,6 @@
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .stage :is(.flight-tools,.map-route) {
     bottom:calc(var(--explorer-sheet-height,35%) + 8px);
   }
-}
-@media (max-width:390px) {
-  .mars-clock { top:178px; }
-}
-@media (max-width:360px) {
-  .mars-clock { top:178px; }
 }
 @keyframes crew-step { from { transform:translateY(-1px) rotate(-5deg) } to { transform:translateY(-4px) rotate(5deg) } }
 @media (max-width:640px) {
@@ -444,4 +423,61 @@
   .explorer__workspace:has(.explorer__sidebar:not([hidden])) .route-quick-menu {
     top:clamp(115px, var(--route-menu-y), calc(100% - var(--explorer-sheet-height,35%) - 114px));
   }
+}
+
+
+/* Keep the active route and map actions in separate screen areas. */
+.home-feature-list { padding-inline-start:1.3rem; font:500 .83rem/1.5 Inter,sans-serif; }
+.explorer__panel-handle svg, .explorer-map-controls button:not(.explorer-compass) svg {
+  width:18px; height:18px; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; fill:none;
+}
+.explorer-map-controls button[aria-pressed=true] { background:#3c304e; border-color:#bca5da; }
+.layer__row { position:relative; padding-right:2rem; }
+.layer__row details summary { position:absolute; top:0; right:0; padding:.2rem .36rem; cursor:pointer; }
+.layer__row details p { overflow-wrap:anywhere; }
+.route-choices { display:flex; flex-wrap:wrap; gap:.35rem; margin:.35rem 0; }
+.explorer .route-choice, .route-details-dialog .route-choice { display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  text-align:left; align-items:center; gap:.15rem .35rem; justify-content:start; }
+.route-choice small { grid-column:2 / -1; display:flex; align-items:center; flex-wrap:wrap; gap:.25rem .5rem; }
+.route-choice small span { display:inline-flex; align-items:center; gap:.2rem; }
+.route-choice svg { width:15px; height:15px; }
+.route-choice__dot { width:.56rem; height:.56rem; border-radius:50%; }
+.route-choice[aria-pressed=true] { outline:2px solid #92d6f0; }
+.route-details-dialog { width: min(580px, calc(100vw - 24px)); max-width:none; }
+.route-details-dialog > header, .earth-walk-setup > header { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.route-details-dialog .directions__options { margin:.8rem 0; }
+.route-details-dialog .directions__options label { min-width:0; }
+.earth-walk-setup { width:min(380px,100%); }
+.earth-walk-setup > label, .earth-walk-setup > button { margin-top:.5rem; }
+.earth-walk-controls { top:205px; bottom:auto; max-height:min(38dvh,310px); overflow:auto; }
+.navigation-hud__headline { display:flex; align-items:center; gap:.3rem; }
+.navigation-hud__headline > .gps-maneuver { flex:1; min-width:0; }
+.navigation-hud__headline > strong { flex:1; }
+.navigation-hud__details:not([hidden]) { display:grid; gap:.33rem; }
+.navigation-hud__steps { margin:.15rem 0; padding-inline-start:1.3rem; font-size:.74rem; }
+.flight-walk-status { position:absolute; z-index:6; top:197px; left:92px; display:flex; align-items:center;
+  gap:.4rem; max-width:calc(100% - 102px); padding:.35rem .45rem; border-radius:10px; background:var(--map-panel); }
+.drone-controls, .drone-controls * { touch-action:none; -webkit-touch-callout:none; user-select:none; }
+.explorer .map-route { max-width:min(530px, calc(100% - 40px)); max-height:min(33dvh,300px); overflow:auto; }
+.map-route__summary { border:0; padding:0; color:inherit; background:transparent; text-align:left; cursor:pointer; }
+.map-route__summary span:last-child { color:#a1dff1; }
+@media (max-width:760px) {
+  .explorer .explorer__topbar { gap:5px; }
+  .explorer .explorer__brand { flex:none; padding:.24rem; }
+  .explorer__search-help { flex:1 1 auto; min-width:0; }
+  .mars-clock { grid-template-columns:1fr; gap:0; padding:.28rem .33rem; text-align:center; }
+  .mars-clock strong { grid-row:auto; font-size:1rem; }
+  .mars-clock span, .mars-clock time { font-size:.49rem; }
+  .explorer-map-controls { flex-direction:column; }
+  .explorer-map-controls button { width:37px; height:37px; }
+  .explorer__workspace:has(.explorer__sidebar:not([hidden])) .earth-walk-controls,
+  .earth-walk-controls { top:112px; bottom:auto; left:72px; width:calc(100% - 82px); max-height:min(33dvh,248px); }
+  .earth-walk-controls { padding:.36rem; }
+  .gps-maneuver { padding:.35rem .4rem; gap:.3rem; }
+  .navigation-hud__headline > button { padding-inline:.35rem; }
+  .explorer .explorer__sidebar--directions { height:var(--explorer-sheet-height,35%); }
+  .explorer .map-route { left:10px; max-width:calc(100% - 20px); }
+  .explorer-credit { left:9px; max-width:58%; overflow-wrap:anywhere; }
+  .explorer .map-hud--scale { right:9px; max-width:37%; text-align:right; overflow-wrap:anywhere; }
+  .flight-walk-status { left:73px; top:163px; max-width:calc(100% - 83px); }
 }

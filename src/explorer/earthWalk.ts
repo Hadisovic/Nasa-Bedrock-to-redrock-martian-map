@@ -10,11 +10,11 @@ export type WalkPose = { point: LatLon; heading: number; moving: boolean; tilt: 
 export type EarthFix = LatLon & { timestamp: number; accuracy: number };
 export type RoutePoint = { point: LatLon; elevation: number | null };
 
-export function marsFromEarth(anchor: EarthFix, fix: EarthFix, lander: LatLon): LatLon {
+export function marsFromEarth(anchor: EarthFix, fix: EarthFix, lander: LatLon, scale = 1): LatLon {
   const north = (fix.lat - anchor.lat) * radians * earthRadiusM;
   const east = lonDelta(anchor.lon, fix.lon) * radians * earthRadiusM * Math.cos(anchor.lat * radians);
   const bearing = Math.atan2(east, north);
-  const step = Math.hypot(north, east) / (MARS_RADIUS_KM * 1000);
+  const step = Math.hypot(north, east) * scale / (MARS_RADIUS_KM * 1000);
   if (!step) return { lat: lander.lat, lon: lander.lon };
   const lat = lander.lat * radians;
   const next = Math.asin(Math.max(-1, Math.min(1, Math.sin(lat) * Math.cos(step) + Math.cos(lat) * Math.sin(step) * Math.cos(bearing))));

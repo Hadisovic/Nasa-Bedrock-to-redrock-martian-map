@@ -92,6 +92,7 @@ export function DroneControls({ onInput }: { onInput: (input: FlightInput) => vo
       className={`drone-controls__button drone-controls__button--${id}`} aria-label={label} aria-keyshortcuts={key} title={label}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
+        if (event.pointerType === "touch") event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
         held.current.set(event.pointerId, input);
         sync();
@@ -109,11 +110,13 @@ export function DroneControls({ onInput }: { onInput: (input: FlightInput) => vo
       <span aria-hidden="true">{icon}</span>
       {altitude && <small aria-hidden="true">{id === "up" ? "Up" : "Down"}</small>}
     </button>);
-  return <div className="drone-controls" role="group" aria-label="Drone movement" aria-describedby="drone-control-hint">
+  return <div className="drone-controls" role="group" aria-label="Drone movement" aria-describedby="drone-control-hint"
+    onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()}>
     <div className="drone-controls__steering">
       <div className="drone-controls__stick" aria-hidden="true"
         onPointerDown={(event) => {
           if (event.button !== 0 || joystick.current !== null) return;
+          if (event.pointerType === "touch") event.preventDefault();
           joystick.current = event.pointerId;
           event.currentTarget.setPointerCapture(event.pointerId);
           aim(event);

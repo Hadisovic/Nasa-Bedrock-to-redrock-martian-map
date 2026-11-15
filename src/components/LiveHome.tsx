@@ -54,6 +54,12 @@ export function LiveHome({ onEnter }: { onEnter: () => void }) {
     <dialog ref={dialog} className="project-dialog mission-home__dialog" aria-label="How to play" onClose={() => setOpen(false)}>
       <p className="sr-only">{message}</p>
       <p aria-hidden="true">{message.slice(0, length)}<span className="mission-home__cursor">▍</span></p>
+      <ul className="home-feature-list">
+        <li>Explore the whole planet in 2D and 3D.</li>
+        <li>Read mission records and toggle scientific layers.</li>
+        <li>Plan a route, compare alternatives, and preview navigation.</li>
+        <li>Fly over detailed terrain at Wildcat Ridge and Mount Sharp.</li>
+      </ul>
       <div className="mission-home__actions">
         {length < message.length && <button type="button" onClick={() => setLength(message.length)}>Show message</button>}
         <form method="dialog"><button>Close</button></form>

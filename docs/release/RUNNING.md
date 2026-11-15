@@ -62,12 +62,11 @@ Finer basemap tiles in the 2D explorer stream from NASA Trek (`trek.nasa.gov`, w
 origin) when you zoom past the bundled 4096 px basemap. Offline, the bundled basemap, catalog,
 layers and Wildcat Ridge data all still work.
 
-**Drone → Try drone simulation (2)** opens the two local games. Mount Sharp loads the
+**Drone → Try drone simulation (2)** opens either local terrain pack. Turn on **Geology** for
+mapped units or choose **Terrain & route** to place a lander and stops within the pack. **Preview
+walk** follows the calculated route while the camera stays under your control. The guide links the
 [NASA MMGIS Curiosity traverse](https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json)
-segments within the existing Gale terrain bounds. The bundled snapshot retains source vertices
-and gaps. The 2019 proposed flyover is linked separately in the guide. Wildcat Ridge uses the
-existing Perseverance waypoints, connected in travel order. The terrain pack for the chosen
-flyover must be installed for an offline session.
+and the 2019 proposed flyover as references. Download the terrain pack for offline flight.
 
 The map colors come from [Meyer et al., supplemental orbital mapping](https://doi.org/10.1130/GSAB.S.25938268)
 (CC BY 4.0) and [Sun and Stack, USGS SIM 3464](https://doi.org/10.3133/sim3464).
@@ -77,15 +76,17 @@ USGS ArcGIS item `b602bd9a573d447eb07388e5fb9ca884`, layer 8, queried in its nat
 with envelope `-6400,1092000,-3900,1097000`. Use the Gale supplement ZIP and the Jezero JSON with
 `python scripts/data/layers/drone_geology.py GALE_ZIP JEZERO_QUERY_JSON` to regenerate overlays.
 
-Earth GPS Demo uses a phone or tablet’s fixes to simulate movement from the selected lander.
+Earth GPS Demo uses a phone or tablet’s fixes to simulate astronaut or rover movement from the selected
+lander. Choose 1×, 10×, or 100× distance scaling in the setup. The larger scales amplify location
+uncertainty, so use 1× for precise local detours.
 On coarse MOLA it gives the regional route, estimated position, and GPS status. Detailed turns,
 terrain alerts, and off-route detours are limited to a route within the local terrain packs.
 Routine GPS voice prompts are bundled in the core offline pack. Nearby site cues are derived from
 observed catalog locations near the active leg. The phone's offline English voice reads the name,
 distance, and compass direction when available. The same message appears in the navigation panel.
 The app keeps Earth coordinates in the phone tab's memory and shares only the planned Mars coordinates.
-For a short indoor test, use **Recorded preview** to verify the camera, route, and voice or
-**Step-powered preview** to verify the device's motion input. Earth GPS Demo waits for a reliable fix.
+For a short indoor test, use **Recorded preview** to verify the camera, route, and voice. Earth GPS
+Demo waits for a reliable fix and is best tested outdoors in an open area.
 
 The [Perseverance model](https://science.nasa.gov/resource/mars-perseverance-rover-3d-model/) is
 credited to NASA/JPL-Caltech. The app loads it when rover playback starts and includes it in the
