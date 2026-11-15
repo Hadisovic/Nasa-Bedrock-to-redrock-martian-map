@@ -6,7 +6,7 @@ export const KM_PER_DEGREE = (MARS_RADIUS_KM * Math.PI) / 180;
 
 /** Shared view for both modes: centre and zoom in screen pixels per degree of latitude. */
 export interface GlobeView { lat: number; lon: number; zoom: number }
-export type RouteMapPoint = { x: number; y: number };
+export type RouteMapPoint = { x: number; y: number; choice?: import("./missionPlan.ts").RouteChoice };
 
 export interface GlobeMarker extends LatLon {
   id: string;

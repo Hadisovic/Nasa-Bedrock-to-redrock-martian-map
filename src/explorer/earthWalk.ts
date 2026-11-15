@@ -1,12 +1,15 @@
 import { bearingDeg, greatCircleKm, lonDelta, MARS_RADIUS_KM, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
+import { selectedLeg } from "./itinerary.ts";
+import type { PlannedLeg } from "./itinerary.ts";
+import type { RouteChoice } from "./missionPlan.ts";
 import type { CatalogEvent } from "./catalog.ts";
 
 const radians = Math.PI / 180;
 const earthRadiusM = 6_371_008.8;
 const marsMetresPerDegree = MARS_RADIUS_KM * 1000 * radians;
 export type WalkMode = "Outdoor" | "Indoor Steps" | "Recorded Walk";
-export type WalkPose = { point: LatLon; heading: number; moving: boolean; tilt: number };
+export type WalkPose = { point: LatLon; heading: number; moving: boolean; tilt: number; animationRate?: number };
 export type EarthFix = LatLon & { timestamp: number; accuracy: number };
 export type RoutePoint = { point: LatLon; elevation: number | null };
 
@@ -92,6 +95,13 @@ export function buildWalkTrack(points: readonly RoutePoint[]) {
 
 export type WalkTrack = ReturnType<typeof buildWalkTrack>;
 
+export function trackFor(legs: readonly PlannedLeg[], choice: RouteChoice | boolean) {
+  return buildItineraryTrack(legs.flatMap(({ result, toStop }) => {
+    const route = selectedLeg(result, choice);
+    return route ? [{ toStop, points: route.points.map((point, i) => ({ point, elevation: route.elevationsM[i] ?? null })) }] : [];
+  }));
+}
+
 /** Use the solved leg boundaries, including when a route crosses a future stop. */
 export function buildItineraryTrack(legs: readonly { points: RoutePoint[]; toStop: number | null }[]) {
   const track: WalkTrack = [];
@@ -124,9 +134,11 @@ export function sampleWalk(track: WalkTrack, metres: number) {
 
 export function nextManeuver(track: WalkTrack, metres: number, legEnd: number) {
   const end = Math.min(legEnd, track.at(-1)?.metres ?? 0);
-  for (let at = metres + 3; at + 6 <= Math.min(end, metres + 250); at += 3) {
+  // Anchor samples to route distance, so a small movement cannot move the
+  // heading window and make an instruction jump to a different future turn.
+  for (let at = Math.ceil((metres + 3) / 3) * 3; at + 6 <= Math.min(end, metres + 250); at += 3) {
     const centre = sampleWalk(track, at).point;
-    const before = sampleWalk(track, Math.max(metres, at - 6)).point;
+    const before = sampleWalk(track, Math.max(0, at - 6)).point;
     const after = sampleWalk(track, at + 6).point;
     const angle = lonDelta(bearingDeg(before, centre), bearingDeg(centre, after));
     if (Math.abs(angle) >= 55) return { kind: angle > 0 ? "right" as const : "left" as const, metres: at - metres };

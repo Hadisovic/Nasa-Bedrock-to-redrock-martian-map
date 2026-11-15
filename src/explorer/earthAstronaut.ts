@@ -34,7 +34,7 @@ export async function loadEarthAstronaut(rover = false) {
       playing = pose.moving;
       if (playing) walk?.play(); else walk?.stop();
     }
-    mixer.update(dt);
+    mixer.update(dt * (pose.animationRate ?? 1));
     heading ??= pose.heading;
     heading += lonDelta(heading, pose.heading) * Math.min(1, dt * 12);
     const { lat, lon } = position;

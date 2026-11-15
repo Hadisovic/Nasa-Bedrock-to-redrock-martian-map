@@ -957,12 +957,13 @@ export function Globe3D(props: Globe3DProps) {
       const dash = Math.max(0.0000008, leg.distanceKm / (MARS_RADIUS_KM * 28));
       return [true, false].map((outline) => {
         const material = new LineMaterial({ color: outline ? "#0b1724" : leg.color ?? (back ? "#fff" : leg.preview ? "#ffe689" : "#69d5ff"),
-          linewidth: back ? outline ? 4.4 : 2.6 : leg.selected === false ? outline ? 5 : 3 : outline ? 8 : 5, transparent: true, toneMapped: false,
+          linewidth: leg.selected === false ? outline ? 4.5 : 2.5 : outline ? 8 : 5, opacity: leg.selected === false ? .8 : 1, transparent: true, toneMapped: false,
           dashed: back, dashSize: dash, gapSize: dash * 0.8, depthWrite: false });
         const line = new Line2(geometry, material);
         line.userData.ignoreHit = outline || leg.preview;
+        line.userData.choice = leg.choice;
         if (back) line.computeLineDistances();
-        line.renderOrder = 20 + (back ? flightPaths.length : index) * 2 + (outline ? 0 : 1);
+        line.renderOrder = 20 + index * 2 + (outline ? 0 : 1);
         return line;
       });
     });
@@ -1151,7 +1152,10 @@ export function Globe3D(props: Globe3DProps) {
         } else if (onPick) {
           const hit = ray.intersectObjects(st.relief.children.filter((surface) => surface.visible))[0]?.point ?? ray.intersectObject(st.globe)[0]?.point;
           if (hit) onPick(unitToLatLon([hit.x, hit.y, hit.z]));
-        } else props.onRouteClick?.(hitsRoute(ray, event.pointerType === "touch" ? 48 : 14) ? point : null);
+        } else {
+          const route = hitsRoute(ray, event.pointerType === "touch" ? 48 : 14);
+          props.onRouteClick?.(route ? { ...point, choice: route.userData.choice } : null);
+        }
       }}
       aria-label={drone ? "Drone View. Drag to look. Scroll or pinch to change altitude." : "Rotatable 3D globe of Mars. Drag to rotate, scroll or pinch to zoom, arrow keys rotate and plus or minus zoom."}>
       <div ref={hitLayer} className="map3d__pins">

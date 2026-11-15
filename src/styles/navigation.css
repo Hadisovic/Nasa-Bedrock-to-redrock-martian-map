@@ -1,0 +1,63 @@
+/* Navigation uses the existing Martian Map palette, type and pill controls. */
+.travel-modes { display:flex; gap:.45rem; margin:.45rem 0 .65rem; }
+.explorer .travel-mode { display:flex; align-items:center; justify-content:center; gap:.45rem; flex:1; min-height:43px; }
+.travel-mode svg { width:22px; height:22px; }
+.explorer .travel-mode[aria-pressed=true] { background:#43364f; border-color:#b7a5cf; color:#fff4eb; }
+.directions__heading { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.directions__heading h2 { margin:.2rem 0; }
+.directions__footer { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; margin:.65rem 0; }
+.explorer .route-choices { display:flex; flex-wrap:nowrap; gap:.35rem; overflow-x:auto; padding:3px; margin:.4rem -3px; scrollbar-width:thin; }
+.explorer .route-choice { flex:1 0 96px; min-width:96px; display:grid; grid-template-columns:9px minmax(0,1fr); gap:.2rem .3rem; padding:.55rem .45rem; border-radius:13px; font-size:.75rem; }
+.route-choice strong { min-height:2.2em; display:flex; align-items:center; font-size:.73rem; line-height:1.15; }
+.route-choice > span:not(.route-choice__dot) { grid-column:1 / -1; font-size:1rem; font-weight:750; }
+.route-choice small { grid-column:1 / -1; display:block; font-size:.64rem; line-height:1.3; }
+.explorer .route-choice[aria-pressed=true] { outline:2px solid var(--route-color); outline-offset:-3px; border-color:var(--route-color); background:#2d2c3c; }
+.explorer .map-route { width:min(390px,calc(100% - 32px)); max-height:45dvh; }
+.map-route .travel-modes { margin:.35rem 0; }
+.map-route .map-route__actions { gap:.3rem; }
+.destination-science { border-top:1px solid var(--map-border,#ffffff25); padding-top:.5rem; margin:.5rem 0; font-size:.77rem; }
+.destination-science h3 { font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:#e7cbb5; margin:0 0 .3rem; }
+.destination-science p { margin:.25rem 0; line-height:1.4; }
+.destination-science:not(.destination-science--expanded) > p { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.destination-science .destination-science__finding { color:#b9ddcd; }
+.destination-science a { color:#aad9e9; }
+.science-checkpoint { display:grid; grid-template-columns:1fr auto; gap:.1rem .45rem; margin:.35rem 0; }
+.science-checkpoint > span { grid-column:1 / -1; color:var(--muted,#b9bdca); font-size:.65rem; }
+.science-checkpoint strong { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.73rem; }
+.science-checkpoint small { text-align:right; font-size:.65rem; }
+.science-checkpoint p, .science-checkpoint a { grid-column:1 / -1; }
+.route-info { position:fixed; z-index:15; right:22px; bottom:60px; width:min(390px,calc(100vw - 32px)); max-height:min(58dvh,570px); display:flex; flex-direction:column;
+  border:1px solid var(--map-border,#ffffff28); border-radius:20px; background:var(--map-panel,#201e2a); color:var(--map-text,#eef0f6); box-shadow:0 12px 35px #0007; overflow:hidden; }
+.route-info > header { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.75rem .9rem .5rem; }
+.route-info h2 { font-size:1rem; margin:.2rem 0; }
+.route-info .kicker { font-size:.61rem; letter-spacing:.12em; color:#d6bda9; }
+.route-info__tabs { display:flex; gap:.3rem; padding:0 .75rem .6rem; border-bottom:1px solid #ffffff1c; }
+.route-info__tabs button { flex:1; cursor:pointer; border:1px solid transparent; border-radius:999px; padding:.4rem .35rem; background:transparent; color:inherit; font:600 .75rem Inter,sans-serif; }
+.route-info__tabs button[aria-selected=true] { background:#43364f; border-color:#b7a5cf; }
+.route-info__tabs button:focus-visible { outline:2px solid #b7a5cf; outline-offset:1px; }
+.route-info__body { overflow:auto; padding:.6rem .9rem .8rem; min-height:0; overscroll-behavior:contain; }
+.route-info dl { display:grid; gap:.4rem; font-size:.78rem; }
+.route-info dl > div { display:flex; gap:.5rem; justify-content:space-between; }
+.route-info dd { margin:0; text-align:right; }
+.route-info a { color:#aad9e9; }
+.route-info__profile { margin:.5rem 0; }
+.route-info__profile figcaption { font-size:.7rem; color:var(--muted,#bdc2ce); }
+.route-info__profile svg { display:block; width:100%; max-height:90px; }
+.route-info__progress { display:grid; grid-template-columns:1fr auto; gap:.35rem; padding:.55rem .9rem; border-top:1px solid #ffffff22; font-size:.7rem; }
+.route-info__progress progress { grid-column:1 / -1; width:100%; height:5px; accent-color:#b7a5cf; }
+.navigation-hud__terrain { color:#ecd0a6; margin:.3rem 0; font-size:.74rem; }
+.earth-walk-controls .route-metrics { margin:.4rem 0; }
+.navigation-hud__primary { gap:.3rem; margin:.35rem 0 0; }
+.navigation-hud__primary .btn { min-height:36px; }
+.navigation-hud__details { border-top:1px solid #ffffff22; padding-top:.4rem; margin-top:.4rem; }
+.navigation-hud__details .mission-row { flex-wrap:wrap; }
+@media (max-width:760px) {
+  .route-info { bottom:50px; right:8px; width:calc(100vw - 16px); max-height:40dvh; border-radius:17px; }
+  .route-info > header { padding:.55rem .75rem .35rem; }
+  .route-info__tabs { padding-bottom:.4rem; }
+  .route-info__body { padding:.5rem .7rem; }
+  .explorer .map-route { max-height:40dvh; }
+  .explorer .route-choice { min-width:88px; padding:.45rem .35rem; }
+  .earth-walk-controls .route-metrics { gap:.25rem; font-size:.7rem; }
+  .navigation-hud__primary .btn { padding:.35rem .45rem; min-height:36px; font-size:.72rem; }
+}
