@@ -41,12 +41,12 @@ async function localRoute(source: TerrainGrid, start: LatLon, end: LatLon, slope
   const plan = (from: LatLon, to: LatLon) => planDirectionalLeg({
     terrain, habitat: project(from), destination: project(to), maxAbsSlopeDeg: slope, slopePenaltyWeight: 4,
   });
-  const leg = (route: RouteLeg, from: LatLon, to: LatLon): GlobalRouteLeg => {
+  const leg = (route: RouteLeg & { effort: number }, from: LatLon, to: LatLon): GlobalRouteLeg => {
     const points = route.geometry.map(unproject);
     points[0] = from;
     points[points.length - 1] = to;
     return { points, distanceKm: route.horizontalDistanceM / 1000, maxSlopeDeg: route.maxAbsSlopeDeg,
-      climbM: climbAlong(terrain, route).gainM, elevationsM: route.geometry.map((point) => {
+      climbM: climbAlong(terrain, route).gainM, effort: route.effort, elevationsM: route.geometry.map((point) => {
         const sample = cellAt(terrain.layout, point);
         const z = sample && terrain.elevationsM[sample.row * terrain.layout.width + sample.column];
         return typeof z === "number" && Number.isFinite(z) ? z : null;
@@ -54,8 +54,12 @@ async function localRoute(source: TerrainGrid, start: LatLon, end: LatLon, slope
   };
   const result = plan(start, end);
   if (result.status === "available") {
-    return { status: "ok", shortest: leg(result.shortest, start, end),
-      alternative: result.alternative && leg(result.alternative, start, end), terrain: terrainInfo };
+    const shortest = leg(result.shortest, start, end);
+    const alternative = result.alternative && leg(result.alternative, start, end);
+    // Preserve shared references through the worker message for identical paths.
+    const energy = result.energy === result.shortest ? shortest
+      : result.energy === result.alternative ? alternative : leg(result.energy, start, end);
+    return { status: "ok", shortest, alternative, energy, terrain: terrainInfo };
   }
 
   const failure = { status: result.status, detail: result.detail, terrain: terrainInfo };

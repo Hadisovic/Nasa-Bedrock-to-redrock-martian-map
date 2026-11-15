@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { cellCenter } from "../../src/contracts/index.ts";
+import { cellAt, cellCenter } from "../../src/contracts/index.ts";
 import type { TerrainGrid } from "../../src/contracts/index.ts";
 import { decodeJezeroRaster, jezeroWaypoint } from "../../src/contracts/jezero.ts";
-import { climbAlong, planRoundTrip } from "../../src/analysis/routing.ts";
+import { climbAlong, planDirectionalLeg, planRoundTrip } from "../../src/analysis/routing.ts";
 import { habitatPresets } from "../../src/data/sites.ts";
 
 const provenance = { mission: "Test", instrument: "Test", sources: [], limitations: [] };
@@ -17,6 +17,44 @@ function grid(rows: number[][], pixelSizeM = 1): TerrainGrid {
   };
 }
 const at = (t: TerrainGrid, row: number, column: number) => cellCenter(t.layout, { row, column });
+
+test("walking effort is directional and respects the slope limit", () => {
+  const terrain = grid([[0], [0.25]]);
+  const habitat = at(terrain, 0, 0), destination = at(terrain, 1, 0);
+  const request = { terrain, habitat, destination, maxAbsSlopeDeg: 15, slopePenaltyWeight: 4 };
+  const up = planDirectionalLeg(request);
+  const down = planDirectionalLeg({ ...request, habitat: destination, destination: habitat });
+  assert.equal(up.status, "available");
+  assert.equal(down.status, "available");
+  assert.equal(up.energy, up.shortest);
+  assert.equal(up.energy.effort, 2.5);
+  assert.equal(down.energy.effort, 1.5);
+  assert.equal(planDirectionalLeg({ ...request, maxAbsSlopeDeg: 10 }).status, "no-route");
+});
+
+test("effort replanning avoids reported and unknown cells without cutting their corners", () => {
+  const source = grid([
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, NaN, 0, 0],
+  ]);
+  const habitat = at(source, 1, 0), destination = at(source, 1, 4);
+  const request = { terrain: source, habitat, destination, maxAbsSlopeDeg: 15, slopePenaltyWeight: 4 };
+  const original = planDirectionalLeg(request);
+  assert.equal(original.status, "available");
+  const terrain = { ...source, elevationsM: source.elevationsM.slice() };
+  terrain.elevationsM[7] = NaN;
+  const replanned = planDirectionalLeg({ ...request, terrain });
+  assert.equal(replanned.status, "available");
+  assert.ok(replanned.energy.effort > original.energy.effort);
+  const cells = replanned.energy.geometry.map((point) => cellAt(terrain.layout, point)!);
+  assert.ok(cells.some(({ row, column }) => row === 0 && column === 2));
+  assert.ok(cells.every(({ row, column }) => column !== 2 || row === 0));
+  assert.equal(cells.find(({ row }) => row === 0)?.column, 1);
+  assert.equal(source.elevationsM[7], 0);
+  terrain.elevationsM[9] = NaN;
+  assert.equal(planDirectionalLeg({ ...request, terrain }).status, "unavailable");
+});
 
 test("flat ground gives a straight available round trip", () => {
   const t = grid([[0, 0, 0, 0, 0]]);

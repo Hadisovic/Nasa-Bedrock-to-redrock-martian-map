@@ -7,6 +7,7 @@ import "@fontsource/archivo-black/400.css";
 import { App } from "./App.tsx";
 import { Explorer } from "./explorer/Explorer.tsx";
 import { Resources } from "./components/Resources.tsx";
+import { explorerBadge } from "./explorer/nasaMark.ts";
 import "./styles/app.css";
 import "./styles/home.css";
 import "./styles/mission.css";
@@ -43,7 +44,9 @@ function Root() {
   </div>;
   if (page === "map") return <App onHome={() => { window.location.hash = "#/"; }} onExplore={() => { window.location.hash = "#/explore"; }} />;
   if (page === "bench") return <Suspense fallback={null}><Bench /></Suspense>;
-  return <Suspense fallback={<main className="reference-home" aria-busy="true" />}>
+  return <Suspense fallback={<main className="reference-home" aria-busy="true">
+    <img src={explorerBadge} alt="" width="160" />
+  </main>}>
     <LiveHome onEnter={() => { window.location.hash = "#/explore?mode=3d"; }} />
     <Resources />
   </Suspense>;

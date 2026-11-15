@@ -1,20 +1,55 @@
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { ASCENT_EFFORT, DESCENT_EFFORT } from "../analysis/walkingEffort.ts";
 import type { EnvironmentObservation } from "./catalog.ts";
-import { routeElevation, selectedLeg, summarizeItinerary } from "./itinerary.ts";
+import { routeColors, routeElevation, routeLabels, routeObjectives, routeProfile, selectedLeg, summarizeItinerary } from "./itinerary.ts";
 import type { PlannedLeg } from "./itinerary.ts";
-import type { MissionOptions, Stop } from "./missionPlan.ts";
+import type { MissionOptions, RouteObjective, Stop } from "./missionPlan.ts";
 import { marsAt } from "./marsTime.ts";
+import { formatRouteDuration } from "./routeFormat.ts";
 
 const signedM = (value: number) => `${Math.round(value)} m`;
 const mins = (value: number) => `${Math.round(value)} min`;
+export function EffortComparison({ legs, mission, slope, objective }: {
+  legs: readonly PlannedLeg[]; mission: MissionOptions; slope: number; objective: RouteObjective;
+}) {
+  const energy = routeProfile(legs, mission, "energy", slope);
+  if (mission.rover || !energy) return null;
+  const matches = routeObjectives.filter((candidate) => candidate !== "energy" &&
+    legs.every(({ result }) => selectedLeg(result, candidate) === selectedLeg(result, "energy")));
+  return <section className="profile-comparison route-effort">
+    <table>
+      <caption>Walking route comparison</caption>
+      <thead><tr><th scope="col">Route</th><th scope="col">Distance</th><th scope="col">Ascent</th><th scope="col">Walk time</th><th scope="col">Effort (units)</th></tr></thead>
+      <tbody>{routeObjectives.map((candidate) => {
+        const details = routeProfile(legs, mission, candidate, slope);
+        if (!details) return null;
+        return <tr key={candidate} className={objective === candidate ? "route-effort__active" : undefined}
+          style={{ "--route-accent": routeColors[candidate] } as CSSProperties}>
+          <th scope="row">{routeLabels[candidate]}</th>
+          <td>{details.distanceKm < 1 ? signedM(details.distanceKm * 1000) : `${details.distanceKm.toFixed(2)} km`}</td>
+          <td>{signedM(details.climbM)}</td><td>{details.walk === null ? "—" : formatRouteDuration(details.walk)}</td>
+          <td>{details.effort?.toLocaleString(undefined, { maximumFractionDigits: 1 }) ?? "—"}</td>
+        </tr>;
+      })}</tbody>
+    </table>
+    {matches.length > 0 && <p className="small">Energy-efficient follows the same path as {matches.map((candidate) => routeLabels[candidate]).join(" and ")}.</p>}
+    <details className="route-effort__model">
+      <summary>How effort is estimated</summary>
+      <p className="small muted">The model adds one effort unit per horizontal metre and {ASCENT_EFFORT} per metre climbed.
+        Descents add {DESCENT_EFFORT} × horizontal distance × downhill grade², with grade expressed as a ratio.
+        Scores use relative effort units and are calculated separately for each direction. Walk time uses your walking speed and excludes stops.</p>
+    </details>
+  </section>;
+}
 
-export function RouteAnalysis({ legs, stops, mission, weighted, observations }: {
-  legs: PlannedLeg[]; stops: Stop[]; mission: MissionOptions; weighted: boolean;
+export function RouteAnalysis({ legs, stops, mission, objective, observations }: {
+  legs: PlannedLeg[]; stops: Stop[]; mission: MissionOptions; objective: RouteObjective;
   observations: EnvironmentObservation[];
 }) {
   const [tab, setTab] = useState<"profile" | "travel" | "hazards">("profile");
-  const profile = useMemo(() => routeElevation(legs, weighted), [legs, weighted]);
-  const totals = summarizeItinerary(legs, stops, mission, weighted);
+  const profile = useMemo(() => routeElevation(legs, objective), [legs, objective]);
+  const totals = summarizeItinerary(legs, stops, mission, objective);
   const departure = Date.parse(mission.departure + "Z");
   const usable = Number.isFinite(departure) && totals.travel !== null && totals.science !== null;
   const endTime = usable ? departure + (totals.travel! + totals.science!) * 60_000 : null;

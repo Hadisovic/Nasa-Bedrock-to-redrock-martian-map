@@ -122,7 +122,7 @@ export function Globe3D(props: Globe3DProps) {
   const flightRequests = useMemo(() => itineraryLegs(flightStart, flightStops, false), [flightStart, flightStops]);
   const flightLegs = useItinerary(flightRequests, props.routeGrid, props.routeSlope, null, 0);
   const flightWalk = useEarthWalk(flightStart, flightStops, false, flightLegs, props.routeGrid, props.routeSlope,
-    null, false, props.routeSpeed, props.observations, props.events, false, null);
+    null, "shortest", props.routeSpeed, props.observations, props.events, false, null);
   earthPose.current = drone ? flightWalk.pose : props.earthWalkPose;
   const flightFailure = flightLegs.find(({ result }) => result && (result.status !== "ok" || result.terrain.regional))?.result;
   const placeFlightPoint = (point: LatLon) => {
@@ -225,7 +225,7 @@ export function Globe3D(props: Globe3DProps) {
   const activeUnit = geologyUnit === null ? null : flyingTour?.geology.labels[geologyUnit];
   const flightPaths: readonly MapLeg[] = useMemo(() => drone ? flightLegs.flatMap(({ result }) => {
     if (!result || result.status !== "ok" || result.terrain.regional) return [];
-    const path = selectedLeg(result, false)!;
+    const path = selectedLeg(result, "shortest")!;
     return [{ points: path.points, distanceKm: path.distanceKm, returning: false }];
   }) : paths, [!!drone, flightLegs, paths]);
   const selectedStop = flyingTour?.stops.find(({ id }) => id === tourStop);

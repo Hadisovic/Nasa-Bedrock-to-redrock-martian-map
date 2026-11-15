@@ -6,9 +6,10 @@ export type Stop = { point: Endpoint; scienceMinutes: number };
 export const MAX_STOPS = 12;
 
 export const PLAN_DATA_VERSION = "mola-jezero-gale-4";
+export type RouteObjective = "shortest" | "lowerSlope" | "energy";
 export interface MissionOptions { speed: number; stop: number; budget: number; reserve: number; departure: string; rover: boolean; roverSpeed: number; roverSlope: number; }
 interface PlanSettings {
-  data: string; start: Endpoint; slope: number; weighted: boolean; mission: MissionOptions;
+  data: string; start: Endpoint; slope: number; weighted: boolean; objective?: RouteObjective; mission: MissionOptions;
   position?: Endpoint; blocked?: Endpoint;
 }
 export type Plan = PlanSettings & ({ version: 1; end: Endpoint } | { version: 2; stops: Stop[]; returnToLander: boolean });
@@ -27,6 +28,8 @@ export const validStop = (stop: Stop) => !!stop && validPoint(stop.point) && bou
 export const planStops = (plan: Plan | null): Stop[] => !plan ? [] : plan.version === 2 ? plan.stops
   : [{ point: plan.end, scienceMinutes: plan.mission.stop }];
 export const planReturns = (plan: Plan | null) => plan?.version === 2 ? plan.returnToLander : true;
+export const planObjective = (plan: Plan | null): RouteObjective =>
+  plan?.objective ?? (plan?.weighted ? "lowerSlope" : "shortest");
 export function validMission(m: MissionOptions) {
   return !!m && bounded(m.speed, 0.1, 2) && bounded(m.stop, 0, 240) && bounded(m.budget, 1, 10080)
     && bounded(m.reserve, 0, m.budget) && bounded(m.roverSpeed, 0.1, 20) && bounded(m.roverSlope, 1, 89)
@@ -42,6 +45,7 @@ export function readPlan(raw: string | null): Plan | null {
       && Array.isArray(p.stops) && p.stops.length > 0 && p.stops.length <= MAX_STOPS && p.stops.every(validStop)))
       && typeof p.data === "string" && p.data.length > 0 && p.data.length <= 80 && validPoint(p.start)
       && bounded(p.slope, 1, 89) && typeof p.weighted === "boolean" && validMission(p.mission)
+      && (p.objective === undefined || p.objective === "shortest" || p.objective === "lowerSlope" || p.objective === "energy" && !p.mission.rover)
       && (p.position === undefined || validPoint(p.position)) && (p.blocked === undefined || validPoint(p.blocked)) ? p : null;
   } catch { return null; }
 }

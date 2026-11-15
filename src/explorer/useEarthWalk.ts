@@ -7,9 +7,9 @@ import { cueText, missionAudio } from "./walkAudio.ts";
 import type { WalkCue } from "./walkAudio.ts";
 import { insideMarswalkCoverage } from "./catalog.ts";
 import type { CatalogEvent, EnvironmentObservation, LayerEntry } from "./catalog.ts";
-import { itineraryLegs, selectedLeg } from "./itinerary.ts";
+import { itineraryLegs, routeLabels, selectedLeg } from "./itinerary.ts";
 import type { Leg, PlannedLeg } from "./itinerary.ts";
-import type { Endpoint, Stop } from "./missionPlan.ts";
+import type { Endpoint, RouteObjective, Stop } from "./missionPlan.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { nearGale } from "./galeLayout.ts";
 
@@ -27,19 +27,19 @@ async function permitted(sensor: PermissionConstructor | undefined) {
 const magnitude = (a: DeviceMotionEventAcceleration | null) =>
   a && a.x !== null && a.y !== null && a.z !== null && [a.x, a.y, a.z].every(Number.isFinite) ? Math.hypot(a.x, a.y, a.z) : null;
 
-function trackFor(legs: readonly PlannedLeg[], weighted: boolean) {
+function trackFor(legs: readonly PlannedLeg[], objective: RouteObjective) {
   return buildItineraryTrack(legs.flatMap(({ result, toStop }) => {
-    const route = selectedLeg(result, weighted);
+    const route = selectedLeg(result, objective);
     return route ? [{ toStop, points: route.points.map((point, i) => ({ point, elevation: route.elevationsM[i] ?? null })) }] : [];
   }));
 }
 
 export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: boolean,
   legs: PlannedLeg[], grid: LayerEntry | undefined, slope: number, blocked: LatLon | null,
-  weighted: boolean, routeSpeed: number, observations: EnvironmentObservation[], events: readonly CatalogEvent[],
+  objective: RouteObjective, routeSpeed: number, observations: EnvironmentObservation[], events: readonly CatalogEvent[],
   rover: boolean, roverSuggestion: string | null) {
-  const { track, stopDistances } = useMemo(() => trackFor(legs, weighted), [legs, weighted]);
-  const eligible = !!lander && !!stops.length && track.length > 1 && legs.every(({ result }) => result?.status === "ok");
+  const { track, stopDistances } = useMemo(() => trackFor(legs, objective), [legs, objective]);
+  const eligible = !!lander && !!stops.length && track.length > 1 && legs.every(({ result }) => selectedLeg(result, objective) !== null);
   const liveEligible = eligible && meters(lander, track[0].point) < 0.05;
   const detailed = eligible
     && legs.every(({ result }) => result?.status === "ok" && !result.terrain.regional)
@@ -80,7 +80,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     ? [...requestedLegs, { from: request.from, to: request.rejoin.point, returning: false, fromStop: null, toStop: null }]
     : requestedLegs, [request, requestedLegs]);
   const solverResults = useItinerary(solverLegs, grid, slope, blocked, 0);
-  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, weighted, rover]);
+  const planKey = JSON.stringify([lander, stops.map(({ point }) => point), returning, slope, objective, rover]);
 
   function announce(id: WalkCue, critical = false, key = typeof id === "string" ? id : id.text) {
     const now = Date.now();
@@ -187,7 +187,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     s.retryAt = Date.now() + 8000;
     setRequest(null);
     if (s.arrived || s.next !== request.next) return;
-    const failure = results.find(({ result }) => result?.status !== "ok" || result.terrain.regional && detailed)?.result;
+    const failure = results.find(({ result }) => !selectedLeg(result, objective) || (detailed && result?.terrain?.regional))?.result;
     if (failure) {
       const leg = results.find(({ result }) => result === failure);
       const target = leg?.returning ? "Lander" : leg?.to.name ?? `Stop ${request.next + (leg?.toStop ?? 0) + 1}`;
@@ -200,7 +200,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       else announce({ text: failure.detail }, true);
       return;
     }
-    const { track: nextTrack, stopDistances: remainingStops } = trackFor(results, weighted);
+    const { track: nextTrack, stopDistances: remainingStops } = trackFor(results, objective);
     if (nextTrack.length < 2) {
       failedDetour.current = request.from;
       setRemaining(null);
@@ -227,15 +227,15 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     // Compare against a solver-verified connection to a vertex on the previous route.
     // Both alternatives start at this fix and visit the same remaining stops.
     const connector = request.rejoin && solverResults.at(-1)?.result;
-    const connectorPath = connector?.status === "ok" && !connector.terrain.regional ? selectedLeg(connector, weighted) : null;
+    const connectorPath = connector?.status === "ok" && !connector.terrain.regional ? selectedLeg(connector, objective) : null;
     const baseline = request.rejoin && connectorPath ? request.rejoin.remaining + connectorPath.distanceKm * 1000 : null;
-    const distance = results.reduce((sum, { result }) => sum + selectedLeg(result, weighted)!.distanceKm * 1000, 0);
+    const distance = results.reduce((sum, { result }) => sum + selectedLeg(result, objective)!.distanceKm * 1000, 0);
     const shorter = shorterFromSamePosition(distance, baseline);
-    setMessage(shorter ? "Shorter route found." : weighted && baseline !== null && distance > baseline + 1
-      ? "Lower slope cost route selected. It adds distance."
+    setMessage(shorter ? "Shorter route found." : objective !== "shortest" && baseline !== null && distance > baseline + 1
+      ? `${routeLabels[objective]} route selected. It adds distance.`
       : "Route updated through your remaining stops.");
     announce(shorter ? "shorter" : "updated", true);
-  }, [request, solverResults, requestedLegs.length, session, weighted]);
+  }, [request, solverResults, requestedLegs.length, session, objective]);
 
   useEffect(() => {
     if (!session || paused || !roverSuggestion || cueHistory.current.has("roverSuggestion")) return;

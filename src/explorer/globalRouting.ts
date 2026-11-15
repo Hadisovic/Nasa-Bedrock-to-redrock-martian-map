@@ -15,12 +15,13 @@ export interface GlobalRouteLeg {
   maxSlopeDeg: number;
   climbM: number;
   elevationsM: (number | null)[];
+  effort?: number;
 }
 
 export interface RoutePair { outbound: GlobalRouteLeg; returnLeg: GlobalRouteLeg }
 export type LegTerrain = { label: string; spacingM: number; regional: boolean };
 export type DirectionalRoute =
-  | { status: "ok"; shortest: GlobalRouteLeg; alternative?: GlobalRouteLeg; terrain: LegTerrain }
+  | { status: "ok"; shortest: GlobalRouteLeg; alternative?: GlobalRouteLeg; energy?: GlobalRouteLeg; terrain: LegTerrain }
   | { status: "unavailable" | "no-route"; detail: string; terrain?: LegTerrain; retryable?: boolean;
       suggestion?: { point: LatLon; endpoint: "start" | "end"; movedKm: number; preview: GlobalRouteLeg } };
 export type AvailableRoute = { status: "ok"; gridStepDeg: number; localSpacingM?: number; alternative?: RoutePair;

@@ -9,7 +9,7 @@ import { CatalogPanel, EMPTY_FILTER, EvidenceCard, GlobalLayersPanel, SearchBox 
 import type { LayerState } from "./ExplorerPanels.tsx";
 import { Directions, MapRouteControls, RouteChoices, RouteSettings, routeStartId, stopId } from "./Directions.tsx";
 import type { Pick } from "./Directions.tsx";
-import { itineraryLegs, routeColors, roundRouteCorners, selectedLeg, suggestRover, summarizeItinerary } from "./itinerary.ts";
+import { itineraryLegs, routeColors, routeObjectives, roundRouteCorners, selectedLeg, suggestRover, summarizeItinerary } from "./itinerary.ts";
 import type { MapLeg } from "./itinerary.ts";
 import { useItinerary } from "./useItinerary.ts";
 import { GlobeMap2D } from "./GlobeMap2D.tsx";
@@ -17,10 +17,10 @@ import { bearingDeg, formatLatLon, greatCircleKm, lonDelta, relativeToLander, wr
 import type { LatLon } from "./geo.ts";
 import type { GlobeMarker, GlobeOverlay, GlobeView, OverlayFeature, RouteMapPoint } from "./types.ts";
 import { zoomForPrecision } from "./types.ts";
-import { explorerBadge, nasaInsignia } from "./nasaMark.ts";
+import { explorerBadge } from "./nasaMark.ts";
 import { nearGale } from "./galeLayout.ts";
-import { defaultMission, MAX_STOPS, planReturns, planStops, readPlan, PLAN_DATA_VERSION, validMission, validStop } from "./missionPlan.ts";
-import type { Endpoint, Plan, Stop } from "./missionPlan.ts";
+import { defaultMission, MAX_STOPS, planObjective, planReturns, planStops, readPlan, PLAN_DATA_VERSION, validMission, validStop } from "./missionPlan.ts";
+import type { Endpoint, MissionOptions, Plan, RouteObjective, Stop } from "./missionPlan.ts";
 import { SavedRoutes } from "./SavedRoutes.tsx";
 import { OfflinePacks } from "./OfflinePacks.tsx";
 import { makePosition, Navigation } from "./Navigation.tsx";
@@ -32,7 +32,7 @@ import { ExplorerHelp } from "./ExplorerHelp.tsx";
 import { useEarthWalk } from "./useEarthWalk.ts";
 import { EarthWalkControls, EarthWalkSetup } from "./EarthWalkPanel.tsx";
 import { GoToLocation } from "./icons.tsx";
-import { RouteAnalysis } from "./RouteAnalysis.tsx";
+import { EffortComparison, RouteAnalysis } from "./RouteAnalysis.tsx";
 
 const Globe3D = lazy(() => import("./Globe3D.tsx").then((m) => ({ default: m.Globe3D })));
 
@@ -122,15 +122,21 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [returning, setReturning] = useState(() => planReturns(initial.plan));
   const [pick, setPick] = useState<Pick | null>(null);
   const [slope, setSlope] = useState(initial.plan?.slope ?? 15);
-  const [weighted, setWeighted] = useState(initial.plan?.weighted ?? false);
-  const [routeChoice, setRouteChoice] = useState<boolean | null>(null);
-  const [showBothRoutes, setShowBothRoutes] = useState(true);
+  const [objective, setObjective] = useState(() => planObjective(initial.plan));
+  const [routeChoice, setRouteChoice] = useState<RouteObjective | null>(null);
+  const [showOtherRoutes, setShowOtherRoutes] = useState(true);
   const routeDetailsDialog = useRef<HTMLDialogElement>(null);
   const panelContents = useRef<HTMLDivElement>(null);
   const catalogScroll = useRef(0);
   const [catalogFiltersOpen, setCatalogFiltersOpen] = useState(false);
-  const chooseRoute = (value: boolean) => { setWeighted(value); setRouteChoice(value); };
+  const chooseRoute = (value: RouteObjective) => { setObjective(value); setRouteChoice(value); };
   const [mission, setMission] = useState(() => initial.plan?.mission ?? defaultMission());
+  const updateMission = (next: MissionOptions) => {
+    if (next.rover && objective === "energy") {
+      setObjective("shortest"); setRouteChoice(null);
+    }
+    setMission(next);
+  };
   const [savedTerrain, setSavedTerrain] = useState(initial.plan?.data ?? PLAN_DATA_VERSION);
   const [retry, setRetry] = useState(0);
   const [previewLeg, setPreviewLeg] = useState<number | null>(null);
@@ -243,30 +249,37 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     : [], [pendingSuggestion, returning]);
   const suggestionResults = useItinerary(suggestionLegs, grid, activeSlope, blocked, retry);
   const [earthWalkSetupOpen, setEarthWalkSetupOpen] = useState(false);
-  const routeSummary = summarizeItinerary(legs, stops, mission, weighted);
-  const roverSuggestion = suggestRover(legs, stops, mission, weighted);
+  const routeSummary = summarizeItinerary(legs, stops, mission, objective);
+  const roverSuggestion = suggestRover(legs, stops, mission, objective);
   const supplies = routeSummary.remaining !== null && routeSummary.remaining < 0
     ? `${roverSuggestion ?? "This return plan exceeds your available time and reserve."} Before continuing, check oxygen, cooling, water, and power for the estimated trip.` : null;
-  const earthWalk = useEarthWalk(start, stops, returning, legs, grid, activeSlope, blocked, weighted,
+  const earthWalk = useEarthWalk(start, stops, returning, legs, grid, activeSlope, blocked, objective,
     mission.rover ? mission.roverSpeed : mission.speed, data?.environment ?? [], events, mission.rover, supplies);
   const resolvedLegs = useMemo(() => legs.flatMap((leg) => {
-    const path = selectedLeg(leg.result, weighted);
+    const path = selectedLeg(leg.result, objective);
     return path ? [path] : [];
-  }), [legs, weighted]);
+  }), [legs, objective]);
   const visibleLegs = earthWalk.planned ?? legs;
   const hasAlternative = visibleLegs.some(({ result }) => result?.status === "ok" && result.alternative);
   const routeGeometryKey = JSON.stringify([start?.lat, start?.lon, stops.map(({ point }) => [point.lat, point.lon]), returning, activeSlope, blocked]);
   useEffect(() => { setRouteChoice(null); }, [routeGeometryKey]);
   const paths = useMemo<MapLeg[]>(() => visibleLegs.flatMap((leg) => {
-    const path = selectedLeg(leg.result, weighted);
+    const path = selectedLeg(leg.result, objective);
     if (!path) return [];
     const selected = { points: path.points, returning: leg.returning, distanceKm: path.distanceKm,
-      color: weighted && hasAlternative ? routeColors.lowerSlope : routeColors.shortest };
-    const other = leg.result?.status === "ok" && leg.result.alternative && selectedLeg(leg.result, !weighted);
-    if (!showBothRoutes || earthWalk.session || !other) return [selected];
-    return [{ points: other.points, returning: leg.returning, distanceKm: other.distanceKm,
-      color: weighted ? routeColors.shortest : routeColors.lowerSlope, selected: false }, selected];
-  }), [visibleLegs, weighted, hasAlternative, showBothRoutes, earthWalk.session]);
+      color: routeColors[objective === "lowerSlope" && !hasAlternative ? "shortest" : objective] };
+    if (!showOtherRoutes || earthWalk.session) return [selected];
+    const seen = new Set([path]);
+    const other = routeObjectives.flatMap((candidate) => {
+      if (candidate === "energy" && (mission.rover || routeSummary.regional)) return [];
+      const alternative = selectedLeg(leg.result, candidate);
+      if (!alternative || seen.has(alternative)) return [];
+      seen.add(alternative);
+      return [{ points: alternative.points, returning: leg.returning, distanceKm: alternative.distanceKm,
+        color: routeColors[candidate], selected: false }];
+    });
+    return [...other, selected];
+  }), [visibleLegs, objective, hasAlternative, showOtherRoutes, earthWalk.session, mission.rover, routeSummary.regional]);
   const previewResult = previewLeg == null ? null : legs[previewLeg]?.result;
   const suggestion = previewResult && previewResult.status !== "ok" ? previewResult.suggestion : undefined;
   const mapPaths = useMemo(() => suggestion ? [...paths, { points: roundRouteCorners(suggestion.preview.points),
@@ -310,11 +323,12 @@ export function Explorer({ onHome }: { onHome: () => void }) {
 
   const tiles = useMemo(() => tileSourceFrom(manifest, basemapEntry), [manifest, basemapEntry]);
   const displayedPlan: Plan | null = useMemo(() => start && stops.length && stops.every(validStop) && validMission(mission) && slope >= 1 && slope <= 89
-    ? { version: 2, data: PLAN_DATA_VERSION, start, stops, returnToLander: returning, slope, weighted, mission, position: origin?.point, blocked: blocked ?? undefined }
-    : null, [start, stops, returning, slope, weighted, mission, origin, blocked]);
+    ? { version: 2, data: PLAN_DATA_VERSION, start, stops, returnToLander: returning, slope, weighted: objective === "lowerSlope",
+      objective: objective === "energy" ? objective : undefined, mission, position: origin?.point, blocked: blocked ?? undefined }
+    : null, [start, stops, returning, slope, objective, mission, origin, blocked]);
   const loadPlan = (plan: Plan) => {
     resetNavigation(); setPick(null); setStart(plan.start); setStops(planStops(plan)); setReturning(planReturns(plan));
-    setSlope(plan.slope); setWeighted(plan.weighted); setPreviewLeg(null);
+    setSlope(plan.slope); setObjective(planObjective(plan)); setRouteChoice(null); setPreviewLeg(null);
     if (plan.position) {
       const position = makePosition(plan.position, "manual");
       setCurrent(position); setOrigin(position);
@@ -600,7 +614,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2 6M4 5v6h6" /></svg>
     </button>
   </>;
-  const comparison = <RouteChoices legs={legs} mission={mission} walkingSlope={slope} choice={routeChoice} choose={chooseRoute} />;
+  const comparison = <RouteChoices legs={legs} mission={mission} walkingSlope={slope} choice={routeChoice} choose={chooseRoute} compact />;
   const clock = marsAt(utc, view);
   return (
     <div className="app explorer" onKeyDown={(event) => {
@@ -616,10 +630,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     }}>
       <header className="topbar explorer__topbar">
         <button type="button" className="brand explorer__brand" onClick={onHome} aria-label="Martian Map, back to the intro page">
-          <img src={explorerBadge} className="explorer__brand-mark" alt={nasaInsignia ? "NASA" : ""} />
+          <img src={explorerBadge} className="explorer__brand-mark" alt="" />
           <div className="explorer__wordmark">
             <strong className="explorer__brand-title" aria-hidden="true">Martian Map</strong>
-            <small>Bedrock to Redrock{!nasaInsignia && <span className="explorer__data-credit"> · NASA data</span>}</small>
+            <small>Bedrock to Redrock<span className="explorer__data-credit"> · NASA data</span></small>
           </div>
         </button>
         <div className="explorer__search-help">{data && <SearchBox events={events} unlocated={unlocated} center={view} onGo={(event) => {
@@ -833,7 +847,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               }}
               setScience={(index, scienceMinutes) => setStops((previous) => previous.map((stop, order) => index === order ? { ...stop, scienceMinutes } : stop))}
               legs={legs} slope={slope} fit={fit}
-              weighted={weighted} choice={routeChoice} setWeighted={chooseRoute} mission={mission}
+              objective={objective} choice={routeChoice} chooseRoute={chooseRoute} mission={mission}
               retry={() => setRetry((n) => n + 1)} preview={previewLeg} setPreview={(index) => {
                 setPreviewLeg(index);
                 const result = index == null ? null : legs[index]?.result;
@@ -876,9 +890,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
       <dialog className="project-dialog route-details-dialog" ref={routeDetailsDialog} aria-label="Route details">
         <header><h2>Route details</h2><form method="dialog"><button className="btn btn--small" aria-label="Close route details">×</button></form></header>
         {comparison}
-        <label><input type="checkbox" checked={showBothRoutes} onChange={(event) => setShowBothRoutes(event.target.checked)} /> Show both paths on the map</label>
-        <RouteSettings legs={legs} stops={stops} mission={mission} setMission={setMission} slope={slope} setSlope={setSlope} weighted={weighted} utc={utc} />
-        <RouteAnalysis legs={legs} stops={stops} mission={mission} weighted={weighted} observations={data?.environment ?? []} />
+        <label><input type="checkbox" checked={showOtherRoutes} onChange={(event) => setShowOtherRoutes(event.target.checked)} /> Show other paths on the map</label>
+        <EffortComparison legs={legs} mission={mission} slope={slope} objective={objective} />
+        <RouteSettings legs={legs} stops={stops} mission={mission} setMission={updateMission} slope={slope} setSlope={setSlope} objective={objective} utc={utc} />
+        <RouteAnalysis legs={legs} stops={stops} mission={mission} objective={objective} observations={data?.environment ?? []} />
       </dialog>
       <EarthWalkSetup walk={earthWalk} open={earthWalkSetupOpen} close={() => setEarthWalkSetupOpen(false)}
         started={() => {

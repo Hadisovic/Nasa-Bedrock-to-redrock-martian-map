@@ -4,7 +4,7 @@ import { usePixelSound } from "../components/usePixelSound.ts";
 const steps = [
   { tab: "Map", text: "Drag to explore. Zoom in for detail. Use 2D or 3D to switch views." },
   { tab: "Discover", text: "Tap a flag to read about a mission. Use Layers to see the data behind the map." },
-  { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors gentler terrain, and dashes lead home. Pick a route before starting." },
+  { tab: "Directions", text: "Place your lander, then add stops. Blue is shortest, amber favors lower slopes, and green minimizes modeled walking effort on detailed terrain. Dashes lead home. Pick a route before starting." },
   { tab: "Save", text: "Tap the route for details or save options. Name it, share a link, or export a file." },
   { tab: "Drone", text: "Wildcat Ridge and Mount Sharp are interactive samples of detailed terrain, inspired by NASA’s Curiosity flyover. Use the joystick and altitude controls. Turn on geology to see mapped units." },
   { tab: "Earth Walk", text: "On a phone or tablet, allow precise location and use a large open area. Earth GPS moves the simulation using your actual heading and your chosen distance scale. Recorded preview plays the route on desktop. Operational Mars navigation would need local sensors and positioning infrastructure." },

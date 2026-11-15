@@ -1,7 +1,7 @@
 import { greatCircleKm, lonDelta, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import type { DirectionalRoute, GlobalRouteLeg } from "./globalRouting.ts";
-import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
+import type { Endpoint, MissionOptions, RouteObjective, Stop } from "./missionPlan.ts";
 import { validMission, validStop } from "./missionPlan.ts";
 
 export interface Leg {
@@ -15,17 +15,22 @@ export type PlannedLeg = Leg & { result: DirectionalRoute | null };
 export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean;
   color?: string; selected?: boolean };
 
-export const routeColors = { shortest: "#6bd5ff", lowerSlope: "#ffc377" };
+export const routeObjectives = ["shortest", "lowerSlope", "energy"] as const;
+export const routeLabels = { shortest: "Shortest", lowerSlope: "Lower slope cost", energy: "Energy-efficient" };
+export const routeColors = { shortest: "#6bd5ff", lowerSlope: "#ffc377", energy: "#8de5ac" };
 
-export function routeProfile(legs: readonly PlannedLeg[], mission: MissionOptions, weighted: boolean, walkingSlope: number) {
-  const measured = legs.map(({ result }) => selectedLeg(result, weighted));
-  if (!legs.length || measured.some((leg) => !leg)) return null;
-  const distanceKm = measured.reduce((sum, leg) => sum + (leg?.distanceKm ?? 0), 0);
-  const steepest = Math.max(...measured.map((leg) => leg?.maxSlopeDeg ?? 0));
+export function routeProfile(legs: readonly PlannedLeg[], mission: MissionOptions, objective: RouteObjective, walkingSlope: number) {
+  const measured = legs.map(({ result }) => selectedLeg(result, objective));
+  if (!legs.length || !measured.every((leg) => leg !== null)) return null;
+  const distanceKm = measured.reduce((sum, leg) => sum + leg.distanceKm, 0);
+  const climbM = measured.reduce((sum, leg) => sum + leg.climbM, 0);
+  const effort = measured.every((leg) => leg.effort !== undefined)
+    ? measured.reduce((sum, leg) => sum + leg.effort!, 0) : null;
+  const steepest = Math.max(...measured.map((leg) => leg.maxSlopeDeg));
   const regional = legs.some(({ result }) => result?.terrain?.regional);
   const travel = (speed: number, limit: number) => regional || !Number.isFinite(speed) || speed <= 0 || !(limit >= 1 && limit <= 89) || steepest > limit
     ? null : distanceKm * 1000 / speed / 60;
-  return { distanceKm, steepest, regional, walk: travel(mission.speed, walkingSlope), rover: travel(mission.roverSpeed, mission.roverSlope) };
+  return { distanceKm, climbM, effort, steepest, regional, walk: travel(mission.speed, walkingSlope), rover: travel(mission.roverSpeed, mission.roverSlope) };
 }
 
 export function itineraryLegs(start: Endpoint | null, stops: readonly Stop[], returning: boolean, position?: LatLon): Leg[] {
@@ -41,24 +46,28 @@ export function itineraryLegs(start: Endpoint | null, stops: readonly Stop[], re
 export const legKey = (leg: Leg, slope: number, blocked: LatLon | null) =>
   JSON.stringify([leg.from.lat, leg.from.lon, leg.to.lat, leg.to.lon, slope, blocked?.lat ?? null, blocked?.lon ?? null]);
 
-export const selectedLeg = (route: DirectionalRoute | null, weighted: boolean): GlobalRouteLeg | null =>
-  route?.status === "ok" ? (weighted ? route.alternative ?? route.shortest : route.shortest) : null;
+export function selectedLeg(route: DirectionalRoute | null, objective: RouteObjective): GlobalRouteLeg | null {
+  if (route?.status !== "ok") return null;
+  if (objective === "energy") return route.energy ?? null;
+  return objective === "lowerSlope" ? route.alternative ?? route.shortest : route.shortest;
+}
 
-export function summarizeItinerary(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, weighted: boolean) {
-  const complete = legs.length > 0 && legs.every(({ result }) => result?.status === "ok");
+export function summarizeItinerary(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, objective: RouteObjective) {
+  const measured = legs.map(({ result }) => selectedLeg(result, objective));
+  const complete = measured.length > 0 && measured.every((leg) => leg !== null);
   const regional = legs.some(({ result }) => result?.status === "ok" && result.terrain.regional);
-  const distanceKm = legs.reduce((sum, { result }) => sum + (selectedLeg(result, weighted)?.distanceKm ?? 0), 0);
+  const distanceKm = measured.reduce((sum, leg) => sum + (leg?.distanceKm ?? 0), 0);
   const science = stops.every(validStop) ? stops.reduce((sum, stop) => sum + stop.scienceMinutes, 0) : null;
   const travel = complete && !regional && validMission(mission) ? distanceKm * 1000 / (mission.rover ? mission.roverSpeed : mission.speed) / 60 : null;
   const remaining = travel != null && science != null && legs.at(-1)?.returning ? mission.budget - mission.reserve - science - travel : null;
   return { complete, regional, distanceKm, science, travel, remaining };
 }
 
-export function suggestRover(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, weighted: boolean) {
+export function suggestRover(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, objective: RouteObjective) {
   if (mission.rover || !legs.at(-1)?.returning) return null;
-  const walking = summarizeItinerary(legs, stops, mission, weighted);
+  const walking = summarizeItinerary(legs, stops, mission, objective);
   if (walking.remaining === null || walking.remaining >= 0 || walking.science === null) return null;
-  if (legs.some(({ result }) => (selectedLeg(result, weighted)?.maxSlopeDeg ?? Infinity) > mission.roverSlope)) return null;
+  if (legs.some(({ result }) => (selectedLeg(result, objective)?.maxSlopeDeg ?? Infinity) > mission.roverSlope)) return null;
   const roverTravel = walking.distanceKm * 1000 / mission.roverSpeed / 60;
   if (roverTravel + walking.science > mission.budget - mission.reserve) return null;
   const duration = (minutes: number) => minutes < 1 ? `${Math.ceil(minutes * 60)} seconds` : `${Math.round(minutes * 10) / 10} minutes`;
@@ -66,12 +75,12 @@ export function suggestRover(legs: readonly PlannedLeg[], stops: readonly Stop[]
   return `Consider a rover for this ${distance} round trip. At your selected speeds, travel takes about ${duration(walking.travel!)} on foot or ${duration(roverTravel)} by rover. The rover estimate fits your time and reserve.`;
 }
 
-export function routeElevation(legs: readonly PlannedLeg[], weighted: boolean) {
+export function routeElevation(legs: readonly PlannedLeg[], objective: RouteObjective) {
   let distanceM = 0, ascentM = 0, descentM = 0, maxSlope = 0, low = Infinity, high = -Infinity;
   let sustained = -Infinity;
   const segments: { x: number; y: number }[][] = [];
   for (const { result } of legs) {
-    const leg = selectedLeg(result, weighted);
+    const leg = selectedLeg(result, objective);
     if (!leg) continue;
     maxSlope = Math.max(maxSlope, leg.maxSlopeDeg);
     let segment: { x: number; y: number }[] = [];

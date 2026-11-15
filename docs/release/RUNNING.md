@@ -31,10 +31,10 @@ python3 -m http.server 8000 --directory dist --bind 127.0.0.1
 Opening `index.html` directly from disk (`file://`) is not supported, because the browser blocks
 the raster fetches.
 
-The team confirmed permission for the NASA insignia in the intro artwork, app header, and map flags.
-Both desktop intro images include the insignia. Production builds use the bundled SVG at
-`public/images/nasa-insignia.svg` for the header, mobile intro, and map flags. The production setting
-in `.env.production` also includes it in the core offline pack. See the [NASA Brand Guidelines](https://www.nasa.gov/nasa-brand-center/brand-guidelines/).
+The intro, explorer header, and browser tab use the Martian Map badge in
+`public/images/martian-map-badge.png`. Production builds use the approved NASA insignia at
+`public/images/nasa-insignia.svg` for NASA-sourced map flags. Both assets are included in the
+core offline pack in production. See the [NASA Brand Guidelines](https://www.nasa.gov/nasa-brand-center/brand-guidelines/).
 
 ## Local testing milestone (current phase)
 

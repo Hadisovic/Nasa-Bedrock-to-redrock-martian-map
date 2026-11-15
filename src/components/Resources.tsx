@@ -25,7 +25,7 @@ export function Resources() {
       <ul>
         <li>Drone geology is clipped and recolored from <a href="https://doi.org/10.1130/GSAB.S.25938268" target="_blank" rel="noreferrer">Meyer et al., CC BY 4.0</a> and <a href="https://doi.org/10.3133/sim3464" target="_blank" rel="noreferrer">Sun and Stack, USGS SIM 3464</a>.</li>
         <li>Orbital and rover data are credited to their source missions and providers. See the individual layer, terrain pack, or catalog entry for its source.</li>
-        <li>The NASA insignia is used with permission in the homepage artwork, app header, and map flags. The flags identify NASA-sourced mission records. See the <a href="https://www.nasa.gov/nasa-brand-center/brand-guidelines/" target="_blank" rel="noreferrer">NASA Brand Guidelines</a>.</li>
+        <li>The NASA insignia is used with permission on map flags that identify NASA-sourced mission records. See the <a href="https://www.nasa.gov/nasa-brand-center/brand-guidelines/" target="_blank" rel="noreferrer">NASA Brand Guidelines</a>.</li>
         <li>NASA mission imagery follows the <a href="https://www.nasa.gov/nasa-brand-center/images-and-media/" target="_blank" rel="noreferrer">NASA media usage guidelines</a>. Individual records identify the image and data providers.</li>
         <li>Project assets include the Bedrock to Redrock artwork, lander, astronaut, and bundled synthetic Mission Control recordings. Third-party source terms apply separately.</li>
       </ul>

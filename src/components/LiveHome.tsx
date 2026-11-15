@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { HomeMotion } from "./HomeMotion.tsx";
 import { explorerBadge } from "../explorer/nasaMark.ts";
 import { usePixelSound } from "./usePixelSound.ts";
 
 const message = "Pick a landing site, explore real Mars data, and plan your trip out and back.";
+const artwork = import.meta.env.BASE_URL + "images/martian-map-cinematic.jpg";
 
 export function LiveHome({ onEnter }: { onEnter: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -33,9 +35,12 @@ export function LiveHome({ onEnter }: { onEnter: () => void }) {
         if (matchMedia("(prefers-reduced-motion: reduce)").matches) onEnter();
         else setLeaving(true);
       }}>
-      <span className="mission-home__scene">
-        <img className="mission-home__art" src="./images/martian-map-cinematic.jpg" alt="" fetchPriority="high" />
+      <span className="mission-home__scene" style={{ "--mission-artwork": `url("${artwork}")` } as CSSProperties}>
+        <img className="mission-home__art" src={artwork} alt="" fetchPriority="high" />
         <HomeMotion />
+        <span className="mission-home__branding" aria-hidden="true">
+          <span className="mission-home__badge"><img src={explorerBadge} alt="" /></span>
+        </span>
       </span>
       <span className="mission-home__phone-title" aria-hidden="true">
         <img src={explorerBadge} alt="" />

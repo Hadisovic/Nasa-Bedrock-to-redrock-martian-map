@@ -1,5 +1,6 @@
 import { cellAt, cellCenter, groundDistanceM } from "../contracts/index.ts";
 import type { ProjectedPoint, RasterCell, RoundTrip, RouteLeg, RouteRequest, RouteResult, TerrainGrid } from "../contracts/index.ts";
+import { walkingEffort } from "./walkingEffort.ts";
 
 /**
  * Deterministic grid routing over the HiRISE elevation cells.
@@ -85,6 +86,7 @@ class MinHeap {
 interface SearchOptions {
   maxAbsSlopeDeg: number;
   penaltyWeight: number;
+  minimizeEffort?: boolean;
 }
 
 function moveCost(graph: Graph, from: number, to: number, dr: number, dc: number, options: SearchOptions): number | undefined {
@@ -99,6 +101,7 @@ function moveCost(graph: Graph, from: number, to: number, dr: number, dc: number
   const run = dr === 0 ? graph.runEast : dc === 0 ? graph.runNorth : graph.runDiagonal;
   const slope = slopeDeg(zt - zf, run);
   if (Math.abs(slope) > options.maxAbsSlopeDeg) return undefined;
+  if (options.minimizeEffort) return walkingEffort(run, zt - zf);
   if (options.penaltyWeight === 0) return run;
   const p = Math.abs(slope) / options.maxAbsSlopeDeg;
   const factor = slope > 0 ? 1 : DOWNHILL_PENALTY_FACTOR;
@@ -266,8 +269,30 @@ export function planDirectionalLeg(request: RouteRequest) {
   const path = search(graph, start, goal, strict);
   if (!path) return { status: "no-route" as const, detail: `No connected path stays within ${strict.maxAbsSlopeDeg}° on this leg.${unknownNote}` };
   const weighted = request.slopePenaltyWeight ? search(graph, start, goal, { ...strict, penaltyWeight: request.slopePenaltyWeight }) : undefined;
-  const leg = (cells: number[]) => toLeg(graph, request.habitat, request.destination, cells);
-  return { status: "available" as const, shortest: leg(path), alternative: weighted && !sameCells(path, weighted) ? leg(weighted) : undefined };
+  const effortOptions = { ...strict, minimizeEffort: true };
+  // All objectives use the same legal moves, so a shortest path also proves
+  // that an effort-optimized path exists.
+  const energyPath = search(graph, start, goal, effortOptions)!;
+  const leg = (cells: number[]) => {
+    const route = toLeg(graph, request.habitat, request.destination, cells);
+    if (cells.length === 1) return { ...route, effort: route.horizontalDistanceM };
+    const { geometry } = route;
+    let effort = groundDistanceM(geometry[0], geometry[1]) +
+      groundDistanceM(geometry[geometry.length - 2], geometry[geometry.length - 1]);
+    const { width } = graph.terrain.layout;
+    for (let i = 1; i < cells.length; i++) {
+      const from = cells[i - 1], to = cells[i];
+      const dr = Math.floor(to / width) - Math.floor(from / width);
+      const dc = to % width - from % width;
+      effort += moveCost(graph, from, to, dr, dc, effortOptions)!;
+    }
+    return { ...route, effort };
+  };
+  const shortest = leg(path);
+  const alternative = weighted && !sameCells(path, weighted) ? leg(weighted) : undefined;
+  const energy = sameCells(path, energyPath) ? shortest
+    : alternative && weighted && sameCells(weighted, energyPath) ? alternative : leg(energyPath);
+  return { status: "available" as const, shortest, alternative, energy };
 }
 
 export function planRoundTrip(request: RouteRequest): PlannedRoute {
