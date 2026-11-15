@@ -31,7 +31,7 @@ import type { DroneSite } from "./droneCoverage.ts";
 import { ExplorerHelp } from "./ExplorerHelp.tsx";
 import { useEarthWalk } from "./useEarthWalk.ts";
 import { EarthWalkControls, EarthWalkSetup } from "./EarthWalkPanel.tsx";
-import { GoToLocation } from "./icons.tsx";
+import { FlightIcon, GoToLocation } from "./icons.tsx";
 import { RouteAnalysis } from "./RouteAnalysis.tsx";
 
 const Globe3D = lazy(() => import("./Globe3D.tsx").then((m) => ({ default: m.Globe3D })));
@@ -779,7 +779,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               <p className="small">Two interactive terrain samples with optional geology, inspired by NASA’s Curiosity flyover.</p>
               <div className="drone-simulation-options" role="group" aria-label="Drone simulations">
                 {droneSites.map((site) => <button key={site.id} type="button" className="btn"
-                  onClick={() => goToDrone(site, true)}>{site.label} · {site.spacingM} m</button>)}
+                  onClick={() => goToDrone(site, true)}><FlightIcon kind="drone" />{site.label} · {site.spacingM} m</button>)}
               </div>
             </section>}
             {tab === "catalog" && (data?.catalog

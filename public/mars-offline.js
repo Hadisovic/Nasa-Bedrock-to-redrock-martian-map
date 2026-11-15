@@ -4,6 +4,20 @@ const url = (path) => new URL(path, scope).href;
 self.addEventListener("install", (event) => { event.waitUntil(self.skipWaiting()); });
 self.addEventListener("activate", (event) => { event.waitUntil(self.clients.claim()); });
 
+self.addEventListener("notificationclick", (event) => {
+  if (event.notification.tag !== "martian-map-gps") return;
+  event.notification.close();
+  const target = new URL(event.notification.data?.target || "./#/explore", scope);
+  const base = new URL(scope);
+  if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname) || !target.hash.startsWith("#/explore")) return;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const current = windows.find((client) => client.url === target.href);
+    if (current) await current.focus();
+    else await self.clients.openWindow(target.href);
+  })());
+});
+
 self.addEventListener("message", (event) => {
   const { pack, version, files } = event.data ?? {};
   const port = event.ports[0];

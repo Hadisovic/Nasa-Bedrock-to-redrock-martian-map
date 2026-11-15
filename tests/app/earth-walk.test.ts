@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix } from "../../src/explorer/earthWalk.ts";
+import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
 import type { Catalog } from "../../src/explorer/catalog.ts";
 import { relativeToLander } from "../../src/explorer/geo.ts";
 
@@ -101,6 +101,27 @@ test("route matching at a return crossing stays within the current leg", () => {
   assert.equal(locateOnWalk(track, south, 0, first).metres, 0);
   assert.equal(locateOnWalk(track, north, second, third).metres, third);
   assert.deepEqual(sampleWalk(track, track.at(-1)!.metres).point, south);
+});
+
+test("navigation gives the initial heading, then a turn and the heading for the next leg", () => {
+  const stop = track[2].metres;
+  const first = walkDirection(track, 0, stop, "Science stop", false);
+  assert.match(first.text, /Head north for about \d+ metres, then turn right/);
+  assert.equal(first.kind, "right");
+  assert.match(walkDirection(track, track[1].metres + 8, stop, "Science stop", false).text,
+    /Head east toward Science stop/);
+  assert.match(walkDirection(track, stop, Infinity, "Lander", true).text,
+    /Regional guidance\. Head west toward Lander/);
+});
+
+test("failed detour guidance points from actual GPS position to the remaining route", () => {
+  const outside = { lat: (south.lat + north.lat) / 2, lon: north.lon + .002 };
+  const nearest = locateOnWalk(track, outside, 0, track[1].metres);
+  const guidance = rejoinDirection(outside, nearest);
+  assert.ok(nearest.distance > 100);
+  assert.equal(guidance.action, "Route to the west");
+  assert.ok(Math.abs(guidance.bearing - 270) < .01);
+  assert.match(guidance.text, /Return along terrain you know is clear/);
 });
 
 test("step detector ignores constant gravity and debounces peaks", () => {

@@ -20,7 +20,8 @@ import { globeSurface, loadGaleTerrain, loadWildcatTerrain, nearWildcat } from "
 import type { SurfaceTerrain } from "./galeTerrain.ts";
 import { nearGale } from "./galeLayout.ts";
 import { MarkerButton } from "./MarkerButton.tsx";
-import { FlagCluster } from "./icons.tsx";
+import { FlightIcon, FlagCluster } from "./icons.tsx";
+import { Astronaut } from "../components/Astronaut.tsx";
 import { MapControls } from "./MapControls.tsx";
 import { imageBounds } from "./catalog.ts";
 import { DroneControls } from "./DroneControls.tsx";
@@ -97,6 +98,7 @@ export function Globe3D(props: Globe3DProps) {
   const host = useRef<HTMLDivElement>(null);
   const hitLayer = useRef<HTMLDivElement>(null);
   const geologyLabels = useRef<HTMLDivElement>(null);
+  const crewSprite = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const earthPose = useRef(props.earthWalkPose);
   const earthAstronaut = useRef<Awaited<ReturnType<typeof loadEarthAstronaut>> | null>(null);
@@ -147,6 +149,8 @@ export function Globe3D(props: Globe3DProps) {
   const droneRef = useRef(drone);
   const droneInput = useRef<FlightInput>({ forward: 0, slide: 0, turn: 0, rise: 0 });
   const droneLook = useRef(0.5);
+  const obliqueLook = useRef(0.5);
+  const [overhead, setOverhead] = useState(false);
   const lastDroneReport = useRef(0);
   const sunRef = useRef(sunPoint);
   sunRef.current = sunPoint;
@@ -188,6 +192,8 @@ export function Globe3D(props: Globe3DProps) {
   const enterDrone = (point: LatLon, region: "wildcat" | "gale") => {
     props.onFlightStart();
     droneLook.current = region === "wildcat" ? 1.12 : 0.74;
+    obliqueLook.current = droneLook.current;
+    setOverhead(false);
     setFlightPosition({ point, heading: region === "gale" ? 180 : 0,
       height: region === "wildcat" ? 225 : 1380 });
     setNotice("");
@@ -305,9 +311,10 @@ export function Globe3D(props: Globe3DProps) {
   const press = useRef<{ x: number; y: number; id: number } | null>(null);
   const landing = useRef<{ key: string; time: number } | null>(null);
   const hasEarthWalk = !!(drone ? flightWalk.pose : props.earthWalkPose);
+  const showCrewSprite = hasEarthWalk && !drone && !props.roverPreview && navigator.maxTouchPoints > 0;
   useEffect(() => {
     const view = s.current;
-    if (!view || !hasEarthWalk) return;
+    if (!view || !hasEarthWalk || showCrewSprite) return;
     let live = true;
     void loadEarthAstronaut(!drone && props.roverPreview).then((astronaut) => {
       if (!live) { astronaut.dispose(); return; }
@@ -319,7 +326,7 @@ export function Globe3D(props: Globe3DProps) {
       earthAstronaut.current?.dispose();
       earthAstronaut.current = null;
     };
-  }, [ready, hasEarthWalk, props.roverPreview, !!drone]);
+  }, [ready, hasEarthWalk, props.roverPreview, !!drone, showCrewSprite]);
 
   useEffect(() => {
     const element = host.current!;
@@ -621,6 +628,13 @@ export function Globe3D(props: Globe3DProps) {
       } else renderCamera.up.set(0, 1, 0);
       renderCamera.updateMatrixWorld();
       if (pose && smoothPoint) earthAstronaut.current?.update(pose, smoothPoint, frameMs / 1000, renderCamera, heightPx(), surfaceRef.current);
+      const crew = crewSprite.current;
+      if (crew && smoothPoint && pose) {
+        const anchor = surfaceRef.current(smoothPoint, 1);
+        project.copy(anchor).project(renderCamera);
+        crew.hidden = project.z < -1 || project.z > 1 || Math.abs(project.x) > 1 || Math.abs(project.y) > 1;
+        if (!crew.hidden) crew.style.transform = `translate3d(${(project.x + 1) * element.clientWidth / 2}px,${(1 - project.y) * heightPx() / 2}px,0) translate(-50%,-100%)`;
+      }
       for (const patch of relief.children) {
         const normal = patch.userData.surfaceNormal as THREE.Vector3;
         patch.visible = normal.dot(renderCamera.position) > .99;
@@ -707,7 +721,9 @@ export function Globe3D(props: Globe3DProps) {
       const current = droneRef.current;
       if (current && drag?.id === event.pointerId) {
         const heading = (current.heading - (event.clientX - drag.x) * 0.26 + 360) % 360;
-        droneLook.current = THREE.MathUtils.clamp(droneLook.current + (event.clientY - drag.y) * 0.006, -0.2, 1.4);
+        droneLook.current = THREE.MathUtils.clamp(droneLook.current + (event.clientY - drag.y) * 0.006, -0.2, 1.55);
+        if (droneLook.current < 1.5) obliqueLook.current = droneLook.current;
+        setOverhead(droneLook.current >= 1.5);
         drag.x = event.clientX;
         drag.y = event.clientY;
         droneRef.current = { ...current, heading };
@@ -1187,6 +1203,8 @@ export function Globe3D(props: Globe3DProps) {
           </div>
         ))}
       </div>
+      {showCrewSprite && <div ref={crewSprite} className={`map-crew-sprite${props.earthWalkPose?.moving ? " map-crew-sprite--moving" : ""}`}
+        role="img" aria-label="Simulated astronaut"><Astronaut decorative /></div>}
       {geologyMap && flyingTour && <div className="flight-geology-labels" ref={geologyLabels} aria-label="Mapped geology">
         {flyingTour.geology.labels.map((unit, index) => <button key={unit.title} type="button" hidden
           data-lat={unit.lat} data-lon={unit.lon} style={{ "--unit-color": unit.color } as React.CSSProperties}
@@ -1208,14 +1226,19 @@ export function Globe3D(props: Globe3DProps) {
       <div className={`flight-tools${drone ? " flight-tools--flying" : ""}`}>
         {drone && <button type="button" className="btn btn--small" onClick={() => {
           closeFlight(); setNotice(""); props.onFlightExit();
-        }}><span aria-hidden="true">↩</span> Exit Drone View</button>}
+        }}><FlightIcon kind="exit" /> <span>Exit Drone View</span></button>}
         {drone && <>
           {flyingTour && <button type="button" className="btn btn--small" aria-expanded={tourOpen} onClick={() => setTourOpen(!tourOpen)}>
-            Terrain & route
+            <FlightIcon kind="terrain" /> <span>Terrain &amp; route</span>
           </button>}
           {flyingTour && <button type="button" className="btn btn--small" aria-pressed={geologyOn} onClick={() => {
             setGeologyOn(!geologyOn); setGeologyUnit(null);
-          }}>Geology</button>}
+            setTourOpen(true);
+          }}><FlightIcon kind="geology" /> <span>Geology</span></button>}
+          <button type="button" className="btn btn--small" aria-label={overhead ? "Oblique view" : "Overhead view"}
+            aria-pressed={overhead} onClick={() => { droneLook.current = overhead ? obliqueLook.current : 1.55; setOverhead(!overhead); }}>
+            <FlightIcon kind="camera" /> <span>{overhead ? "Oblique" : "Overhead"}</span>
+          </button>
         </>}
         {notice && <span className="badge" role="status">{notice}</span>}
       </div>
@@ -1259,11 +1282,15 @@ export function Globe3D(props: Globe3DProps) {
               {flyingTour.reference && <a href={flyingTour.reference} target="_blank" rel="noreferrer">NASA’s 2019 proposed flyover</a>}
             </div>
           </>}
-        {!selectedStop && <div className="flight-legend">
-          {geologyOn && !activeUnit && flyingTour.geology.labels.map((unit, index) => <button type="button" key={unit.title}
-            onClick={() => setGeologyUnit(index)}><span style={{ background: unit.color }} />{unit.title}</button>)}
-          <a href={flyingTour.geology.reference} target="_blank" rel="noreferrer">{flyingTour.geology.credit}</a>
-        </div>}
+        {!selectedStop && <details className="flight-geology-info">
+          <summary>What geology adds</summary>
+          <p>False colors mark mapped geologic units. Tap a label for the observed materials or landforms it describes.</p>
+          <div className="flight-legend">
+            {geologyOn && !activeUnit && flyingTour.geology.labels.map((unit, index) => <button type="button" key={unit.title}
+              onClick={() => setGeologyUnit(index)}><span style={{ background: unit.color }} />{unit.title}</button>)}
+            <a href={flyingTour.geology.reference} target="_blank" rel="noreferrer">{flyingTour.geology.credit}</a>
+          </div>
+        </details>}
       </aside>}
       {drone && flightWalk.session && <div className="flight-walk-status">
         <span>{flightWalk.cue ?? (flightWalk.arrived ? "Arrived" : "Walking to the next stop")}</span>
@@ -1271,6 +1298,7 @@ export function Globe3D(props: Globe3DProps) {
         <button type="button" className="btn btn--small" onClick={flightWalk.stop}>End preview</button>
       </div>}
       {drone && <><DroneControls onInput={(input) => { droneInput.current = input; }} /><div className="flight-readout">
+        <span className="flight-landscape-hint">Rotate your phone for more room to fly.</span>
         <span>Simulated camera · {Math.round(drone.height)} m above ground · {Math.round(drone.heading) % 360}°</span>
         <span>{closeRegion === "wildcat" ? "Wildcat Ridge · 1 m" : "Mount Sharp · 20 m"}</span>
         <span>{formatLatLon(drone.point, 5)}</span>
