@@ -1,264 +1,138 @@
-# Bedrock to Redrock — Martian Map
-
 <div align="center">
 
-<img src="public/images/martian-map-badge.png" alt="Bedrock to Redrock Badge" width="480" />
+# Bedrock to Redrock
 
-### An Interplanetary Survival Guide & Interactive Terrain Navigation System for Mars
+**Explore Mars. Plan a surface mission. Rehearse the route.**
 
-[![NASA Space Apps Challenge 2026](https://img.shields.io/badge/NASA%20Space%20Apps-2026-blue?style=for-the-badge&logo=nasa)](https://www.spaceappschallenge.org/2026/find-a-team/bedrock-to-redrock/)
-[![Live Deployment](https://img.shields.io/badge/Live%20Website-b--2--r.us-red?style=for-the-badge&logo=cloudflare)](https://b-2-r.us)
-[![Automated Tests](https://img.shields.io/badge/Tests-60%2F60%20Passing-brightgreen?style=for-the-badge&logo=node.js)](tests/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-7.0-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-[![React 19](https://img.shields.io/badge/React-19.3-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![Three.js](https://img.shields.io/badge/Three.js-0.187-black?style=for-the-badge&logo=three.js)](https://threejs.org/)
+Martian Map · NASA Space Apps Challenge 2026 · Irbid, Jordan
 
-**[Explore the Live App](https://b-2-r.us)** · **[NASA Space Apps Team Page](https://www.spaceappschallenge.org/2026/find-a-team/bedrock-to-redrock/)** · **[Architecture Guide](docs/architecture/marswalk-app.md)** · **[Deployment & Running](docs/release/RUNNING.md)**
+[Open the live app](https://b-2-r.us/) · [Explore Mars](https://b-2-r.us/#/explore) · [Try a Marswalk](https://b-2-r.us/#/map?tab=mission) · [Meet the team](https://www.spaceappschallenge.org/2026/find-a-team/bedrock-to-redrock/)
 
 </div>
 
----
+[![Martian Map intro with the Bedrock to Redrock badge, blocky astronaut, map display, and lander on Mars](docs/screenshots/home.jpg)](https://b-2-r.us/)
 
-## The NASA Space Apps Challenge
+Bedrock to Redrock brings mission imagery, measured terrain, and documented rover discoveries into one map. Choose a science stop, compare paths from a lander, and see how travel and science time affect your return reserve. Then follow the route as an astronaut or rover.
 
-Developed for the **NASA Space Apps Challenge 2026** at the **Irbid, Jordan** local event, **Bedrock to Redrock** directly solves the **"Interplanetary Survival Guide: Martian Map"** challenge.
+Built for [Interplanetary Survival Guide: Martian Map](https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/?tab=details), the project combines data from multiple missions to help an explorer plan and rehearse a Marswalk. The screenshots below were captured from the live app.
 
-Future crewed expeditions to the Red Planet will demand far more than static imagery or simple two-dimensional route lines. On an unforgiving alien surface where every slope consumes vital oxygen, every cliff poses communication blackouts, and every detour risks rover battery reserves, human explorers and autonomous ground systems require **context-rich, terrain-aware, and mission-tested navigation intelligence**.
+## Start a mission
 
-### The Core Problem
-1. **Extreme Terrain Hazards:** Martian topography features vertical crater scarps, deep sand traps, and boulder fields that make straight-line travel fatal.
-2. **Disconnected Science Data:** Planetary datasets (MOLA elevation rasters, HiRISE high-resolution orbital imagery, rover waypoint logs, Mars24 sun coordinates) exist in isolated repositories with complex formats.
-3. **Sensor-to-Reality Gap:** Astronauts on Earth need intuitive ways to train and experience Martian traverses before setting foot on the surface.
+1. **Find a destination.** Open **Discover**, search for Berry Hollow, and read what Perseverance found at Wildcat Ridge.
+2. **Plan the trip.** In **Directions**, place the lander and add science stops. Compare routes, then open **Route details** to inspect terrain, travel time, and return reserve.
+3. **Rehearse.** Select **Start route** and choose an astronaut or rover preview. On a supported phone or tablet, **Earth GPS Demo** uses your movement to drive the simulated position. Try the [GPS demo routes](docs/release/GPS-DEMO-ROUTES.md) for exact coordinates, replanning, and sourced alerts.
 
----
+## Explore the map
 
-## What We Accomplished
+- Switch between a **full-Mars 2D map and a 3D globe** with natural-color Viking imagery. Use the compass, zoom, reset view, and 3D solar lighting. The clock shows local solar time at the map center and the current sol.
+- Search **21 map data entries**, including basemaps and the numerical elevation grid. Toggle overlays for terrain, geology, minerals, water and ice indicators, dust, and thermal properties. Each layer includes its source, coverage, legend, and opacity control where applicable.
+- Show or hide discovery flags and drone coverage. The map works with mouse, keyboard, and touch, with collapsible desktop and mobile panels and an optional in-app tutorial.
 
-**Bedrock to Redrock** transforms authentic NASA scientific data into an intuitive, responsive, and offline-capable 3D/2D planetary navigation suite. Inspired by the discovery and survival dynamics of *Minecraft*, our system empowers both scientists on Earth and future explorers on Mars to visualize, evaluate, simulate, and walk actual Martian routes.
+![3D Mars globe with natural-color Viking imagery, discovery flags, a compass, and the Mars clock](docs/screenshots/globe.jpg)
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                                    BEDROCK TO REDROCK SUITE                                        |
-+------------------------------------+----------------------------------+----------------------------+
-| 3D Globe & 2D Planetary Navigator  | Multi-Criteria Terrain Router    | Earth-to-Mars Walk GPS     |
-| * Full MOLA global elevation grid  | * Slope-penalized A* algorithm   | * Real-time GPS mapping    |
-| * Viking color basemap & ice caps  | * Downhill/uphill energy model   | * Turn-by-turn voice audio |
-| * 54+ verified historic sites      | * 3 distinct routes compared     | * 1:1 up to 100,000x scale |
-| * Mars24 prime meridian & sun clock| * Science target stops & returns | * Web push notifications   |
-+------------------------------------+----------------------------------+----------------------------+
-| Interactive 3D Drone Aerial Recon  | High-Res Regional Workspaces     | Offline PWA Architecture   |
-| * Autonomous low-altitude flights  | * 1m/pixel Jezero (Wildcat Ridge)| * Service Worker offline   |
-| * Dynamic camera pitch & orbit     | * 20m/pixel Gale (Mount Sharp)   | * Embedded GeoTIFF engine  |
-| * Waypoint science flag framing    | * Geological layer overlays      | * Zero external CDNs       |
-+------------------------------------+----------------------------------+----------------------------+
-```
+![2D Mars map with an Odyssey water-equivalent hydrogen overlay and a filter panel showing its legend](docs/screenshots/layers.jpg)
 
----
+## Discover real science
 
-## Feature Showcase & Screenshots
+Search **149 mapped records** for landings, rover stops, samples, and mission hardware. Open **Read about** from a flag or search result for observations, credited rover photos where available, source links, and position uncertainty. **Go to location** centers the map, and a science flag can become an itinerary stop.
 
-### 1. Dual-Engine Planetary Navigation (3D Sphere & 2D Projection)
-Seamlessly transition between a photorealistic 3D Mars globe with authentic axial tilt, atmospheric scattering, and polar cap mapping, and a flat equirectangular projection equipped with smooth panning, coordinate clamping, and marker clustering.
+At **Berry Hollow** in Jezero Crater, Perseverance studied minerals in an abrasion patch at Wildcat Ridge. The mission also collected the nearby **Hazeltop** and **Bearwallow** cores from ancient lake sediment. [NASA’s Wildcat Ridge sample story](https://science.nasa.gov/resource/meet-the-mars-samples-hazeltop-and-bearwallow-samples-12-and-13/) · [Bundled event catalog](data/mars/catalog/events.json)
 
-| 3D Interactive Mars Globe | Simultaneous 2D/3D Rover Science & Routes |
-| :---: | :---: |
-| ![3D Interactive Mars Globe](docs/evidence/explorer-3d-globe.jpg) | ![2D Rover Science Navigation](docs/evidence/navigation-experience/desktop-2d-rover-science.png) |
-| *Global elevation terrain rendered with MOLA data* | *Simultaneous pathfinding with rover science flags* |
+![Berry Hollow evidence card showing Perseverance’s observation, date, region, and mineral findings](docs/screenshots/discovery.jpg)
 
----
+## Plan with Directions
 
-### 2. Multi-Criteria Terrain Routing Engine
-Traditional pathfinders calculate flat Euclidean distance. Our solver incorporates a physics-grounded terrain cost function:
-* **Asymmetric Slope Penalties:** Steep ascents penalize speed and oxygen expenditure heavily; controlled descents carry half the penalty of uphill climb.
-* **Cliff & Barrier Exclusion:** Elevation gradients exceeding rover/EVA safety thresholds (e.g. $>25^\circ$) are strictly prohibited.
-* **Three Route Strategies Evaluated Simultaneously:**
-  1. <span style="color:#f97316">**Shortest Path (Orange):**</span> Minimum ground distance, navigating around sheer cliffs.
-  2. <span style="color:#06b6d4">**Balanced Route (Cyan):**</span> Optimized trade-off between elevation change and total distance.
-  3. <span style="color:#10b981">**Lowest Slope (Green):**</span> Gentlest gradient profile to protect rover hardware and EVA suits.
+- **Build an itinerary.** Select a lander and up to 12 ordered stops from the map, search, or discovery flags. Add, replace, reorder, or remove stops, set science time for each, and choose a one-way trip or a return to the lander.
+- **Compare routes.** Choose **Shortest** or **Lower slope cost** when both are available. The solver uses the selected terrain grid and slope limit for each leg. You can report a blocked cell or inspect a nearby point when the local solver finds a reachable alternative. If a leg fails, successfully solved legs stay visible.
+- **Inspect the terrain.** See outbound and dashed return lines, distance, elevation profile, ascent and descent, steepest measured slope, and each leg’s source and resolution.
+- **Make a return decision.** Compare walking and rover estimates. Set departure, speed, science time, mission budget, and reserve. The app calculates arrival, daylight, and the return margin for supported plans. The [Wildcat Ridge rehearsal](https://b-2-r.us/#/map?tab=mission) includes a baseline, a changed-conditions example, and a blocked-route case.
 
-| Synchronized Multi-Route Comparison | Turn-by-Turn Audio & Directional Guidance |
-| :---: | :---: |
-| ![Multi-Route Comparison](docs/evidence/navigation-experience/desktop-walk-routes.png) | ![Directional Guidance](docs/evidence/navigation-experience/desktop-walk-guidance.png) |
-| *3 selectable routing profiles with elevation profiles* | *Next-maneuver arrows, distance remaining, and voice cues* |
+![Directions view showing two terrain-aware paths between a lander and Berry Hollow, with an estimated time and route distance](docs/screenshots/directions.jpg)
 
----
+![Terrain detail panel showing the route elevation profile, slope measurements, and the Wildcat Ridge HiRISE data source](docs/screenshots/terrain-profile.jpg)
 
-### 3. Aerial Reconnaissance: 3D Drone Flyover Mode
-Experience high-altitude and low-altitude reconnaissance over challenging terrain. Switch into third-person drone camera mode to preview the selected route from above, orbit active science targets, and inspect geological formations before dispatching ground crew.
+## Rehearse with navigation
 
-| Wildcat Ridge Drone Reconnaissance | Mount Sharp / Gale Crater Drone Flight |
-| :---: | :---: |
-| ![Wildcat Ridge Drone Recon](docs/evidence/pr8-review/wildcat-drone.png) | ![Mount Sharp Drone Recon](docs/evidence/pr8-review/gale-drone-landscape-fixed.png) |
-| *Jezero Crater 1m/px HiRISE photogrammetry* | *Gale Crater Mount Sharp geological ascent* |
+- **Recorded preview** follows the calculated path with a blocky astronaut or a 3D Perseverance model. The navigation card shows numbered steps, turn arrows, remaining distance, compass bearings, and estimated arrival. Voice cues advance with playback. Pause, recenter, mute, or repeat a cue as needed.
+- **Earth GPS Demo** uses the first reliable phone or tablet fix as the lander origin. It maps real movement onto simulated Mars travel at a selectable scale. Optional device tilt controls the camera and compass. Earth coordinates stay on the device. On detailed terrain, sustained deviation can trigger replanning through the remaining stops. If the solver cannot verify a detour, guidance gives the distance and bearing back to the route.
+- **Mission Control alerts** can announce nearby documented discoveries, terrain warnings, and dated observations. Supported device notifications can show the last confirmed instruction when switching away. Fresh location and voice guidance resume with the map open. [GPS and notification setup](docs/release/RUNNING.md#earth-gps-notifications)
 
----
+<div align="center">
+  <img src="docs/screenshots/navigation-mobile.jpg" width="340" alt="Phone layout showing an upcoming right turn, remaining distance, estimated travel time, and arrival date during a recorded astronaut preview">
+</div>
 
-### 4. Earth-to-Mars Walk GPS & PWA Experience
-Test Marswalk routes in the real world using physical phone GPS sensors:
-* **Interactive Scales:** Step outdoors on Earth and map your physical walk directly onto Martian coordinates:
-  * `1:1` Local EVA Simulation (1m Earth = 1m Mars).
-  * `1000×` Regional Traverse (1m Earth = 1km Mars).
-  * `10,000×` and `100,000×` Planetwide Expeditions across the Martian equator.
-* **Audio Guidance:** Real-time spoken instructions, audio chimes for waypoints, compass course corrections, and slope warnings.
-* **Off-Route Detection:** Automatic detection of route deviation with proactive replanning or backtrack guidance.
-* **Live Martian Solar Clock:** Computes authentic Coordinated Mars Time (MTC), local solar time, and subsolar noon.
+## Fly the terrain
 
-| Mobile Next-Step Navigation | Real-Time Mars Solar Clocks |
-| :---: | :---: |
-| ![Mobile Navigation](docs/evidence/pr8-review/mobile-regional-next-step.png) | ![Mars Solar Clock](docs/evidence/navigation-fixes/mobile-clock.png) |
-| *Pocket-sized EVA guidance with tactile compass* | *High-precision MTC & Sol synchronization* |
+Choose **Drone** to fly over **Wildcat Ridge at 1 m** or **Gale Crater · Mount Sharp at 20 m**. Steer with the direction pad, adjust altitude, pan or zoom the camera, and toggle the sourced geology overlay. **Terrain & route** lets you place the animated lander, add stops from the ground or science flags, and preview a calculated astronaut or rover route while controlling the camera. [NASA’s Mount Sharp flyover](https://science.nasa.gov/resource/curiositys-proposed-path-up-mount-sharp/)
 
----
+![Wildcat Ridge drone view showing the geology overlay, flight controls, a plotted stop, and the round-trip planner](docs/screenshots/drone-wildcat.jpg)
 
-## Authentic NASA Data Integration
+![Mount Sharp drone view showing 20 metre terrain relief, colored geologic units, and science flags](docs/screenshots/drone-gale.jpg)
 
-Every map coordinate, elevation sample, and science waypoint in **Bedrock to Redrock** is grounded in verified NASA planetary mission records:
+## Save, share, and use offline
 
-| Mission / Instrument | Dataset Used | Application in Project |
-| :--- | :--- | :--- |
-| **Mars Global Surveyor (MOLA)** | 1/16° Global Elevation Grid | Planetary 3D topography and global routing |
-| **Mars Reconnaissance Orbiter (HiRISE)** | High-Resolution DTMs (1m/pixel) | Wildcat Ridge & Jezero Crater local terrain |
-| **Mars Express (HRSC)** | Regional Digital Terrain Models (20m/pixel) | Gale Crater & Mount Sharp geological routing |
-| **Viking Orbiter 1 & 2** | MDIM 2.1 Color Basemap Mosaic | True-color surface albedo basemap |
-| **Mars 2020 (Perseverance)** | Navcam, Mastcam-Z & Watson imagery | In-situ ground truth photos and sample depot pins |
-| **Mars Science Lab (Curiosity)** | Mastcam & ChemCam science logs | Gediz Vallis sulfur crystal discoveries |
-| **Mars24 Sun Clock Algorithm** | NASA GISS Solar Equations | MTC, Sol duration, and subsolar point calculation |
+- Name, reopen, edit, duplicate, or delete multiple plans saved in the browser.
+- Share a versioned route link or export a route file with the stops, selected path, and planning assumptions.
+- Download the planet map and either terrain pack before going offline. Saved routes and bundled voice cues are available with the appropriate pack. Fine online tiles and external source pages need a connection.
+
+## Data and references
+
+- **Planetwide imagery and terrain** use [NASA JPL Mars Trek](https://trek.nasa.gov/mars/) and [Mars Global Surveyor MOLA](https://pds-geosciences.wustl.edu/missions/mgs/mola.html). The [map data inventory](data/mars/layers/manifest.json) records sources and coverage for individual layers.
+- **Wildcat Ridge elevation and imagery** use the USGS Mars 2020 [HiRISE terrain model](https://www.usgs.gov/data/mars-2020-terrain-relative-navigation-hirise-dtm-mosaic) and [orthorectified imagery](https://data.usgs.gov/datacatalog/data/USGS%3A13c20ddb-2a2c-4bbd-bac4-3ef88cd0eabf).
+- **Geology** draws on [USGS mapping of Jezero Crater](https://doi.org/10.3133/sim3464) and [orbital mapping of lower Mount Sharp](https://doi.org/10.1130/GSAB.S.25938268). See the [terrain pack notes](docs/release/RUNNING.md) for processing and attribution.
+- **Rover evidence** comes from [NASA’s Perseverance sample catalog](https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/), [raw image gallery](https://mars.nasa.gov/mars2020/multimedia/raw-images/), [Curiosity traverse records](https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json), and the sources linked on each discovery card. The 3D rover uses the [NASA/JPL-Caltech model](https://science.nasa.gov/resource/mars-perseverance-rover-3d-model/).
+- **Time and solar position** follow the [NASA GISS Mars24 algorithm and worked examples](https://www.giss.nasa.gov/tools/mars24/help/algorithm.html).
+
+**Coverage and limits.** Detailed routing uses two terrain packs. The global MOLA grid provides regional estimates at roughly 14.8 km spacing near the equator. Route estimates cover the inputs and terrain shown in the app. Fine obstacles, traction, live weather, radiation, and suit consumables require further data and modeling. Earth GPS positions and drone flights are simulations.
 
 <details>
-<summary><strong>View NASA Discovery Images Embedded in the Project</strong></summary>
+<summary>Rover and mission image gallery</summary>
 
-<br />
+- **Perseverance at Wildcat Ridge** · Navcam view. Credit NASA/JPL-Caltech.
 
-| Perseverance at Wildcat Ridge | Berry Hollow Abrasion (WATSON) |
-| :---: | :---: |
-| ![Perseverance Navcam](public/images/pov/sol502-navcam.jpg) | ![Watson Abrasion](public/images/pov/sol504-watson-abrasion.jpg) |
-| *Sol 502 Navcam panoramic view* | *Sol 504 microscopic rock abrasion* |
+  ![Perseverance Navcam view at Wildcat Ridge](public/images/pov/sol502-navcam.jpg)
 
-| Three Forks Sample Depot | Ingenuity Images Perseverance Backshell |
-| :---: | :---: |
-| ![Three Forks Depot](public/images/catalog/three-forks-depot-map.jpg) | ![Perseverance Backshell](public/images/catalog/perseverance-backshell-ingenuity.jpg) |
-| *First sample depot on another world* | *Aerial inspection from Ingenuity flight* |
+- **Berry Hollow abrasion** · WATSON view of the patch studied by PIXL. Credit NASA/JPL-Caltech.
+
+  ![WATSON image of the Berry Hollow abrasion patch](public/images/pov/sol504-watson-abrasion.jpg)
+
+- **Hazeltop and Bearwallow** · Wildcat Ridge sample site. Credit NASA/JPL-Caltech/ASU/MSSS.
+
+  ![Mastcam-Z view associated with the Wildcat Ridge samples](public/images/catalog/wildcat-ridge-mastcamz.jpg)
+
+- **Three Forks sample depot** · NASA’s marked sample locations. Credit NASA/JPL-Caltech.
+
+  ![Map of the Three Forks sample depot](public/images/catalog/three-forks-depot-map.jpg)
+
+- **Perseverance landing hardware** · Backshell and parachute imaged by Ingenuity. Credit NASA/JPL-Caltech.
+
+  ![Ingenuity photo of the Perseverance backshell and parachute](public/images/catalog/perseverance-backshell-ingenuity.jpg)
+
+- **Sulfur at Gediz Vallis** · Curiosity found yellow sulfur crystals in a rock it broke open. Credit NASA/JPL-Caltech/MSSS.
+
+  ![Sulfur crystals exposed in a rock at Gediz Vallis](public/images/catalog/curiosity-sulfur-crystals.jpg)
+
+- **Spirit at Troy** · Orbital image of the rover’s last position. Credit NASA/JPL-Caltech/University of Arizona.
+
+  ![HiRISE orbital view of Spirit at Troy](public/images/catalog/spirit-at-troy-hirise.jpg)
 
 </details>
 
----
+## Run locally
 
-## Architecture & Technology Stack
+Requires Node.js 22.18+ or 24+ and npm.
 
-The application is engineered as a modern, high-performance, and offline-first Progressive Web App (PWA):
-
-```
-                        +---------------------------------------------+
-                        |             React 19 UI Layer               |
-                        | (LiveHome, Explorer, Directions, EarthWalk) |
-                        +----------------------+----------------------+
-                                               |
-                     +-------------------------+-------------------------+
-                     |                                                   |
-        +------------v------------+                         +------------v------------+
-        |   Three.js 3D Engine    |                         |  2D Canvas / WebGL Map  |
-        | * 3D Globe with MOLA    |                         | * Equirectangular pan   |
-        | * HiRISE Terrain Meshes |                         | * Clustered markers     |
-        | * Animated Drone Flyover|                         | * Vector route overlays |
-        +------------+------------+                         +------------+------------+
-                     |                                                   |
-                     +-------------------------+-------------------------+
-                                               |
-                        +----------------------v----------------------+
-                        |         Routing & Physics Workers           |
-                        | * Deterministic A* Terrain Pathfinding      |
-                        | * Web Worker thread isolation               |
-                        | * LERC & GeoTIFF fast raster decoding       |
-                        +----------------------+----------------------+
-                                               |
-                        +----------------------v----------------------+
-                        |         Hardware & Audio Integrations       |
-                        | * Web Audio API (Spatialized chimes)        |
-                        | * Geolocation API (1:1 & scaled walks)      |
-                        | * Service Worker (Offline asset cache)      |
-                        +---------------------------------------------+
-```
-
-* **Core Framework:** React 19, TypeScript 7, Vite 8.
-* **3D Visualization:** Three.js (0.187) with custom shaders, orbit controls, and GLTF/GLB models.
-* **Raster Decoders:** GeoTIFF, Zstandard, LERC, Pako (DEFLATE).
-* **Audio Synthesis & Voice:** Web Audio API with synthesized frequency chimes and SpeechSynthesis turn announcements.
-* **Edge Hosting:** Cloudflare Pages with globally distributed Edge Functions.
-
----
-
-## Getting Started
-
-### Prerequisites
-* **Node.js:** `^22.18.0` or `>=24.0.0`
-* **npm:** `>=10.0.0`
-* **Python:** `>=3.10` (for map layer verification)
-
-### Installation & Local Run
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/Hadisovic/Nasa-Bedrock-to-redrock-martian-map.git
-cd Nasa-Bedrock-to-redrock-martian-map
-
-# 2. Install dependencies
+```sh
 npm ci
-
-# 3. Start development server
 npm run dev
-# The app opens at http://localhost:5173
-# Explore routes: /#/explore, /#/map, /#/bench
-
-# 4. Run automated test suite
-npm test
-
-# 5. Build for production
-npm run build
 ```
 
-### Verification Scripts
-To validate that all planetary data layers, MOLA elevation grids, and manifest checksums conform to mission criteria:
-```bash
-python scripts/data/layers/validate.py .
-```
+Open [localhost:5173](http://localhost:5173/) after starting the development server. Run `npm test` for the test suite and `npm run build` for a production build.
 
----
+## Architecture and verification
 
-## Test Suite & Quality Assurance
+React and TypeScript provide the interface. Canvas renders the flat map and Three.js renders the globe, terrain, and crew models. Web Workers solve routes on the numerical elevation grids. Service workers cache the app and the terrain packs you download.
 
-Our test-driven architecture ensures mathematical fidelity and cross-device stability across 60 automated tests:
-* **Contract Tests:** Verified A* Dijkstra equivalence, directional elevation penalty consistency, MOLA elevation bounds, and seam-crossing math.
-* **GPS & Navigation:** Accelerometer step detection debouncing, GPS jitter filtering, scale transformations, and deviation thresholds.
-* **Mission Timing:** NASA Mars24 prime meridian alignment and subsolar noon tracking.
+The automated suite covers terrain routing, longitude seam crossings, GPS movement and replanning, and Mars24 time calculations. Run `python scripts/data/layers/validate.py .` to verify the bundled layer files. The [navigation review](docs/evidence/navigation-experience/REVIEW.md) and [mobile and clock review](docs/evidence/navigation-fixes/REVIEW.md) archive earlier browser evidence.
 
-```
-✔ A* costs match an independent Dijkstra reference on random grids
-✔ direction-dependent costs: downhill counts half the penalty of uphill
-✔ real Wildcat Ridge route: speed changes time and margin, not distance
-✔ 1000× GPS demo maps a metre east and north to a kilometre on Mars
-✔ planetwide demo scales map across the Mars longitude seam
-✔ ordered preview instructions follow the current leg and respect coarse coverage
-✔ nearby rover landmarks use sourced coordinates and follow the active leg
-✔ Mars24 prime meridian matches NASA's worked example and noon follows subsolar point
-✔ global routes cross the longitude seam by the short edge
-✔ bundled MOLA data supports finite routes outside Jezero and near the pole
--------------------------------------------------------------------------------------
-ℹ tests 60 | pass 60 | fail 0 | 100% Passing
-```
-
----
-
-## Live Links & Resources
-
-* **Live Web Application:** [https://b-2-r.us](https://b-2-r.us)
-* **Cloudflare Pages Mirror:** [https://b2r-5f4.pages.dev](https://b2r-5f4.pages.dev)
-* **Official NASA Space Apps Page:** [Team Bedrock to Redrock](https://www.spaceappschallenge.org/2026/find-a-team/bedrock-to-redrock/)
-* **Local Event:** Irbid, Jordan — NASA Space Apps Challenge 2026
-
----
-
-<div align="center">
-
-*Bedrock to Redrock — From building worlds to exploring new ones.*
-
-</div>
+[App architecture](docs/architecture/marswalk-app.md) · [Running and deploying](docs/release/RUNNING.md) · [Release checklist](docs/release/FINAL-MOBILE-CHECKLIST.md) · [Team workflow](docs/coordination.md) · [Contact Bedrock to Redrock](mailto:contact.bedrocktoredrock@gmail.com)
