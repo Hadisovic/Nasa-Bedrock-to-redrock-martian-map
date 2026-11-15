@@ -129,6 +129,8 @@ npm run dev
 
 Open [localhost:5173](http://localhost:5173/) after starting the development server. Run `npm test` for the test suite and `npm run build` for a production build.
 
+**Deployed app:** https://b-2-r.us/
+
 ## Architecture and verification
 
 React and TypeScript provide the interface. Canvas renders the flat map and Three.js renders the globe, terrain, and crew models. Web Workers solve routes on the numerical elevation grids. Service workers cache the app and the terrain packs you download.
