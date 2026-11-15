@@ -27,6 +27,7 @@ export interface GlobeMap2DProps {
   tiles: TileSource | null;
   paths: readonly MapLeg[];
   switchView: () => void;
+  compassTilt?: number;
   roverPreview?: boolean;
   mapActions?: React.ReactNode;
   onRouteClick?: (point: RouteMapPoint | null) => void;
@@ -455,7 +456,7 @@ export function GlobeMap2D(props: GlobeMap2DProps) {
         );
       })}
       <MapControls switchView={props.switchView} zoomIn={() => zoomAt(1.6, size.width / 2, size.height / 2)}
-        zoomOut={() => zoomAt(1 / 1.6, size.width / 2, size.height / 2)} extras={props.mapActions} />
+        zoomOut={() => zoomAt(1 / 1.6, size.width / 2, size.height / 2)} compassTilt={props.compassTilt} extras={props.mapActions} />
       <div className="map-hud map-hud--scale" aria-label={`Scale bar ${barKm} kilometres along a meridian`}>
         <div className="scalebar" style={{ width: `${barKm / kmPerPx}px` }} />
         <span>{barKm} km</span>

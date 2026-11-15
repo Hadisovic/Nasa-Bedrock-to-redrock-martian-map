@@ -105,7 +105,7 @@ export function EarthWalkSetup({ walk, open, close, started, comparison, pathSel
             {earthGpsScales.map((ratio) => <option key={ratio} value={ratio}>{ratio}× · {scaleLabel[ratio]}</option>)}
           </select></label>
           {scale > 1 && <p>The demo scales GPS uncertainty as well. Use 1× for short routes on detailed terrain.</p>}
-          <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
+          <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the camera and compass with this device</label>
           {canNotify
             ? <label><input type="checkbox" checked={notices} onChange={(event) => {
               setNotices(event.target.checked);

@@ -347,9 +347,8 @@
   .explorer .explorer__topbar { left:10px; right:10px; top:9px; gap:6px; }
   .explorer .explorer__topbar .search { flex:1; max-width:280px; }
   .explorer .explorer__topbar .search input { font-size:.78rem; }
-  .explorer-toolbar { top:63px; left:10px; right:10px; max-width:calc(100% - 20px); }
-  .explorer-toolbar__actions { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
-  .explorer-toolbar__actions > .btn { flex:none; }
+  .explorer-toolbar { top:63px; left:10px; right:10px; width:min(460px, calc(100% - 20px)); max-width:none; }
+  .explorer-toolbar__actions { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:clamp(4px,1.5vw,8px); }
   .explorer .explorer__sidebar { top:auto; bottom:0; right:0; width:100%; height:var(--explorer-sheet-height,35%); max-height:72%;
     margin:0; border-radius:20px 20px 0 0; }
   .explorer .explorer__sidebar--directions { height:max(var(--explorer-sheet-height,35%), min(370px, 58%)); }
@@ -362,7 +361,7 @@
   .explorer__resize-sheet { position:absolute; z-index:3; top:0; left:calc(50% - 46px); width:92px;
     display:grid; place-items:start center; height:13px; min-height:13px; padding-top:5px; touch-action:none; cursor:row-resize; }
   .explorer__resize-sheet::before { content:""; width:42px; height:5px; border-radius:5px; background:#6b7e99; }
-  .explorer .explorer-toolbar .btn { height:40px; min-height:40px; }
+  .explorer .explorer-toolbar .btn { height:36px; min-height:36px; justify-content:center; padding-inline:clamp(4px,1.5vw,10px); }
   .explorer-credit, .explorer .map-hud--scale { bottom:45px; }
   .explorer-map-controls { top:111px; left:10px; gap:4px; }
   .explorer-map-controls .explorer-compass { width:56px; height:56px; }
@@ -385,7 +384,7 @@
 @media (max-width:640px) {
   .flight-tools .btn, .mission-row .btn { min-height:38px; }
   .stage:has(.map-route) .flight-tools { bottom:10rem; }
-  .explorer .explorer-toolbar .btn { font-size:.74rem; padding-inline:.52rem; }
+  .explorer .explorer-toolbar .btn { font-size:.74rem; }
   .explorer-toolbar .btn svg { display:none; }
   .explorer-credit { font-size:.61rem; max-width:calc(100% - 100px); }
 }

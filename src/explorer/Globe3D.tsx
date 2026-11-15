@@ -1239,7 +1239,7 @@ export function Globe3D(props: Globe3DProps) {
         </button>)}
       </div>}
       <MapControls switchView={props.switchView} zoomIn={() => s.current?.zoomBy(1 / 1.6)} zoomOut={() => s.current?.zoomBy(1.6)}
-        needle={compass} flying={!!drone} extras={<>{props.mapActions}
+        needle={compass} compassTilt={drone ? 0 : props.earthWalkPose?.tilt} flying={!!drone} extras={<>{props.mapActions}
           {activeDetail && !hasEarthWalk && <button type="button" aria-label={tilted ? "Top view" : "Tilt terrain"}
             title={tilted ? "Top view" : "Tilt terrain"} aria-pressed={tilted}
             onClick={() => { touchTilt.current = 0; setTilted(!tilted); }}>

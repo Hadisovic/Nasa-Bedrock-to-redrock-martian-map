@@ -78,7 +78,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const gps = useRef<{ anchor: EarthFix; moved: ReturnType<typeof gpsMovement> } | null>(null);
   const lastGpsFix = useRef(-Infinity);
   const state = useRef({ track, metres: 0, next: 0, point: null as LatLon | null,
-    heading: 0, tilt: 0, neutral: null as number | null,
+    heading: 0, tilt: 0, neutral: null as { angle: number; pitch: number } | null,
     pending: false, retryAt: 0, arrived: false, stopDistances: [] as number[] });
   const requestedLegs = useMemo<Leg[]>(() => request && lander
     ? itineraryLegs(lander, stops.slice(request.next), returning, request.from).concat(
@@ -464,11 +464,15 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     const onTilt = (event: DeviceOrientationEvent) => {
       if (event.beta === null || event.gamma === null) return;
       const s = state.current;
-      const angle = (screen.orientation?.angle ?? 0) * Math.PI / 180;
+      const screenAngle = screen.orientation?.angle ?? window.orientation ?? 0;
+      const angle = screenAngle * Math.PI / 180;
       const value = event.beta * Math.cos(angle) + event.gamma * Math.sin(angle);
-      s.neutral ??= value;
-      s.tilt = Math.max(-0.32, Math.min(0.65, (value - s.neutral) * Math.PI / 180));
-      setPose((pose) => pose && { ...pose, tilt: s.tilt });
+      if (!Number.isFinite(value)) return;
+      if (s.neutral?.angle !== screenAngle) s.neutral = { angle: screenAngle, pitch: value };
+      const tilt = Math.max(-0.32, Math.min(0.65, (value - s.neutral.pitch) * Math.PI / 180));
+      if (tilt === s.tilt) return;
+      s.tilt = tilt;
+      setPose((pose) => pose && { ...pose, tilt });
     };
     window.addEventListener("deviceorientation", onTilt);
     return () => window.removeEventListener("deviceorientation", onTilt);

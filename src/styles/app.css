@@ -548,7 +548,9 @@ td.pos { color: var(--go); font-weight: 700; }
   .explorer__resize-panel { display: none; }
   .explorer__sidebar .sidebar__foot { display: none; }
   .explorer__hide-panel span { display: inline-block; transform: rotate(90deg); }
-  .explorer__brand-mark { width: 40px; }
-  .explorer__brand-title { width: 117px; }
+  .explorer__brand-mark { width: clamp(29px, 8.5vw, 40px); }
+  .explorer__brand-title { width: clamp(88px, 28vw, 124px); }
+  .explorer__wordmark { transform: translateY(2px); gap: 0.1rem; }
+  .explorer__wordmark small { font-size: clamp(0.49rem, 2.1vw, 0.65rem); letter-spacing: 0.035em; white-space: nowrap; }
   .map-route { bottom: 58px; }
 }

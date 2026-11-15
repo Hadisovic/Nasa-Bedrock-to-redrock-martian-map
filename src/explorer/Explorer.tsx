@@ -725,7 +725,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               paths={mapPaths} switchView={switchView} mapActions={mapActions} onPick={chooseOnMap} onRoute={planTo}
               onRouteClick={paths.length ? tapRoute : undefined} onRouteHover={paths.length ? hoverRoute : undefined}
               view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current} tiles={tiles} elevationAt={elevationAt}
-              roverPreview={earthWalk.rover} />
+              roverPreview={earthWalk.rover} compassTilt={earthWalk.pose?.tilt} />
           ))}
 
           <p className="explorer-credit">{basemapEntry?.title ?? "Viking Orbiter global color mosaic"} · {basemapEntry?.credit ?? "NASA/JPL-Caltech/USGS"}</p>
