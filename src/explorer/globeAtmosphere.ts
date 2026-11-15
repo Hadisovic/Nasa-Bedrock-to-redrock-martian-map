@@ -83,22 +83,29 @@ export function createStarfield() {
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
   return new THREE.Points(geometry, new THREE.ShaderMaterial({
+    uniforms: { twinkleTime: { value: 0 } },
     vertexColors: true, transparent: true, depthWrite: false, toneMapped: false,
     vertexShader: `
       attribute float size;
+      uniform float twinkleTime;
       varying vec3 starlight;
+      varying float sparkle;
       void main() {
+        float phase = fract(dot(position, vec3(0.271, 0.397, 0.681)));
+        float wave = 0.5 + 0.5 * sin(twinkleTime * (0.75 + phase) + phase * 6.283);
+        sparkle = smoothstep(3.3, 5.2, size) * pow(wave, 6.0);
         starlight = color;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size;
+        gl_PointSize = size + 1.6 * sparkle;
       }
     `,
     fragmentShader: `
       varying vec3 starlight;
+      varying float sparkle;
       void main() {
         float radius = length(gl_PointCoord - 0.5) * 2.0;
         float glow = exp(-3.7 * radius * radius) * (1.0 - smoothstep(0.74, 1.0, radius));
-        gl_FragColor = vec4(starlight, glow);
+        gl_FragColor = vec4(mix(starlight, vec3(1.0), sparkle * 0.6), glow);
         #include <colorspace_fragment>
       }
     `,

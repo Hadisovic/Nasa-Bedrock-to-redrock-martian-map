@@ -98,7 +98,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [view, setView] = useState<GlobeView>(planetView);
   const [flySignal, setFlySignal] = useState(0);
   const flyTarget = useRef<GlobeView | null>(null);
-  const flyTo = useCallback((target: GlobeView) => {
+  const idleOrbit = useRef(initial.mode === "3d" && !initial.plan && !initial.site);
+  const stopIdleOrbit = () => { idleOrbit.current = false; };
+  const flyTo = useCallback((target: GlobeView, orbit = false) => {
+    idleOrbit.current = orbit;
     flyTarget.current = target;
     setView(target);
     setFlySignal((n) => n + 1);
@@ -596,14 +599,15 @@ export function Explorer({ onHome }: { onHome: () => void }) {
         ? <path d="M20 15A8.5 8.5 0 0 1 9 4a8.5 8.5 0 1 0 11 11Z" />
         : <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2" /></>}</svg>
     </button>}
-    <button type="button" aria-label="Reset view" title="Reset view" onClick={() => { setRouteMenu(null); flyTo(planetView); }}>
+    <button type="button" aria-label="Reset view" title="Reset view" onClick={() => { setRouteMenu(null); flyTo(planetView, threeD); }}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2 6M4 5v6h6" /></svg>
     </button>
   </>;
   const comparison = <RouteChoices legs={legs} mission={mission} walkingSlope={slope} choice={routeChoice} choose={chooseRoute} />;
   const clock = marsAt(utc, view);
   return (
-    <div className="app explorer" onKeyDown={(event) => {
+    <div className="app explorer" onPointerDownCapture={stopIdleOrbit} onWheelCapture={stopIdleOrbit}
+      onKeyDownCapture={stopIdleOrbit} onClickCapture={stopIdleOrbit} onKeyDown={(event) => {
       if (event.key === "Escape") {
         if (routeToolsOpen) { event.preventDefault(); closeRouteTools(); }
         else if (routeMenu) { event.preventDefault(); setRouteMenu(null); }
@@ -675,7 +679,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                 onFlightExit={() => exitDrone()}
                 sunPoint={subsolar} onPick={chooseOnMap} onRoute={planTo} elevationAt={elevationAt}
                 onRouteClick={paths.length ? tapRoute : undefined} onRouteHover={paths.length ? hoverRoute : undefined}
-                view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current}
+                view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current} idleOrbit={idleOrbit}
                 tiles={tiles} naturalColor={natural}
                 onFlightStart={() => { setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null); }}
                 onUnavailable={(detail) => {

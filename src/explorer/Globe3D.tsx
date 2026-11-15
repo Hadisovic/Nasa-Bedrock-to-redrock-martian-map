@@ -46,6 +46,7 @@ export interface Globe3DProps {
   onViewChange: (view: GlobeView) => void;
   flySignal: number;
   flyTarget?: GlobeView | null;
+  idleOrbit: React.RefObject<boolean>;
   naturalColor: boolean;
   tiles: TileSource | null;
   onUnavailable: (detail: string) => void;
@@ -543,6 +544,8 @@ export function Globe3D(props: Globe3DProps) {
     const solarGround = new THREE.Color(0x24324f);
     let atlasMix = sunRef.current ? 0 : 1;
     let smoothPoint: LatLon | null = null;
+    const orbitAxis = new THREE.Vector3(0, 1, 0);
+    const orbitRadiansPerSecond = THREE.MathUtils.degToRad(.32);
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
       const frameMs = lastFrame ? Math.min(48, now - lastFrame) : 16;
@@ -563,6 +566,12 @@ export function Globe3D(props: Globe3DProps) {
         }
       }
       const pose = earthPose.current;
+      const idling = props.idleOrbit.current && !flight && !pose && !droneRef.current && !reduceMotion.matches && !document.hidden;
+      if (idling) {
+        const seconds = frameMs / 1000;
+        camera.position.applyAxisAngle(orbitAxis, orbitRadiansPerSecond * seconds);
+        starfield.material.uniforms.twinkleTime.value += seconds;
+      }
       if (pose && !droneRef.current) {
         const factor = reduceMotion.matches ? 1 : 1 - Math.exp(-frameMs / 140);
         if (!smoothPoint) smoothPoint = { ...pose.point };
@@ -679,7 +688,7 @@ export function Globe3D(props: Globe3DProps) {
       if (Math.abs(renderCamera.near / near - 1) > 0.01) { renderCamera.near = near; renderCamera.updateProjectionMatrix(); }
       updateMarkers(now);
       renderer.render(scene, renderCamera);
-      if (now - lastReport > 100 && !flight) {
+      if (now - lastReport > (idling ? 350 : 100) && !flight) {
         lastReport = now;
         if (flying || report() || Math.abs(clusterTilt - tiltAmount) > .02) {
           recluster();
