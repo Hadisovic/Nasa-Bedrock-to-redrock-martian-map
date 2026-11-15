@@ -9,17 +9,19 @@ import { createRocket, createRouteFlag, disposeMarker, setMarkerSelected } from 
 import type { GlobeMarker, GlobeOverlay, GlobeView, RouteMapPoint, TileSource } from "./types.ts";
 import type { LatLon } from "./geo.ts";
 import type { MapLeg } from "./itinerary.ts";
+import { droneCenter } from "./droneCoverage.ts";
+import type { DroneTour } from "./droneCoverage.ts";
 import { globeSurface, loadGaleTerrain, loadWildcatTerrain, nearWildcat } from "./galeTerrain.ts";
 import type { SurfaceTerrain } from "./galeTerrain.ts";
 import { nearGale } from "./galeLayout.ts";
 import { MarkerButton } from "./MarkerButton.tsx";
+import { FlagCluster } from "./icons.tsx";
 import { MapControls } from "./MapControls.tsx";
 import { imageBounds } from "./catalog.ts";
-import { DroneControls, droneMoveForKey } from "./DroneControls.tsx";
-import type { DroneMove } from "./DroneControls.tsx";
+import { DroneControls } from "./DroneControls.tsx";
+import type { FlightInput } from "./DroneControls.tsx";
 import { containsTerrain, globalSource, regionalOnlineSources } from "./marsTrekTerrain.ts";
-import { loadBundledDroneTerrain, loadOnlineTerrain } from "./onlineTerrain.ts";
-import { saveDroneWindow } from "./dronePacks.ts";
+import { loadOnlineTerrain } from "./onlineTerrain.ts";
 import type { OnlineTerrain } from "./onlineTerrain.ts";
 import { createAtmosphere, createStarfield } from "./globeAtmosphere.ts";
 import { globeTileWindow, makeGlobeTileTexture } from "./globeTiles.ts";
@@ -29,7 +31,6 @@ import type { WalkPose } from "./earthWalk.ts";
 
 export interface Globe3DProps {
   basemap: HTMLImageElement;
-  droneBasemap: HTMLImageElement | null;
   overlays: readonly GlobeOverlay[];
   markers: readonly GlobeMarker[];
   selectedId: string | null;
@@ -44,9 +45,11 @@ export interface Globe3DProps {
   onUnavailable: (detail: string) => void;
   onFlightStart: () => void;
   paths: readonly MapLeg[];
+  tour?: DroneTour | null;
   switchView: () => void;
-  replayPoints: readonly LatLon[];
+  onFlightExit: () => void;
   earthWalkPose?: WalkPose | null;
+  roverPreview?: boolean;
   onRouteClick?: (point: RouteMapPoint | null) => void;
   onRouteHover?: (point: RouteMapPoint | null) => void;
   onPick?: (point: LatLon) => void;
@@ -57,6 +60,7 @@ export interface Globe3DProps {
 const FOV = 40;
 const MIN_CLEARANCE = 0.000004;
 const MIN_DISTANCE = 1 + MIN_CLEARANCE;
+const emptyFlightPaths: readonly MapLeg[] = [];
 
 /**
  * Map the shared zoom (screen px per degree) to a camera distance from the globe centre
@@ -79,9 +83,10 @@ const vec = (lat: number, lon: number, r = 1) => {
 };
 
 export function Globe3D(props: Globe3DProps) {
-  const { basemap, overlays, markers, selectedId, onSelect, onRoute, view, onViewChange, flySignal, onUnavailable, paths, replayPoints, onPick, elevationAt, sunPoint, naturalColor } = props;
+  const { basemap, overlays, markers, selectedId, onSelect, onRoute, view, onViewChange, flySignal, onUnavailable, paths, onPick, elevationAt, sunPoint, naturalColor } = props;
   const host = useRef<HTMLDivElement>(null);
   const hitLayer = useRef<HTMLDivElement>(null);
+  const geologyLabels = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const earthPose = useRef(props.earthWalkPose);
   earthPose.current = props.earthWalkPose;
@@ -91,10 +96,7 @@ export function Globe3D(props: Globe3DProps) {
   const [tilted, setTilted] = useState(false);
   const closeRegion = nearWildcat(view, 250) && view.zoom >= 18_000 ? "wildcat"
     : nearGale(view, 2_000) && view.zoom >= 2_000 ? "gale" : null;
-  const [onlineTerrain, setOnlineTerrain] = useState<OnlineTerrain | null>(null);
   const [zoomTerrain, setZoomTerrain] = useState<{ key: string; asset: OnlineTerrain } | null>(null);
-  const onlineRequest = useRef<AbortController | null>(null);
-  const [loadingFlight, setLoadingFlight] = useState(false);
   const zoomSource = regionalOnlineSources.find((source) => containsTerrain(source, view)) ?? globalSource;
   const bucket = zoomSource.span / 4;
   const snap = (amount: number, min: number, max: number) => Math.max(min + 1e-5, Math.min(max - 1e-5, Math.round(amount / bucket) * bucket));
@@ -102,15 +104,24 @@ export function Globe3D(props: Globe3DProps) {
     ? JSON.stringify([snap(view.lat, zoomSource.south, zoomSource.north), snap(view.lon, zoomSource.west, zoomSource.east)])
     : "";
   const zoomDetail = zoomTerrain?.key === zoomKey ? zoomTerrain.asset : null;
-  const activeDetail = onlineTerrain ?? (detail && detail.region === closeRegion ? detail.asset : zoomDetail);
+  const activeDetail = detail && detail.region === closeRegion ? detail.asset : zoomDetail;
   const detailRef = useRef(activeDetail);
   const [drone, setDrone] = useState<{ point: LatLon; heading: number; height: number } | null>(null);
   const [following, setFollowing] = useState(false);
   const progress = useRef<{ index: number; segmentM: number } | null>(null);
   const [notice, setNotice] = useState("");
-  const [savingFlight, setSavingFlight] = useState(false);
+  const [arrivedSignal, setArrivedSignal] = useState<number | null>(null);
+  const startedTour = useRef(0);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourStop, setTourStop] = useState<string | null>(null);
+  const [tourSegment, setTourSegment] = useState<number | null>(null);
+  const [geologyOn, setGeologyOn] = useState(true);
+  const [geologyUnit, setGeologyUnit] = useState<number | null>(null);
+  const [geologyTexture, setGeologyTexture] = useState<{ region: string; map: THREE.Texture } | null>(null);
   const droneRef = useRef(drone);
-  droneRef.current = drone;
+  const droneInput = useRef<FlightInput>({ forward: 0, slide: 0, turn: 0, rise: 0 });
+  const droneLook = useRef(0.5);
+  const lastDroneReport = useRef(0);
   const sunRef = useRef(sunPoint);
   sunRef.current = sunPoint;
   const naturalColorRef = useRef(naturalColor);
@@ -120,14 +131,13 @@ export function Globe3D(props: Globe3DProps) {
   const deviceAngle = useRef(0);
   const [motion, setMotion] = useState(false);
   const closeFlight = () => {
-    onlineRequest.current?.abort();
-    onlineRequest.current = null;
-    setLoadingFlight(false);
-    setOnlineTerrain(null);
+    droneRef.current = null;
     setDrone(null);
+    setTourOpen(false);
+    setTourStop(null);
+    setTourSegment(null);
+    setGeologyUnit(null);
   };
-  useEffect(() => () => { onlineRequest.current?.abort(); }, []);
-  useEffect(() => () => { onlineTerrain?.geometry.dispose(); onlineTerrain?.texture.dispose(); }, [onlineTerrain]);
   useEffect(() => {
     if (!zoomKey || drone) return;
     const [lat, lon] = JSON.parse(zoomKey) as number[];
@@ -141,37 +151,6 @@ export function Globe3D(props: Globe3DProps) {
     return () => { clearTimeout(timer); controller.abort(); };
   }, [zoomKey, !!drone]);
   useEffect(() => () => { zoomTerrain?.asset.geometry.dispose(); zoomTerrain?.asset.texture.dispose(); }, [zoomTerrain]);
-  const loadFlightTerrain = (target: LatLon, position?: NonNullable<typeof drone>) => {
-    if (onlineRequest.current) return;
-    const request = new AbortController();
-    onlineRequest.current = request;
-    setLoadingFlight(true);
-    setNotice("Loading NASA elevation and imagery…");
-    void (async () => {
-      try { return await loadOnlineTerrain(target, request.signal, true); }
-      catch (error) {
-        const elevation = elevationRef.current;
-        if (request.signal.aborted || !elevation || !props.droneBasemap) throw error;
-        return loadBundledDroneTerrain(target, props.droneBasemap, elevation, request.signal);
-      }
-    })().then((terrain) => {
-      if (request.signal.aborted) { terrain.geometry.dispose(); terrain.texture.dispose(); return; }
-      const point = {
-        lat: THREE.MathUtils.clamp(target.lat, terrain.bounds.south + 1e-6, terrain.bounds.north - 1e-6),
-        lon: THREE.MathUtils.clamp(wrapLon(target.lon), terrain.bounds.west + 1e-6, terrain.bounds.east - 1e-6),
-      };
-      setOnlineTerrain(terrain);
-      setFlightPosition({ point, heading: position?.heading ?? 0, height: THREE.MathUtils.clamp(position?.height ?? terrain.flightHeight,
-        terrain.flightHeight / 2, Math.max(terrain.flightHeight * 3, terrain.spacing >= 200 ? 12_000 : 350)) });
-      setNotice("");
-    }, () => {
-      if (!request.signal.aborted) setNotice("NASA terrain is unavailable for this point. Try again or choose a nearby location.");
-    }).finally(() => {
-      if (onlineRequest.current !== request) return;
-      onlineRequest.current = null;
-      setLoadingFlight(false);
-    });
-  };
   useEffect(() => {
     if (!motion) { deviceAngle.current = 0; return; }
     let neutral: number | undefined, received = false;
@@ -189,65 +168,105 @@ export function Globe3D(props: Globe3DProps) {
     screen.orientation?.addEventListener("change", calibrate);
     return () => { clearTimeout(timer); window.removeEventListener("deviceorientation", orient); screen.orientation?.removeEventListener("change", calibrate); };
   }, [motion]);
-  useEffect(() => { if (!activeDetail) setDrone(null); }, [activeDetail]);
-  useEffect(() => { setFollowing(false); progress.current = null; }, [replayPoints, !!drone]);
+  useEffect(() => { if (!activeDetail) closeFlight(); }, [activeDetail]);
+  useEffect(() => { setFollowing(false); progress.current = null; }, [!!drone]);
   const setFlightPosition = (position: NonNullable<typeof drone>) => {
+    const start = !droneRef.current;
     droneRef.current = position;
-    setDrone(position);
+    const now = performance.now();
+    if (start || now - lastDroneReport.current >= 80) {
+      lastDroneReport.current = now;
+      setDrone(position);
+    }
   };
+  const enterDrone = (point: LatLon, region: "wildcat" | "gale") => {
+    props.onFlightStart();
+    droneLook.current = region === "wildcat" ? 1.03 : 0.49;
+    setFlightPosition({ point, heading: region === "gale" ? 180 : 0,
+      height: region === "wildcat" ? 92 : 1150 });
+    setNotice("");
+    setTourOpen(true);
+    setGeologyOn(true);
+    host.current?.focus();
+  };
+  useEffect(() => {
+    const tour = props.tour;
+    if (!tour || arrivedSignal !== flySignal || startedTour.current === flySignal ||
+      detail?.region !== tour.site.id || closeRegion !== tour.site.id) return;
+    const center = droneCenter(tour.site);
+    if (!Number.isFinite(detail.asset.sample(center)) || !detail.asset.verifiedImagery?.(center)) {
+      setNotice("This flyover is unavailable at the center of the terrain pack.");
+      return;
+    }
+    startedTour.current = flySignal;
+    enterDrone(center, tour.site.id);
+  }, [arrivedSignal, flySignal, props.tour, detail, closeRegion]);
+  const flyingTour = drone ? props.tour : null;
+  const geologyRegion = flyingTour?.site.id;
+  useEffect(() => {
+    if (!geologyRegion) return;
+    let live = true;
+    const loader = new THREE.TextureLoader();
+    const map = loader.load(`./layers/regional/${geologyRegion}-geology.png`, (texture) => {
+      if (!live) return;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = 4;
+      setGeologyTexture({ region: geologyRegion, map: texture });
+    });
+    return () => { live = false; map.dispose(); setGeologyTexture(null); };
+  }, [geologyRegion]);
+  const geologyMap = geologyOn && geologyTexture?.region === geologyRegion ? geologyTexture?.map : null;
+  const activeUnit = geologyUnit === null ? null : flyingTour?.geology.labels[geologyUnit];
+  const flightPaths: readonly MapLeg[] = flyingTour?.paths ?? (drone ? emptyFlightPaths : paths);
+  const selectedStop = flyingTour?.stops.find(({ id }) => id === tourStop);
+  const selectedSegment = tourSegment === null ? null : flyingTour?.paths[tourSegment];
+  const followPoints = selectedSegment?.points;
   const changeFlightHeight = (requested: number) => {
     const current = droneRef.current;
     if (!current) return;
-    const minimum = onlineTerrain ? Math.max(8, onlineTerrain.flightHeight / 2) : 8;
-    const maximum = onlineTerrain ? Math.max(onlineTerrain.flightHeight * 3, onlineTerrain.spacing >= 200 ? 12_000 : 350) : 350;
-    const height = THREE.MathUtils.clamp(requested, minimum, maximum);
+    const height = THREE.MathUtils.clamp(requested, 8, closeRegion === "gale" ? 1450 : 350);
     if (height === current.height) return;
     setNotice("");
     setFlightPosition({ ...current, height });
   };
   const changeFlightHeightRef = useRef(changeFlightHeight);
   changeFlightHeightRef.current = changeFlightHeight;
-  const moveDrone = (move: DroneMove, held: boolean) => {
+  const moveDrone = (seconds: number) => {
     const current = droneRef.current, terrain = detailRef.current;
-    if (!current || !terrain) return;
-    const sideways = move === "slideLeft" || move === "slideRight";
-    const global = !!onlineTerrain && onlineTerrain.spacing >= 200;
-    if (move === "up" || move === "down") {
-      const rise = (global ? (held ? 50 : 200) : (held ? 2 : 8)) * (move === "up" ? 1 : -1);
-      changeFlightHeight(current.height + rise);
-      return;
-    }
-    setFollowing(false);
-    progress.current = null;
-    const meters = (global ? (held ? 180 : 600) * Math.max(1, (onlineTerrain?.spacing ?? 200) / 2400)
-      : closeRegion === "wildcat" && !onlineTerrain ? (held ? 1.5 : 5) : (held ? 9 : 30))
-      * (move === "backward" ? -1 : move === "forward" || sideways ? 1 : 0);
-    const turn = (held ? 4 : 12) * (move === "left" ? -1 : move === "right" ? 1 : 0);
-    const heading = (current.heading + turn + 360) % 360;
-    const a = THREE.MathUtils.degToRad(heading + (move === "slideLeft" ? -90 : move === "slideRight" ? 90 : 0));
-    const d = THREE.MathUtils.radToDeg(meters / (MARS_RADIUS_KM * 1000));
+    const { forward, slide, turn, rise } = droneInput.current;
+    if (!current || !terrain || document.hidden || !(forward || slide || turn || rise)) return;
+    if (following) { setFollowing(false); progress.current = null; }
+    const heading = (current.heading + turn * 85 * seconds + 360) % 360;
+    const height = THREE.MathUtils.clamp(current.height + rise * (closeRegion === "wildcat" ? 18 : 55) * seconds,
+      8, closeRegion === "gale" ? 1450 : 350);
+    const magnitude = Math.hypot(forward, slide);
+    const distance = (closeRegion === "wildcat" ? 16 : 95) * seconds * Math.min(1, magnitude);
+    const a = THREE.MathUtils.degToRad(heading) + Math.atan2(slide, forward);
+    const d = THREE.MathUtils.radToDeg(distance / (MARS_RADIUS_KM * 1000));
     const sample = (fraction: number) => ({
       lat: current.point.lat + d * fraction * Math.cos(a),
       lon: wrapLon(current.point.lon + d * fraction * Math.sin(a) / Math.cos(THREE.MathUtils.degToRad(current.point.lat))),
     });
     // Do not step over NoData gaps on the way to an otherwise valid point.
-    const checks = Math.ceil(Math.abs(meters) / (global ? Math.max(100, (onlineTerrain?.spacing ?? 200) / 2) : closeRegion === "wildcat" ? 1 : 5));
+    let point = current.point;
+    const checks = Math.ceil(distance / (closeRegion === "wildcat" ? 0.5 : 5));
+    let boundary = false;
     for (let i = 1; i <= checks; i++) {
-      const point = sample(i / checks);
-      if (onlineTerrain && !containsTerrain(onlineTerrain.bounds, point)) {
-        loadFlightTerrain(sample(1), current);
-        return;
+      const next = sample(i / checks);
+      if (!Number.isFinite(terrain.sample(next)) || !terrain.verifiedImagery?.(next)) {
+        boundary = true;
+        break;
       }
-      if (!Number.isFinite(terrain.sample(point)) || !terrain.verifiedImagery?.(point)) {
-        setNotice("Verified imagery or elevation ends here. Turn back to keep flying."); return;
-      }
+      point = next;
     }
-    setNotice("");
-    setFlightPosition({ ...current, point: sample(1), heading });
+    setNotice(boundary ? "Verified imagery or elevation ends here. Turn back to keep flying." : "");
+    setFlightPosition({ point, heading, height });
   };
+  const moveDroneRef = useRef(moveDrone);
+  moveDroneRef.current = moveDrone;
   useEffect(() => {
-    if (!following || !replayPoints.length || !activeDetail) return;
-    const points = replayPoints;
+    if (!following || !followPoints?.length || !activeDetail) return;
+    const points = followPoints;
     const lengths = points.slice(1).map((point, index) => greatCircleKm(points[index], point) * 1000);
     const cursor = progress.current ??= { index: 0, segmentM: 0 };
     let frame = 0, previous = 0;
@@ -281,14 +300,14 @@ export function Globe3D(props: Globe3DProps) {
       if (cursor.index >= lengths.length) {
         progress.current = null;
         setFollowing(false);
-        setNotice("Returned to the lander.");
+        setNotice("End of the mapped segment.");
         return;
       }
       frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [following, replayPoints, activeDetail, closeRegion]);
+  }, [following, followPoints, activeDetail, closeRegion, flyingTour]);
   detailRef.current = activeDetail;
   const tiltRef = useRef(false);
   tiltRef.current = tilted && !!activeDetail;
@@ -311,7 +330,7 @@ export function Globe3D(props: Globe3DProps) {
     overlayGroup: THREE.Group; markerGroup: THREE.Group; routeGroup: THREE.Group; globe: THREE.Mesh; relief: THREE.Group;
     baseTexture: THREE.Texture; anchors: Map<string, THREE.Vector3>;
     tileTexture: { value: THREE.Texture }; tileBounds: { value: THREE.Vector4 };
-    fly: (v: GlobeView, animate: boolean) => void; zoomBy: (factor: number) => void; recluster: () => void;
+    fly: (v: GlobeView, animate: boolean, onArrival?: () => void) => void; zoomBy: (factor: number) => void; recluster: () => void;
   } | null>(null);
   const onViewChangeRef = useRef(onViewChange);
   onViewChangeRef.current = onViewChange;
@@ -322,17 +341,17 @@ export function Globe3D(props: Globe3DProps) {
     const view = s.current;
     if (!view || !hasEarthWalk) return;
     let live = true;
-    void loadEarthAstronaut().then((astronaut) => {
+    void loadEarthAstronaut(props.roverPreview).then((astronaut) => {
       if (!live) { astronaut.dispose(); return; }
       earthAstronaut.current = astronaut;
       view.scene.add(astronaut.model);
-    }, () => { if (live) setNotice("The astronaut model could not load."); });
+    }, () => { if (live) setNotice(props.roverPreview ? "The rover model could not load." : "The astronaut model could not load."); });
     return () => {
       live = false;
       earthAstronaut.current?.dispose();
       earthAstronaut.current = null;
     };
-  }, [ready, hasEarthWalk]);
+  }, [ready, hasEarthWalk, props.roverPreview]);
 
   useEffect(() => {
     const element = host.current!;
@@ -422,9 +441,9 @@ export function Globe3D(props: Globe3DProps) {
       return true;
     };
 
-    let flight: { from: THREE.Vector3; rotation: THREE.Quaternion; h0: number; h1: number; arc: number; duration: number; start: number } | null = null;
+    let flight: { from: THREE.Vector3; rotation: THREE.Quaternion; h0: number; h1: number; arc: number; duration: number; start: number; onArrival?: () => void } | null = null;
     let targetClearance: number | null = null;
-    const fly = (v: GlobeView, animate: boolean) => {
+    const fly = (v: GlobeView, animate: boolean, onArrival?: () => void) => {
       targetClearance = null;
       const h1 = distanceForZoom(v.zoom, heightPx()) - 1;
       const to = vec(v.lat, v.lon);
@@ -433,6 +452,7 @@ export function Globe3D(props: Globe3DProps) {
         camera.position.copy(to.multiplyScalar(surfaceRef.current(v).length() + h1));
         controls.update();
         report();
+        onArrival?.();
         return;
       }
       const from = camera.position.clone().normalize();
@@ -441,7 +461,7 @@ export function Globe3D(props: Globe3DProps) {
       const turn = from.angleTo(to);
       const arc = Math.max(0, Math.min(.45, turn * .45) - Math.max(h0, h1));
       flight = { from, rotation: new THREE.Quaternion().setFromUnitVectors(from, to), h0, h1, arc,
-        duration: THREE.MathUtils.lerp(620, 1800, Math.min(1, turn / 1.8)), start: performance.now() };
+        duration: THREE.MathUtils.lerp(620, 1800, Math.min(1, turn / 1.8)), start: performance.now(), onArrival };
     };
 
     // Markers keep a near-constant screen size: scale with distance to the camera.
@@ -490,6 +510,17 @@ export function Globe3D(props: Globe3DProps) {
           const y = Math.round((1 - project.y) / 2 * height - Number(node.dataset.lift ?? 0));
           const transform = `translate(${x}px, ${y}px)`;
           if (node.style.transform !== transform) node.style.transform = transform;
+        }
+      }
+      for (const child of geologyLabels.current?.children ?? []) {
+        const label = child as HTMLElement;
+        const anchor = surfaceRef.current({ lat: Number(label.dataset.lat), lon: Number(label.dataset.lon) }, 1.5);
+        project.copy(anchor).project(renderCamera);
+        const visible = project.z > -1 && project.z < 1 && Math.abs(project.x) <= 0.87 && Math.abs(project.y) <= 0.8;
+        label.hidden = !visible;
+        if (visible) {
+          const transform = `translate(${Math.round((project.x + 1) / 2 * width)}px, ${Math.round((1 - project.y) / 2 * height)}px)`;
+          if (label.style.transform !== transform) label.style.transform = transform;
         }
       }
     };
@@ -541,6 +572,7 @@ export function Globe3D(props: Globe3DProps) {
       frame = requestAnimationFrame(loop);
       const frameMs = lastFrame ? Math.min(48, now - lastFrame) : 16;
       lastFrame = now;
+      moveDroneRef.current(frameMs / 1000);
       if (flight) {
         const t = Math.min(1, (now - flight.start) / flight.duration);
         const e = t * t * (3 - 2 * t);
@@ -548,7 +580,12 @@ export function Globe3D(props: Globe3DProps) {
         const clearance = Math.exp(THREE.MathUtils.lerp(Math.log(flight.h0), Math.log(flight.h1), e)) + flight.arc * Math.sin(Math.PI * e) ** 2;
         const location = unitToLatLon([flightDirection.x, flightDirection.y, flightDirection.z]);
         camera.position.copy(flightDirection.multiplyScalar(surfaceRef.current(location).length() + clearance));
-        if (t >= 1) flight = null;
+        if (t >= 1) {
+          const onArrival = flight.onArrival;
+          flight = null;
+          report();
+          onArrival?.();
+        }
       }
       const pose = earthPose.current;
       if (pose && !droneRef.current) {
@@ -610,7 +647,8 @@ export function Globe3D(props: Globe3DProps) {
         const a = THREE.MathUtils.degToRad(heading);
         renderCamera.position.copy(surfaceRef.current(point, height));
         renderCamera.up.copy(up);
-        renderCamera.lookAt(north.multiplyScalar(Math.cos(a)).addScaledVector(east, Math.sin(a)).addScaledVector(up, -0.55).add(renderCamera.position));
+        renderCamera.lookAt(north.multiplyScalar(Math.cos(a)).addScaledVector(east, Math.sin(a))
+          .addScaledVector(up, -Math.tan(droneLook.current)).add(renderCamera.position));
       } else renderCamera.up.set(0, 1, 0);
       renderCamera.updateMatrixWorld();
       if (pose && smoothPoint) earthAstronaut.current?.update(pose, smoothPoint, frameMs / 1000, renderCamera, heightPx(), surfaceRef.current);
@@ -660,7 +698,7 @@ export function Globe3D(props: Globe3DProps) {
       renderer.render(scene, renderCamera);
       if (now - lastReport > 100 && !flight) {
         lastReport = now;
-        if (report() || Math.abs(clusterTilt - tiltAmount) > .02) {
+        if (flying || report() || Math.abs(clusterTilt - tiltAmount) > .02) {
           recluster();
           clusterTilt = tiltAmount;
         }
@@ -685,12 +723,27 @@ export function Globe3D(props: Globe3DProps) {
     };
     const touches = new Map<number, THREE.Vector2>();
     const touchDy = new Map<number, number>();
+    let drag: { id: number; x: number; y: number } | null = null;
     const onTouchStart = (event: PointerEvent) => {
       flight = null;
       targetClearance = null;
       if (event.pointerType === "touch") touches.set(event.pointerId, new THREE.Vector2(event.clientX, event.clientY));
+      if (droneRef.current && event.button === 0) {
+        if (touches.size < 2) drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        else drag = null;
+        canvas.setPointerCapture(event.pointerId);
+      }
     };
     const onTouchMove = (event: PointerEvent) => {
+      const current = droneRef.current;
+      if (current && drag?.id === event.pointerId) {
+        const heading = (current.heading - (event.clientX - drag.x) * 0.26 + 360) % 360;
+        droneLook.current = THREE.MathUtils.clamp(droneLook.current + (event.clientY - drag.y) * 0.006, -0.2, 1.4);
+        drag.x = event.clientX;
+        drag.y = event.clientY;
+        droneRef.current = { ...current, heading };
+        setDrone(droneRef.current);
+      }
       const previous = touches.get(event.pointerId);
       if (!previous) return;
       const other = [...touches.entries()].find(([id]) => id !== event.pointerId)?.[1];
@@ -706,13 +759,18 @@ export function Globe3D(props: Globe3DProps) {
         else zoomBy(distance / Math.max(1, span));
       }
     };
-    const onTouchEnd = (event: PointerEvent) => { touches.delete(event.pointerId); touchDy.delete(event.pointerId); };
+    const onTouchEnd = (event: PointerEvent) => {
+      if (drag?.id === event.pointerId) drag = null;
+      touches.delete(event.pointerId);
+      touchDy.delete(event.pointerId);
+    };
     const canvas = renderer.domElement;
     canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("pointerdown", onTouchStart);
     canvas.addEventListener("pointermove", onTouchMove);
     canvas.addEventListener("pointerup", onTouchEnd);
     canvas.addEventListener("pointercancel", onTouchEnd);
+    canvas.addEventListener("lostpointercapture", onTouchEnd);
 
     const resize = () => {
       const width = element.clientWidth, height = element.clientHeight;
@@ -763,6 +821,7 @@ export function Globe3D(props: Globe3DProps) {
       canvas.removeEventListener("pointermove", onTouchMove);
       canvas.removeEventListener("pointerup", onTouchEnd);
       canvas.removeEventListener("pointercancel", onTouchEnd);
+      canvas.removeEventListener("lostpointercapture", onTouchEnd);
       controls.dispose();
       earthAstronaut.current?.model.removeFromParent();
       if (tileTexture.value !== texture) tileTexture.value.dispose();
@@ -826,7 +885,13 @@ export function Globe3D(props: Globe3DProps) {
     texture.needsUpdate = true;
   }, [basemap]);
 
-  useEffect(() => { if (flySignal && props.flyTarget) { closeFlight(); touchTilt.current = 0; s.current?.fly(props.flyTarget, true); } }, [flySignal, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!flySignal || !props.flyTarget || !s.current) return;
+    closeFlight();
+    touchTilt.current = 0;
+    setNotice(props.tour ? `Flying to ${props.tour.site.label}…` : "");
+    s.current.fly(props.flyTarget, true, () => setArrivedSignal(flySignal));
+  }, [flySignal, ready]); // eslint-disable-line react-hooks/exhaustive-deps
   const requestDetail = nearWildcat(view, 1_000) && view.zoom >= 4_000 ? "wildcat"
     : nearGale(view, 10_000) && view.zoom >= 850 ? "gale" : null;
   useEffect(() => {
@@ -837,7 +902,7 @@ export function Globe3D(props: Globe3DProps) {
       if (!active) { value.geometry.dispose(); value.texture.dispose(); return; }
       asset = value;
       setDetail({ region: requestDetail, asset: value });
-    }, () => { /* the global terrain remains available */ });
+    }, () => { if (active && props.tour?.site.id === requestDetail) setNotice("The flyover terrain could not load."); });
     return () => {
       active = false;
       asset?.geometry.dispose();
@@ -870,11 +935,17 @@ export function Globe3D(props: Globe3DProps) {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.globalImage = { value: st.baseTexture };
       shader.uniforms.patchBounds = { value: activeDetail.uv };
-      shader.fragmentShader = "uniform sampler2D globalImage;\nuniform vec4 patchBounds;\n" + shader.fragmentShader.replace(
+      shader.uniforms.geologyMap = { value: geologyMap ?? activeDetail.texture };
+      shader.uniforms.geologyVisible = { value: geologyMap ? 1 : 0 };
+      shader.fragmentShader = "uniform sampler2D globalImage;\nuniform vec4 patchBounds;\nuniform sampler2D geologyMap;\nuniform float geologyVisible;\n" + shader.fragmentShader.replace(
         "#include <map_fragment>",
         `vec4 localColor = texture2D(map, vMapUv);
         vec3 globalColor = texture2D(globalImage, mix(patchBounds.xy, patchBounds.zw, vMapUv)).rgb;
-        diffuseColor.rgb *= mix(globalColor, localColor.rgb, localColor.a);`,
+        vec3 ground = mix(globalColor, localColor.rgb, localColor.a);
+        ground = mix(ground, ground * vec3(1.14, 0.99, 0.86), geologyVisible);
+        vec4 geology = texture2D(geologyMap, vMapUv);
+        float detail = dot(ground, vec3(0.2126, 0.7152, 0.0722));
+        diffuseColor.rgb *= mix(ground, geology.rgb * (0.32 + 1.15 * detail), geology.a * geologyVisible * localColor.a);`,
       );
     };
     const patch = new THREE.Mesh(activeDetail.geometry, material);
@@ -884,24 +955,47 @@ export function Globe3D(props: Globe3DProps) {
     patch.userData.surfaceNormal = vec((bounds.y + bounds.w) * 90 - 90, (bounds.x + bounds.z) * 180 - 180);
     st.relief.add(patch);
     return () => { patch.removeFromParent(); material.dispose(); };
-  }, [ready, activeDetail]);
+  }, [ready, activeDetail, geologyMap]);
 
   useEffect(() => {
     const st = s.current;
-    if (!st || !paths.length) return;
-    const lines = paths.flatMap((leg, index) => {
+    if (!st || !flightPaths.length) return;
+    const lines = flightPaths.flatMap((leg, index) => {
       const back = leg.returning;
-      const localLift = activeDetail ? (closeRegion === "wildcat" ? 0.7 : 5) : 150;
-      const geometry = new LineGeometry().setPositions(leg.points.flatMap((p) => surfaceRef.current(p, localLift * (back ? 1.4 : 1)).toArray()));
+      const localLift = closeRegion === "wildcat" ? 0.7 : 5;
+      const positions: number[] = [];
+      const bounds = activeDetail?.uv;
+      const detailStep = bounds ? Math.min((bounds.z - bounds.x) * 360, (bounds.w - bounds.y) * 180) / 256 : 0.1;
+      const drape = (point: LatLon) => {
+        const lift = activeDetail?.sample(point) != null ? localLift : 150;
+        positions.push(...surfaceRef.current(point, lift * (back ? 1.4 : 1)).toArray());
+      };
+      for (const [i, to] of leg.points.entries()) {
+        const from = leg.points[i - 1];
+        if (from) {
+          const dLon = lonDelta(from.lon, to.lon), dLat = to.lat - from.lat;
+          const local = bounds && [from, to].some(({ lat, lon }) => {
+            const u = (lon + 180) / 360, v = (lat + 90) / 180;
+            return u >= bounds.x && u <= bounds.z && v >= bounds.y && v <= bounds.w;
+          });
+          // Add display vertices only. The solver geometry stays unchanged.
+          const pieces = Math.min(2048, Math.ceil(Math.max(Math.abs(dLon), Math.abs(dLat)) / (local ? detailStep : 0.1)));
+          for (let j = 1; j < pieces; j++) drape({ lat: from.lat + dLat * j / pieces, lon: wrapLon(from.lon + dLon * j / pieces) });
+        }
+        drape(to);
+      }
+      const geometry = new LineGeometry().setPositions(positions);
       const dash = Math.max(0.0000008, leg.distanceKm / (MARS_RADIUS_KM * 28));
       return [true, false].map((outline) => {
-        const material = new LineMaterial({ color: outline ? "#0b1724" : back ? "#fff" : leg.preview ? "#ffe689" : "#69d5ff",
-          linewidth: back ? outline ? 4.4 : 2.6 : outline ? 8 : 5, transparent: true, toneMapped: false,
+        const material = new LineMaterial({ color: outline ? "#0b1724" : back ? "#fff" : leg.history
+          ? index === tourSegment ? "#ffdf85" : "#fff2d2" : leg.preview ? "#ffe689" : "#69d5ff",
+          linewidth: leg.history ? outline ? 4 : 2.1 : back ? outline ? 4.4 : 2.6 : outline ? 8 : 5, transparent: true, toneMapped: false,
           dashed: back, dashSize: dash, gapSize: dash * 0.8, depthWrite: false });
         const line = new Line2(geometry, material);
         line.userData.ignoreHit = outline || leg.preview;
-        if (outline) line.computeLineDistances();
-        line.renderOrder = 20 + (back ? paths.length : index) * 2 + (outline ? 0 : 1);
+        line.userData.tourSegment = leg.history ? index : null;
+        if (back) line.computeLineDistances();
+        line.renderOrder = 20 + (back ? flightPaths.length : index) * 2 + (outline ? 0 : 1);
         return line;
       });
     });
@@ -910,7 +1004,7 @@ export function Globe3D(props: Globe3DProps) {
       for (const line of lines) { line.removeFromParent(); line.material.dispose(); }
       for (const geometry of new Set(lines.map((line) => line.geometry))) geometry.dispose();
     };
-  }, [ready, paths, elevationAt, activeDetail, closeRegion]);
+  }, [ready, flightPaths, elevationAt, activeDetail, closeRegion, tourSegment]);
 
   // Both passes use the geometry that already drew the ground. Stencil selects the
   // detailed terrain only at pixels where it replaced the coarse globe.
@@ -1014,7 +1108,7 @@ export function Globe3D(props: Globe3DProps) {
         setMarkerSelected(object, selected, first.accent);
         object.userData.selected = selected;
       }
-      object.userData.px = first.kind === "rocket" ? 52 : 34;
+      object.userData.px = first.kind === "rocket" ? 52 : first.kind === "flag" ? 44 : 34;
       object.userData.flag = first.kind !== "rocket";
       object.userData.anchor = anchor;
       object.userData.lands = first.kind === "rocket";
@@ -1033,13 +1127,13 @@ export function Globe3D(props: Globe3DProps) {
 
   const hitsRoute = (ray: THREE.Raycaster, tolerance: number) => {
     const st = s.current;
-    if (!st || !st.routeGroup.children.length) return false;
+    if (!st || !st.routeGroup.children.length) return;
     Object.assign(ray.params, { Line2: { threshold: tolerance } });
     const line = ray.intersectObjects(st.routeGroup.children.filter((line) => !line.userData.ignoreHit), false).find((candidate) => {
       const anchor = candidate.pointOnLine ?? candidate.point;
       return anchor.dot(st.renderCamera.position.clone().sub(anchor)) > 0;
     });
-    return !!line;
+    return line?.object;
   };
   const mapRay = ({ x, y }: RouteMapPoint, bounds: DOMRect) => {
     const ray = new THREE.Raycaster();
@@ -1050,17 +1144,13 @@ export function Globe3D(props: Globe3DProps) {
   return (
     <div ref={host} className={`map3d globe3d${drone ? " globe3d--flying" : ""}`} tabIndex={0} role="application"
       onKeyDown={(event) => {
-        if (drone && !event.altKey && !event.ctrlKey && !event.metaKey) {
-          const move = droneMoveForKey(event.key, event.shiftKey);
-          if (move) { event.preventDefault(); moveDrone(move, event.repeat); return; }
-        }
         if (event.target === event.currentTarget && onPick && (event.key === "Enter" || event.key === " ")) {
           event.preventDefault();
           onPick(view);
         }
       }}
       onPointerDown={(event) => {
-        if (drone || event.target !== s.current?.renderer.domElement || event.button !== 0) return;
+        if ((drone && !flyingTour) || event.target !== s.current?.renderer.domElement || event.button !== 0) return;
         if (!event.isPrimary) { press.current = null; return; }
         press.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
       }}
@@ -1080,22 +1170,31 @@ export function Globe3D(props: Globe3DProps) {
         const start = press.current;
         press.current = null;
         const st = s.current;
-        if ((!onPick && !props.onRouteClick) || !st || !start || start.id !== event.pointerId ||
+        if ((!onPick && !props.onRouteClick && !flyingTour) || !st || !start || start.id !== event.pointerId ||
             Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) return;
         const bounds = event.currentTarget.getBoundingClientRect();
         const point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
         const ray = mapRay(point, bounds);
-        if (onPick) {
+        if (flyingTour) {
+          const segment = hitsRoute(ray, event.pointerType === "touch" ? 32 : 14)?.userData.tourSegment;
+          if (typeof segment === "number") {
+            if (tourSegment !== segment) { setFollowing(false); progress.current = null; }
+            setTourSegment(segment);
+            setTourStop(null);
+            setGeologyUnit(null);
+            setTourOpen(true);
+          }
+        } else if (onPick) {
           const hit = ray.intersectObjects(st.relief.children.filter((surface) => surface.visible))[0]?.point ?? ray.intersectObject(st.globe)[0]?.point;
           if (hit) onPick(unitToLatLon([hit.x, hit.y, hit.z]));
         } else props.onRouteClick?.(hitsRoute(ray, event.pointerType === "touch" ? 48 : 14) ? point : null);
       }}
-      aria-label={drone ? "Drone View. Scroll or pinch to change altitude." : "Rotatable 3D globe of Mars. Drag to rotate, scroll or pinch to zoom, arrow keys rotate and plus or minus zoom."}>
+      aria-label={drone ? "Drone View. Drag to look. Scroll or pinch to change altitude." : "Rotatable 3D globe of Mars. Drag to rotate, scroll or pinch to zoom, arrow keys rotate and plus or minus zoom."}>
       <div ref={hitLayer} className="map3d__pins">
         {clusters.map((cluster) => (
           <div key={cluster.id} data-id={cluster.id}
-            data-shift={cluster.members.length === 1 && cluster.members[0].kind !== "rocket" && !cluster.members[0].order ? 12 : 0}
-            data-lift={cluster.members.length > 1 || cluster.members[0].order ? 14 : cluster.members[0].kind === "rocket" ? 17 : 21}
+            data-shift={cluster.members.length === 1 && cluster.members[0].kind !== "rocket" && !cluster.members[0].order ? 14 : 0}
+            data-lift={cluster.members.length > 1 || cluster.members[0].order ? 14 : cluster.members[0].kind === "rocket" ? 17 : 27}
             className={`gpin-wrap${cluster.id === selectedId ? " gpin-wrap--selected" : ""}`} style={{ display: "none" }}>
             {cluster.members.length > 1 ? (
               <button type="button" className="gpin gpin--hit gpin--cluster-hit" aria-label={`${cluster.members.length} nearby locations. Zoom in to separate them`}
@@ -1107,19 +1206,30 @@ export function Globe3D(props: Globe3DProps) {
                   const height = host.current?.clientHeight ?? 600;
                   st.fly({ lat, lon, zoom: zoomForDistance(st.camera.position.length(), height) * 3 }, true);
                 }}>
-                <b className="gpin__count">{cluster.members.length}</b>
+                <FlagCluster count={cluster.members.length} />
               </button>
             ) : (
               <MarkerButton className={`gpin gpin--hit${cluster.members[0].kind === "rocket" ? " gpin--landing" : ""}${cluster.members[0].id === selectedId ? " gpin--selected" : ""}`}
                 label={cluster.members[0].label} selected={cluster.members[0].id === selectedId}
-                onSelect={() => onSelect(cluster.members[0].id)}
-                onRoute={cluster.members[0].kind === "flag" ? () => onRoute(cluster.members[0].id) : undefined}>
+                  onSelect={() => {
+                    const id = cluster.members[0].id;
+                    if (flyingTour?.stops.some((stop) => stop.id === id)) { setTourStop(id); setTourOpen(true); }
+                    else if (!drone) onSelect(id);
+                  }}
+                  onRoute={!drone && cluster.members[0].kind === "flag" ? () => onRoute(cluster.members[0].id) : undefined}>
                 {cluster.members[0].order && <span className="itinerary-number">{cluster.members[0].order}</span>}
               </MarkerButton>
             )}
           </div>
         ))}
       </div>
+      {geologyMap && flyingTour && <div className="flight-geology-labels" ref={geologyLabels} aria-label="Mapped geology">
+        {flyingTour.geology.labels.map((unit, index) => <button key={unit.title} type="button" hidden
+          data-lat={unit.lat} data-lon={unit.lon} style={{ "--unit-color": unit.color } as React.CSSProperties}
+          onClick={() => { setGeologyUnit(index); setTourStop(null); setTourOpen(true); }}>
+          <span>{unit.title}</span>
+        </button>)}
+      </div>}
       <MapControls switchView={props.switchView} zoomIn={() => s.current?.zoomBy(1 / 1.6)} zoomOut={() => s.current?.zoomBy(1.6)}
         needle={compass} flying={!!drone} canSwitch={!hasEarthWalk} resetNorth={() => {
         const state = droneRef.current;
@@ -1127,15 +1237,9 @@ export function Globe3D(props: Globe3DProps) {
         else { setTilted(false); touchTilt.current = 0; deviceAngle.current = 0; s.current?.fly(view, true); }
       }} />
       <div className={`flight-tools${drone ? " flight-tools--flying" : ""}`}>
-        <button type="button" className="btn btn--small" disabled={hasEarthWalk} aria-pressed={!!drone} onClick={() => {
-          if (drone || loadingFlight) { closeFlight(); setNotice(""); return; }
-          props.onFlightStart();
-          if (!activeDetail || activeDetail === zoomDetail || !Number.isFinite(activeDetail.sample(view)) || !activeDetail.verifiedImagery?.(view)) {
-            loadFlightTerrain(view);
-            return;
-          }
-          setDrone({ point: view, heading: 0, height: closeRegion === "wildcat" ? 20 : 110 }); setNotice("");
-        }}>{drone ? "Exit Drone View" : loadingFlight ? "Cancel terrain download" : "Drone View"}</button>
+        {drone && <button type="button" className="btn btn--small" onClick={() => {
+          closeFlight(); setNotice(""); props.onFlightExit();
+        }}>Exit Drone View</button>}
         {activeDetail && !drone && <button type="button" className="btn btn--small" aria-pressed={tilted}
           onClick={() => { touchTilt.current = 0; setTilted(!tilted); }}>{tilted ? "Top view" : "Tilt terrain"}</button>}
         {!drone && !hasEarthWalk && <button className="btn btn--small" aria-pressed={motion} onClick={async () => {
@@ -1149,33 +1253,66 @@ export function Globe3D(props: Globe3DProps) {
           } catch { setNotice("Device tilt permission denied. Use touch or Tilt terrain."); }
         }}>Device tilt</button>}
         {drone && <>
-          {replayPoints.length > 1 && <button className="btn btn--small" onClick={() => {
-            setNotice(""); setFollowing(!following);
-          }}>{following ? "Pause flight" : progress.current ? "Resume flight" : "Follow route"}</button>}
-          {onlineTerrain && !onlineTerrain.saved && <button type="button" className="btn btn--small" disabled={savingFlight} onClick={async () => {
-            setSavingFlight(true);
-            try {
-              await saveDroneWindow(onlineTerrain.pixels);
-              setNotice("Area saved offline.");
-              window.dispatchEvent(new Event("martian-map:drone-area-saved"));
-            }
-            catch { setNotice("Could not save this area. Check available browser storage."); }
-            finally { setSavingFlight(false); }
-          }}>{savingFlight ? "Saving area…" : "Save area offline"}</button>}
+          {flyingTour && <button type="button" className="btn btn--small" aria-expanded={tourOpen} onClick={() => setTourOpen(!tourOpen)}>
+            {flyingTour.title}
+          </button>}
+          {flyingTour && <button type="button" className="btn btn--small" aria-pressed={geologyOn} onClick={() => {
+            setGeologyOn(!geologyOn); setGeologyUnit(null);
+          }}>Geology</button>}
         </>}
         {notice && <span className="badge" role="status">{notice}</span>}
       </div>
-      {drone && <><DroneControls onMove={moveDrone} /><div className="flight-readout">
+      {flyingTour && tourOpen && <aside className="flight-story" aria-label="Flyover guide">
+        <header><h3>{selectedStop?.title ?? activeUnit?.title ?? flyingTour.title}</h3>
+          <button type="button" className="btn btn--small" aria-label="Close flyover guide" onClick={() => setTourOpen(false)}>×</button>
+        </header>
+        <p>{selectedStop?.summary ?? activeUnit?.description ?? flyingTour.description}</p>
+        {selectedStop?.found && <p>{selectedStop.found}</p>}
+        {selectedStop?.location?.uncertaintyM != null && <p>Catalog location uncertainty · ±{selectedStop.location.uncertaintyM} m</p>}
+        {!selectedStop && !selectedSegment && <p>Tap a rover path to highlight or follow that segment.</p>}
+        {selectedSegment && !selectedStop && <div className="flight-story__links">
+          <span>Highlighted segment · {Math.round(selectedSegment.distanceKm * 1000)} m</span>
+          <button type="button" className="btn btn--small" onClick={() => {
+            setNotice(""); setFollowing(!following);
+          }}>{following ? "Pause segment" : progress.current ? "Resume segment" : "Follow segment"}</button>
+        </div>}
+        {!selectedStop && !activeUnit && !selectedSegment && flyingTour.paths.length > 0 && <button type="button" className="btn btn--small" onClick={() => {
+          const longest = flyingTour.paths.reduce((best, path, index, all) => path.distanceKm > all[best].distanceKm ? index : best, 0);
+          setTourSegment(longest);
+          progress.current = null;
+          setFollowing(true);
+          setNotice("");
+        }}>Follow mapped path</button>}
+        {activeUnit && <button type="button" className="btn btn--small" onClick={() => setGeologyUnit(null)}>Back to guide</button>}
+        {selectedStop
+          ? <div className="flight-story__links">
+            <button type="button" className="btn btn--small" onClick={() => setTourStop(null)}>All science stops</button>
+            {selectedStop.evidence.slice(0, 2).map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}</a>)}
+          </div>
+          : !activeUnit && <>
+            <label>Science stop <select value="" onChange={(event) => setTourStop(event.target.value)}>
+              <option value="">Choose a stop</option>
+              {flyingTour.stops.map((stop) => <option key={stop.id} value={stop.id}>{stop.title}</option>)}
+            </select></label>
+            <div className="flight-story__links">
+              <a href={flyingTour.source} target="_blank" rel="noreferrer">NASA path data</a>
+              {flyingTour.reference && <a href={flyingTour.reference} target="_blank" rel="noreferrer">NASA’s 2019 proposed flyover</a>}
+            </div>
+          </>}
+        {!selectedStop && <div className="flight-legend">
+          {geologyOn && !activeUnit && flyingTour.geology.labels.map((unit, index) => <button type="button" key={unit.title}
+            onClick={() => setGeologyUnit(index)}><span style={{ background: unit.color }} />{unit.title}</button>)}
+          <a href={flyingTour.geology.reference} target="_blank" rel="noreferrer">{flyingTour.geology.credit}</a>
+        </div>}
+      </aside>}
+      {drone && <><DroneControls onInput={(input) => { droneInput.current = input; }} /><div className="flight-readout">
         <span>Simulated camera · {Math.round(drone.height)} m above ground · {Math.round(drone.heading) % 360}°</span>
-        {onlineTerrain && <a href={onlineTerrain.pixels.source} target="_blank" rel="noreferrer">
-          {onlineTerrain.label} · {onlineTerrain.spacing} m elevation · {onlineTerrain.imagery}
-        </a>}
-        {onlineTerrain?.saved && <span>Saved terrain</span>}
+        <span>{closeRegion === "wildcat" ? "Wildcat Ridge · 1 m" : "Mount Sharp · 20 m"}</span>
         <span>{formatLatLon(drone.point, 5)}</span>
       </div></>}
-      {!drone && <div className="map-hud map-hud--scale">{onlineTerrain?.label ?? (zoomDetail && activeDetail === zoomDetail
+      {!drone && <div className="map-hud map-hud--scale">{zoomDetail && activeDetail === zoomDetail
         ? `${zoomDetail.label} · ~${zoomDetail.spacing} m relief`
-        : activeDetail ? (closeRegion === "wildcat" ? "HiRISE · Wildcat Ridge" : "Gale relief · 20 m elevation") : "Global MOLA relief")}
+        : activeDetail ? (closeRegion === "wildcat" ? "HiRISE · Wildcat Ridge" : "Gale relief · 20 m elevation") : "Global MOLA relief"}
         {detailImagery && tileKey && !activeDetail ? " · Trek imagery" : ""} · {formatLatLon(view, 2)}</div>}
     </div>
   );

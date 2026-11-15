@@ -1,4 +1,4 @@
-import { lonDelta, wrapLon } from "./geo.ts";
+import { greatCircleKm, lonDelta, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import type { DirectionalRoute, GlobalRouteLeg } from "./globalRouting.ts";
 import type { Endpoint, MissionOptions, Stop } from "./missionPlan.ts";
@@ -12,7 +12,7 @@ export interface Leg {
   toStop: number | null;
 }
 export type PlannedLeg = Leg & { result: DirectionalRoute | null };
-export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean };
+export type MapLeg = { points: LatLon[]; returning: boolean; distanceKm: number; preview?: boolean; history?: boolean };
 
 export function itineraryLegs(start: Endpoint | null, stops: readonly Stop[], returning: boolean, position?: LatLon): Leg[] {
   if (!start || !stops.length) return [];
@@ -38,6 +38,59 @@ export function summarizeItinerary(legs: readonly PlannedLeg[], stops: readonly 
   const travel = complete && !regional && validMission(mission) ? distanceKm * 1000 / (mission.rover ? mission.roverSpeed : mission.speed) / 60 : null;
   const remaining = travel != null && science != null && legs.at(-1)?.returning ? mission.budget - mission.reserve - science - travel : null;
   return { complete, regional, distanceKm, science, travel, remaining };
+}
+
+export function suggestRover(legs: readonly PlannedLeg[], stops: readonly Stop[], mission: MissionOptions, weighted: boolean) {
+  if (mission.rover || !legs.at(-1)?.returning) return null;
+  const walking = summarizeItinerary(legs, stops, mission, weighted);
+  if (walking.remaining === null || walking.remaining >= 0 || walking.science === null) return null;
+  if (legs.some(({ result }) => (selectedLeg(result, weighted)?.maxSlopeDeg ?? Infinity) > mission.roverSlope)) return null;
+  const roverTravel = walking.distanceKm * 1000 / mission.roverSpeed / 60;
+  if (roverTravel + walking.science > mission.budget - mission.reserve) return null;
+  const duration = (minutes: number) => minutes < 1 ? `${Math.ceil(minutes * 60)} seconds` : `${Math.round(minutes * 10) / 10} minutes`;
+  const distance = walking.distanceKm >= 1 ? `${walking.distanceKm.toFixed(1)} kilometres` : `${Math.round(walking.distanceKm * 1000)} metres`;
+  return `Consider a rover for this ${distance} round trip. At your selected speeds, travel takes about ${duration(walking.travel!)} on foot or ${duration(roverTravel)} by rover. The rover estimate fits your time and reserve.`;
+}
+
+export function routeElevation(legs: readonly PlannedLeg[], weighted: boolean) {
+  let distanceM = 0, ascentM = 0, descentM = 0, maxSlope = 0, low = Infinity, high = -Infinity;
+  let sustained = -Infinity;
+  const segments: { x: number; y: number }[][] = [];
+  for (const { result } of legs) {
+    const leg = selectedLeg(result, weighted);
+    if (!leg) continue;
+    maxSlope = Math.max(maxSlope, leg.maxSlopeDeg);
+    let segment: { x: number; y: number }[] = [];
+    let left = 0, variation = 0;
+    for (const [i, point] of leg.points.entries()) {
+      if (i) distanceM += greatCircleKm(leg.points[i - 1], point) * 1000;
+      const z = leg.elevationsM[i];
+      if (z == null || !Number.isFinite(z)) {
+        segment = []; left = 0; variation = 0;
+        continue;
+      }
+      low = Math.min(low, z);
+      high = Math.max(high, z);
+      const previous = segment.at(-1);
+      if (!previous) segments.push(segment);
+      else {
+        const rise = z - previous.y;
+        ascentM += Math.max(0, rise);
+        descentM += Math.max(0, -rise);
+        variation += Math.abs(rise);
+      }
+      segment.push({ x: distanceM, y: z });
+      if (result?.status !== "ok" || result.terrain.regional || result.terrain.spacingM > 20) continue;
+      while (left + 1 < segment.length && distanceM - segment[left + 1].x >= 20) {
+        variation -= Math.abs(segment[left + 1].y - segment[left].y);
+        left++;
+      }
+      const run = distanceM - segment[left].x;
+      if (run >= 20) sustained = Math.max(sustained, Math.atan2(variation, run) * 180 / Math.PI);
+    }
+  }
+  return { distanceM, ascentM, descentM, maxSlope, low, high, measured: Number.isFinite(low),
+    sustained: Number.isFinite(sustained) ? sustained : null, segments };
 }
 
 /** Small quadratic fillets for display only. Preserve endpoints and interpolate across the seam. */

@@ -6,8 +6,8 @@ const steps = [
   { tab: "Discover", text: "Tap a flag to read about a mission. Use Layers to see the data behind the map." },
   { tab: "Directions", text: "Place your lander, then add stops on the map or through search. Blue is outbound. Dashes lead home." },
   { tab: "Save", text: "Tap the route for details or save options. Name it, share a link, or export a file." },
-  { tab: "Drone", text: "Open Drone View in 3D. Steer with the arrows. Use Up and Down for altitude." },
-  { tab: "Earth Walk", text: "Earth Walk is a Mars navigation simulation. This tablet uses Earth location outdoors, detected steps indoors, and motion sensors to tilt the camera. The routes and terrain cues use Mars data. Your Earth coordinates stay on this tablet. A future Mars system could feed the same offline planner with positions estimated onboard from cameras, motion sensors, and orbital maps." },
+  { tab: "Drone", text: "Open Drone View at Wildcat Ridge or Mount Sharp. Use the joystick or arrows to fly, drag to look, and use Up and Down to change altitude." },
+  { tab: "Earth Walk", text: "Earth GPS Demo maps a phone or tablet’s outdoor movement onto Mars from the lander. Your Earth coordinates stay in this tab. Tilt moves the camera. On desktop, preview the simulated walk. The terrain and route cues use Mars data." },
 ];
 
 export function ExplorerHelp() {

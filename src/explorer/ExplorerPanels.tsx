@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type { Catalog, CatalogEvent, CatalogFilter, EnvironmentObservation, EventType, LayerEntry, LayerManifest } from "./catalog.ts";
 import { EVENT_TYPE_LABEL, PRECISION_LABEL, isImageLayer, matchesFilter, searchEvents } from "./catalog.ts";
-import { formatLatLon } from "./geo.ts";
-import { MapFlag, RocketIcon, SourceFlag } from "./icons.tsx";
+import { formatLatLon, greatCircleKm } from "./geo.ts";
+import type { LatLon } from "./geo.ts";
+import { GoToLocation, MapFlag, RocketIcon, SourceFlag } from "./icons.tsx";
 import { TYPE_ACCENT } from "./accents.ts";
 import { nearbyObservations, publicUrl, routingAvailability } from "./data.ts";
 
@@ -13,28 +14,37 @@ export const EMPTY_FILTER: CatalogFilter = { missions: new Set(), types: new Set
 const isRemote = (url: string) => /^https?:/.test(url);
 
 /** Search box with ranked results; each result offers Go to location (or the unlocated note). */
-export function SearchBox({ events, unlocated, onGo, onRead, onRoute, routeLabel }: {
+export function SearchBox({ events, unlocated, onGo, onRead, onRoute, routeLabel, center }: {
   events: readonly CatalogEvent[]; unlocated: readonly CatalogEvent[];
   onGo: (event: CatalogEvent) => void; onRead: (event: CatalogEvent) => void;
-  onRoute: (id: string) => void; routeLabel: string;
+  onRoute: (id: string) => void; routeLabel: string; center: LatLon;
 }) {
   const [query, setQuery] = useState("");
-  const results = useMemo(() => searchEvents([...events, ...unlocated], query, 8), [events, unlocated, query]);
+  const nearby = /^nearby(?:\s|$)/i.test(query.trim());
+  const results = useMemo(() => {
+    if (!nearby) return searchEvents([...events, ...unlocated], query, 8);
+    const term = query.trim().replace(/^nearby\s*/i, "");
+    const candidates = term ? searchEvents(events, term, events.length) : events;
+    return candidates.flatMap((event) => event.location ? [{ event, km: greatCircleKm(center, event.location) }] : [])
+      .sort((a, b) => a.km - b.km).slice(0, 8).map(({ event }) => event);
+  }, [events, unlocated, query, nearby, center]);
   return (
     <div className="search" role="search">
       <label htmlFor="site-search" className="sr-only">Search sites, events, missions or aliases</label>
-      <input id="site-search" type="search" placeholder="Search sites, events, missions, sols…" value={query}
+      <input id="site-search" type="search" placeholder="Try “nearby samples”" value={query}
         onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
       {query && (
         <ul className="search__results" aria-label="Search results">
           {results.length === 0 && <li className="muted small">No matching records.</li>}
           {results.map((event) => (
             <li key={event.id}>
-              <span className="search__title">{event.title}<span className="muted small"> · {event.mission}{event.sol != null ? ` · sol ${event.sol}` : ""}</span></span>
+              <span className="search__title">{event.title}<span className="muted small"> · {event.mission}{event.sol != null ? ` · sol ${event.sol}` : ""}
+                {nearby && event.location && ` · ${greatCircleKm(center, event.location).toLocaleString(undefined, { maximumFractionDigits: 1 })} km from map center`}
+              </span></span>
               <span className="search__actions">
                 <button type="button" className="btn btn--small" onClick={() => { onRead(event); setQuery(""); }}>Read about</button>
                 {event.location
-                  ? <><button type="button" className="btn btn--small" onClick={() => { onGo(event); setQuery(""); }}>Go to location</button>
+                  ? <><GoToLocation onClick={() => { onGo(event); setQuery(""); }} />
                     <button type="button" className="btn btn--small btn--primary" onClick={() => { onRoute(event.id); setQuery(""); }}>{routeLabel}</button></>
                   : <span className="tag">Location unavailable</span>}
               </span>
@@ -101,7 +111,7 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
               <span className="muted small"> {event.mission} · {EVENT_TYPE_LABEL[event.type]}{event.sol != null ? ` · sol ${event.sol}` : ""}{event.date ? ` · ${event.date}` : ""}</span>
               <div className="event-row__actions">
                 <button type="button" className="btn btn--small" onClick={() => onRead(event)}>Read about</button>
-                <button type="button" className="btn btn--small btn--primary" onClick={() => onGo(event)}>Go to location</button>
+                <GoToLocation onClick={() => onGo(event)} />
               </div>
             </div>
           </li>
@@ -347,7 +357,7 @@ export function MarswalkSites({ events, onOpenPlanner, onGo }: { events: readonl
       <h3>Other mapped sites ({rows.length - supported.length})</h3>
       <ul className="event-list">{rows.filter((x) => !x.r.available).map(({ e }) => (
         <li key={e.id} className="event-row"><div><strong>{e.title}</strong><p className="muted small">Marswalk routing unavailable here: no verified 1 m elevation coverage.</p>
-          <div className="event-row__actions"><button type="button" className="btn btn--small" onClick={() => onGo(e)}>Go to location</button></div></div></li>
+          <div className="event-row__actions"><GoToLocation onClick={() => onGo(e)} /></div></div></li>
       ))}</ul>
     </div>
   );

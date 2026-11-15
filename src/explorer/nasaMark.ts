@@ -1,4 +1,5 @@
-/** The official insignia is shown in the local development preview. */
-export const nasaInsignia = import.meta.env.DEV
-  ? "https://www.nasa.gov/wp-content/themes/nasa/assets/images/nasa-logo.svg"
-  : null;
+// Set this to an approved asset path under public/ after the team verifies the planned use.
+const approved = import.meta.env.VITE_APPROVED_NASA_INSIGNIA as string | undefined;
+export const nasaInsignia = approved && /^[\w-]+(?:\/[\w-]+)*(?:\.local)?\.svg$/i.test(approved)
+  ? import.meta.env.BASE_URL + approved : null;
+export const explorerBadge = nasaInsignia ?? import.meta.env.BASE_URL + "images/martian-map-logo.png";

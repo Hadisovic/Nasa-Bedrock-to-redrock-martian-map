@@ -1,6 +1,6 @@
 import { routeGlobalLeg } from "./globalRouting.ts";
 import type { DirectionalRoute, ElevationGrid, GlobalRouteLeg, LegTerrain } from "./globalRouting.ts";
-import { greatCircleKm, wrapLon } from "./geo.ts";
+import { greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import { insideMarswalkCoverage } from "./catalog.ts";
 import { projectMars, unprojectMars } from "../contracts/coordinates.ts";
@@ -102,16 +102,7 @@ async function calculate({ start, end, slope, url, width, height, base, blocked 
   }
 
   const grid = await loadGrid(url, width, height);
-  const route = routeGlobalLeg(grid, start, end, slope);
-  if (!blocked || route.status !== "ok") return route;
-  // Coarse routing cannot evade a reported obstacle within a cell used by this leg.
-  const key = ({ lat, lon }: LatLon) => [
-    Math.min(height - 1, Math.floor((90 - lat) / 180 * height)), Math.floor((wrapLon(lon) + 180) / 360 * width),
-  ].join(":");
-  const cell = key(blocked);
-  const intersects = (leg: GlobalRouteLeg) => leg.points.some((point) => key(point) === cell);
-  if (intersects(route.shortest)) return { status: "unavailable", terrain: route.terrain, detail: "A reported obstacle is on this leg. Coarse MOLA cannot resolve a detour around it." };
-  return route.alternative && intersects(route.alternative) ? { ...route, alternative: undefined } : route;
+  return routeGlobalLeg(grid, start, end, slope, blocked ?? undefined);
 }
 
 self.onmessage = async ({ data }: MessageEvent<LegRequest>) => {

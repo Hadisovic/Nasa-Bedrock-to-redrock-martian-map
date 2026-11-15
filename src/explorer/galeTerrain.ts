@@ -47,7 +47,13 @@ export async function loadGaleTerrain(): Promise<SurfaceTerrain> {
   for (let i = 0; i < position.count; i++) {
     const point = { lon: (west + uv.getX(i) * (east - west)) / metresPerDegree,
       lat: (south + uv.getY(i) * (north - south)) / metresPerDegree };
-    const p = globeSurface(point, (sample(point) ?? 0) + 9_000);
+    // Boundary vertices use the adjoining measured cell. The public sampler
+    // still rejects outside coordinates for flight and route coverage.
+    const height = sample({
+      lat: THREE.MathUtils.clamp(point.lat, south / metresPerDegree + 1e-9, north / metresPerDegree - 1e-9),
+      lon: THREE.MathUtils.clamp(point.lon, west / metresPerDegree + 1e-9, east / metresPerDegree - 1e-9),
+    });
+    const p = globeSurface(point, (height ?? heights[0]) + 9_000);
     position.setXYZ(i, p.x, p.y, p.z);
   }
   geometry.computeVertexNormals();
@@ -77,8 +83,9 @@ export async function loadGaleTerrain(): Promise<SurfaceTerrain> {
 export function nearWildcat(point: LatLon, padding = 0) {
   const { xM, yM } = projectMars({ longitudeEastDeg: point.lon, latitudePlanetocentricDeg: point.lat });
   const { westM, northM, width, height, pixelSizeM } = ELEVATION_LAYOUT;
-  return xM >= westM - padding && xM <= westM + width * pixelSizeM + padding &&
-    yM <= northM + padding && yM >= northM - height * pixelSizeM - padding;
+  const epsilon = 1e-7;
+  return xM >= westM - padding - epsilon && xM <= westM + width * pixelSizeM + padding + epsilon &&
+    yM <= northM + padding + epsilon && yM >= northM - height * pixelSizeM - padding - epsilon;
 }
 
 export async function loadWildcatTerrain(): Promise<SurfaceTerrain> {
@@ -104,7 +111,7 @@ export async function loadWildcatTerrain(): Promise<SurfaceTerrain> {
   const sw = toPoint(layout.westM, southM), ne = toPoint(eastM, layout.northM);
   const sample = (point: LatLon) => {
     const { xM, yM } = projectMars({ longitudeEastDeg: point.lon, latitudePlanetocentricDeg: point.lat });
-    if (xM < layout.westM || xM > eastM || yM < southM || yM > layout.northM) return null;
+    if (!nearWildcat(point)) return null;
     const x = THREE.MathUtils.clamp((xM - layout.westM) / layout.pixelSizeM - 0.5, 0, layout.width - 1);
     const y = THREE.MathUtils.clamp((layout.northM - yM) / layout.pixelSizeM - 0.5, 0, layout.height - 1);
     const a = Math.floor(x), b = Math.floor(y);

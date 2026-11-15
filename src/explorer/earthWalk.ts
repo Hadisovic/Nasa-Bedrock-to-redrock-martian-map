@@ -1,5 +1,6 @@
 import { bearingDeg, greatCircleKm, lonDelta, MARS_RADIUS_KM, wrapLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
+import type { CatalogEvent } from "./catalog.ts";
 
 const radians = Math.PI / 180;
 const earthRadiusM = 6_371_008.8;
@@ -12,8 +13,13 @@ export type RoutePoint = { point: LatLon; elevation: number | null };
 export function marsFromEarth(anchor: EarthFix, fix: EarthFix, lander: LatLon): LatLon {
   const north = (fix.lat - anchor.lat) * radians * earthRadiusM;
   const east = lonDelta(anchor.lon, fix.lon) * radians * earthRadiusM * Math.cos(anchor.lat * radians);
-  return { lat: lander.lat + north / marsMetresPerDegree,
-    lon: wrapLon(lander.lon + east / (marsMetresPerDegree * Math.cos(lander.lat * radians))) };
+  const bearing = Math.atan2(east, north);
+  const step = Math.hypot(north, east) / (MARS_RADIUS_KM * 1000);
+  if (!step) return { lat: lander.lat, lon: lander.lon };
+  const lat = lander.lat * radians;
+  const next = Math.asin(Math.max(-1, Math.min(1, Math.sin(lat) * Math.cos(step) + Math.cos(lat) * Math.sin(step) * Math.cos(bearing))));
+  const delta = Math.atan2(Math.sin(bearing) * Math.sin(step) * Math.cos(lat), Math.cos(step) - Math.sin(lat) * Math.sin(next));
+  return { lat: next / radians, lon: wrapLon(lander.lon + delta / radians) };
 }
 
 export function usableFix(fix: EarthFix, now: number, previous: number) {
@@ -21,6 +27,38 @@ export function usableFix(fix: EarthFix, now: number, previous: number) {
     Math.abs(fix.lat) <= 90 && Math.abs(fix.lon) <= 180 &&
     fix.accuracy >= 0 && fix.accuracy <= 12 && now - fix.timestamp <= 5000 &&
     fix.timestamp <= now + 1000 && fix.timestamp > previous;
+}
+
+export function earthGpsDevice(userAgent: string, touchPoints: number, touchOnly: boolean) {
+  return touchPoints > 0 && (/Android|iPhone|iPad|iPod/i.test(userAgent) ||
+    (/Macintosh/.test(userAgent) && touchPoints > 1) || (/Windows/.test(userAgent) && touchOnly));
+}
+
+/** Wait for successive fixes outside the error radius in a consistent direction. */
+export function gpsMovement(origin: EarthFix) {
+  let accepted = origin;
+  let candidate: { fix: EarthFix; heading: number } | null = null;
+  return (fix: EarthFix | null) => {
+    if (!fix) {
+      candidate = null;
+      return false;
+    }
+    const distance = greatCircleKm(accepted, fix) * earthRadiusM / MARS_RADIUS_KM;
+    if (distance <= Math.max(2, Math.hypot(accepted.accuracy, fix.accuracy))) {
+      candidate = null;
+      return false;
+    }
+    const heading = bearingDeg(accepted, fix);
+    if (!candidate || fix.timestamp - candidate.fix.timestamp > 5000 ||
+      Math.abs(lonDelta(candidate.heading, heading)) > 45) {
+      candidate = { fix, heading };
+      return false;
+    }
+    if (fix.timestamp - candidate.fix.timestamp < 500) return false;
+    accepted = fix;
+    candidate = null;
+    return true;
+  };
 }
 
 export function deviationTracker() {
@@ -54,15 +92,46 @@ export function buildWalkTrack(points: readonly RoutePoint[]) {
 
 export type WalkTrack = ReturnType<typeof buildWalkTrack>;
 
+/** Use the solved leg boundaries, including when a route crosses a future stop. */
+export function buildItineraryTrack(legs: readonly { points: RoutePoint[]; toStop: number | null }[]) {
+  const track: WalkTrack = [];
+  const stopDistances: number[] = [];
+  for (const { points, toStop } of legs) {
+    for (const entry of points) {
+      const last = track.at(-1);
+      const length = last ? greatCircleKm(last.point, entry.point) * 1000 : 0;
+      if (!last || length >= 0.001) track.push({ ...entry, metres: (last?.metres ?? 0) + length });
+    }
+    if (toStop !== null && track.length) stopDistances[toStop] = track.at(-1)!.metres;
+  }
+  return { track, stopDistances };
+}
+
 export function sampleWalk(track: WalkTrack, metres: number) {
   const last = track.length - 1;
-  let end = track.findIndex((entry, index) => index > 0 && entry.metres >= metres);
-  if (end < 0) end = last;
+  let end = last, low = 1;
+  while (low < end) {
+    const middle = (end + low) >> 1;
+    if (track[middle].metres < metres) low = middle + 1;
+    else end = middle;
+  }
   const a = track[end - 1], b = track[end];
   const t = Math.max(0, Math.min(1, (metres - a.metres) / (b.metres - a.metres)));
   const point = t === 0 ? a.point : t === 1 ? b.point : { lat: a.point.lat + (b.point.lat - a.point.lat) * t,
     lon: wrapLon(a.point.lon + lonDelta(a.point.lon, b.point.lon) * t) };
   return { point, heading: bearingDeg(a.point, b.point), end };
+}
+
+export function nextManeuver(track: WalkTrack, metres: number, legEnd: number) {
+  const end = Math.min(legEnd, track.at(-1)?.metres ?? 0);
+  for (let at = metres + 3; at + 6 <= Math.min(end, metres + 250); at += 3) {
+    const centre = sampleWalk(track, at).point;
+    const before = sampleWalk(track, Math.max(metres, at - 6)).point;
+    const after = sampleWalk(track, at + 6).point;
+    const angle = lonDelta(bearingDeg(before, centre), bearingDeg(centre, after));
+    if (Math.abs(angle) >= 55) return { kind: angle > 0 ? "right" as const : "left" as const, metres: at - metres };
+  }
+  return { kind: "stop" as const, metres: Math.max(0, end - metres) };
 }
 
 export function locateOnWalk(track: WalkTrack, point: LatLon, minimumMetres = 0, maximumMetres = Infinity) {
@@ -94,6 +163,35 @@ export function orderedStopDistances(track: WalkTrack, stops: readonly LatLon[])
   });
 }
 
+const landmarkTypes = new Set(["landing", "rover-stop", "science-observation", "sample", "sample-depot", "hardware"]);
+const compassPoints = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+
+/** Find a sourced, observed landmark near the crew and near the next part of the active leg. */
+export function nearbyLandmark(events: readonly CatalogEvent[], point: LatLon, track: WalkTrack,
+  metres: number, legEnd: number, seen: ReadonlySet<string>, positionUncertainty = 0) {
+  const candidates = events.flatMap((event) => {
+    const place = event.location;
+    const uncertainty = place?.uncertaintyM;
+    if (!place || typeof uncertainty !== "number" || !Number.isFinite(uncertainty) || uncertainty < 0 || uncertainty > 25 ||
+      place.precision !== "precise" || !place.coordinateSource.url || !event.observed || !landmarkTypes.has(event.type) || seen.has(event.id)) return [];
+    const distance = greatCircleKm(point, place) * 1000;
+    if (distance + uncertainty + positionUncertainty > 60 ||
+      locateOnWalk(track, place, Math.max(0, metres - 5), Math.min(legEnd, metres + 60)).distance > 30) return [];
+    return [{ event, place, distance, uncertainty }];
+  });
+  candidates.sort((a, b) => a.distance - b.distance || a.event.id.localeCompare(b.event.id));
+  const nearest = candidates[0];
+  if (!nearest) return null;
+  const { event, place, distance, uncertainty } = nearest;
+  const direction = distance > Math.max(1, uncertainty + positionUncertainty)
+    ? compassPoints[Math.round(bearingDeg(point, place) / 45) % compassPoints.length] : null;
+  const rounded = Math.max(5, Math.round(distance / 5) * 5);
+  return { text: direction ? `Nearby: ${event.title}, about ${rounded} metres ${direction}.`
+    : `Nearby: ${event.title}, within about ${Math.max(5, Math.ceil((distance + uncertainty + positionUncertainty) / 5) * 5)} metres.`,
+    ids: candidates.filter((item) => greatCircleKm(place, item.place) * 1000 <= Math.max(5, uncertainty, item.uncertainty))
+      .map((item) => item.event.id) };
+}
+
 export function stepDetector() {
   let gravity = 0, last = 0, peak = false, lastStep = -Infinity;
   return (linear: number | null, withGravity: number | null, now: number) => {
@@ -112,14 +210,15 @@ export function stepDetector() {
   };
 }
 
-export function routeCue(track: WalkTrack, metres: number): "left" | "right" | "slope" | "terrain" | null {
+export function routeCue(track: WalkTrack, metres: number, legEnd = Infinity): "left" | "right" | "slope" | "terrain" | null {
+  if (metres >= legEnd - 1) return null;
   const near = sampleWalk(track, metres);
-  const ahead = sampleWalk(track, metres + 12);
+  const ahead = sampleWalk(track, Math.min(legEnd, metres + 12));
   const elevations = track.slice(near.end - 1, ahead.end + 1);
   if (elevations.some((entry) => entry.elevation === null)) return "terrain";
   if (elevations.some((entry, i) => i > 0 &&
     Math.abs(entry.elevation! - elevations[i - 1].elevation!) / (entry.metres - elevations[i - 1].metres)
       >= Math.tan(10 * radians))) return "slope";
-  const turn = lonDelta(near.heading, ahead.heading);
-  return Math.abs(turn) >= 50 ? turn > 0 ? "right" : "left" : null;
+  const next = nextManeuver(track, metres, legEnd);
+  return next.kind !== "stop" && next.metres <= 12 ? next.kind : null;
 }

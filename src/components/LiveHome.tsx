@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { HomeMotion } from "./HomeMotion.tsx";
-import { nasaInsignia } from "../explorer/nasaMark.ts";
+import { explorerBadge } from "../explorer/nasaMark.ts";
 import { usePixelSound } from "./usePixelSound.ts";
 
 const message = "Pick a landing site, explore real Mars data, and plan your trip out and back.";
@@ -38,7 +38,7 @@ export function LiveHome({ onEnter }: { onEnter: () => void }) {
         <HomeMotion />
       </span>
       <span className="mission-home__phone-title" aria-hidden="true">
-        {nasaInsignia && <img src={nasaInsignia} alt="" />}
+        <img src={explorerBadge} alt="" />
         <small>Bedrock to Redrock</small>
         <img className="mission-home__phone-wordmark" src="./images/martian-map-title.png" alt="" />
       </span>

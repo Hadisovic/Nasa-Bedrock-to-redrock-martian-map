@@ -74,9 +74,9 @@ export function createStarfield() {
     const ring = radius * Math.sqrt(1 - up * up);
     positions.set([ring * Math.cos(azimuth), radius * up, ring * Math.sin(azimuth)], i * 3);
     const { r, g, b } = palette[i % palette.length];
-    const brightness = .22 + .78 * random() ** 4;
+    const brightness = .35 + .65 * random() ** 2.6;
     colors.set([r * brightness, g * brightness, b * brightness], i * 3);
-    sizes[i] = .9 + 3.3 * brightness;
+    sizes[i] = 1.2 + 4.2 * brightness;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -97,7 +97,7 @@ export function createStarfield() {
       varying vec3 starlight;
       void main() {
         float radius = length(gl_PointCoord - 0.5) * 2.0;
-        float glow = exp(-4.5 * radius * radius) * (1.0 - smoothstep(0.74, 1.0, radius));
+        float glow = exp(-3.7 * radius * radius) * (1.0 - smoothstep(0.74, 1.0, radius));
         gl_FragColor = vec4(starlight, glow);
         #include <colorspace_fragment>
       }

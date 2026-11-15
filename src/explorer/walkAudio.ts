@@ -6,37 +6,63 @@ import updated from "../assets/mission-control/updated.wav?url";
 import shorter from "../assets/mission-control/shorter.wav?url";
 import unavailable from "../assets/mission-control/unavailable.wav?url";
 import arrived from "../assets/mission-control/arrived.wav?url";
-import dust from "../assets/mission-control/dust.wav?url";
 import temperature from "../assets/mission-control/temperature.wav?url";
+import gpsLocked from "../assets/mission-control/gps-locked.wav?url";
+import gpsLost from "../assets/mission-control/gps-lost.wav?url";
+import recalculating from "../assets/mission-control/recalculating.wav?url";
+import stopReached from "../assets/mission-control/stop-reached.wav?url";
 
 const cues = {
   left: ["Turn left ahead.", left], right: ["Turn right ahead.", right],
   slope: ["Steep slope ahead.", slope], terrain: ["Detailed terrain unavailable ahead.", terrain],
   updated: ["Route updated.", updated], shorter: ["Shorter route found.", shorter], unavailable: ["No route found.", unavailable],
-  arrived: ["Arrived.", arrived], dust: ["Higher mapped surface dust cover ahead.", dust],
+  arrived: ["Arrived.", arrived],
   temperature: ["Perseverance recorded a low of −83 and a high of −22 degrees Celsius here on July 19, 2022.", temperature],
+  gpsLocked: ["GPS ready. Follow the highlighted route.", gpsLocked],
+  gpsLost: ["GPS signal weak. Waiting for a reliable position.", gpsLost],
+  recalculating: ["You are off route. Recalculating.", recalculating],
+  stopReached: ["Stop reached. Continue when you are ready.", stopReached],
 } as const;
 export type CueId = keyof typeof cues;
-export const cueText = (cue: CueId) => cues[cue][0];
+export type WalkCue = CueId | { text: string; fallback?: CueId };
+export const cueText = (cue: WalkCue) => typeof cue === "string" ? cues[cue][0] : cue.text;
 
 export function missionAudio() {
   const audio = new Audio();
   const context = typeof AudioContext === "function" ? new AudioContext() : null;
   const buffers = new Map<string, Promise<AudioBuffer>>();
   let playing: AudioBufferSourceNode | null = null;
+  const speech = window.speechSynthesis;
+  let speaking = false;
   let current = 0;
   void context?.resume().catch(() => {});
   function stop() {
     current++;
-    window.speechSynthesis?.cancel();
     audio.pause();
     playing?.stop();
     playing = null;
+    if (speaking) speech?.cancel();
+    speaking = false;
   }
-  function speak(cue: CueId) {
+  function speak(cue: WalkCue) {
     stop();
+    if (typeof cue !== "string") {
+      const voices = speech?.getVoices().filter((voice) => voice.localService && /^en(?:-|$)/i.test(voice.lang));
+      const voice = voices?.find((item) => item.default) ?? voices?.[0];
+      if (voice) {
+        const line = new SpeechSynthesisUtterance(cue.text);
+        line.voice = voice;
+        line.lang = voice.lang;
+        speaking = true;
+        speech.speak(line);
+        return;
+      }
+      if (!cue.fallback) return;
+      cue = cue.fallback;
+    }
     const id = current;
-    const [text, clip] = cues[cue];
+    const [, clip] = cues[cue];
+    // A consistent set of bundled prompts works without a network voice.
     const fallback = () => {
       if (id !== current) return;
       if (!context) {
@@ -56,12 +82,7 @@ export function missionAudio() {
         playing.start();
       }).catch(() => buffers.delete(clip));
     };
-    const voice = window.speechSynthesis?.getVoices().find((item) => item.localService && /^en\b/i.test(item.lang));
-    if (!voice) { fallback(); return; }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = voice;
-    utterance.onerror = fallback;
-    window.speechSynthesis.speak(utterance);
+    fallback();
   }
-  return { speak, resume: () => context?.resume(), dispose: () => { stop(); void context?.close().catch(() => {}); } };
+  return { speak, stop, resume: () => context?.resume(), dispose: () => { stop(); void context?.close().catch(() => {}); } };
 }

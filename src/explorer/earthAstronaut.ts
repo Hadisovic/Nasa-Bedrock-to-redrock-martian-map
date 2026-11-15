@@ -1,13 +1,24 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import astronautUrl from "../assets/models/space-astronaut.glb?url";
+import roverUrl from "../assets/models/perseverance-nasa.glb?url";
 import { latLonToUnit, lonDelta } from "./geo.ts";
 import type { WalkPose } from "./earthWalk.ts";
 import type { LatLon } from "./geo.ts";
 
-export async function loadEarthAstronaut() {
-  const { scene: model, animations } = await new GLTFLoader().loadAsync(astronautUrl);
-  const mixer = new THREE.AnimationMixer(model);
+export async function loadEarthAstronaut(rover = false) {
+  const { scene, animations } = await new GLTFLoader().loadAsync(rover ? roverUrl : astronautUrl);
+  const model = new THREE.Group();
+  model.name = rover ? "Perseverance route preview" : "Astronaut route preview";
+  if (rover) {
+    const bounds = new THREE.Box3().setFromObject(scene);
+    const center = bounds.getCenter(new THREE.Vector3());
+    const scale = 1.8 / Math.max(0.01, bounds.max.y - bounds.min.y);
+    scene.scale.setScalar(scale);
+    scene.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
+  }
+  model.add(scene);
+  const mixer = new THREE.AnimationMixer(scene);
   const clip = THREE.AnimationClip.findByName(animations, "Walk");
   const walk = clip ? mixer.clipAction(clip) : null;
   model.traverse((object) => { if (object instanceof THREE.Mesh) object.renderOrder = 110; });
@@ -37,11 +48,11 @@ export async function loadEarthAstronaut() {
     toCamera.copy(camera.position).sub(model.position);
     const depth = -camera.getWorldDirection(screenUp).dot(toCamera);
     model.visible = depth > 0 && toCamera.normalize().dot(up) > 0.05;
-    model.scale.setScalar(Math.max(0, depth * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 42 / (height * 1.8)));
+    model.scale.setScalar(Math.max(0, depth * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (rover ? 58 : 42) / (height * 1.8)));
     screenUp.set(0, 1, 0).applyQuaternion(camera.quaternion).lerp(up, 0.24).normalize();
     model.quaternion.setFromRotationMatrix(basis.makeBasis(right, up, forward)).premultiply(tilt.setFromUnitVectors(up, screenUp));
   }, dispose() {
-    mixer.stopAllAction(); mixer.uncacheRoot(model);
+    mixer.stopAllAction(); mixer.uncacheRoot(scene);
     model.removeFromParent();
     const textures = new Set<THREE.Texture>();
     model.traverse((object) => {
@@ -49,7 +60,8 @@ export async function loadEarthAstronaut() {
       object.geometry.dispose();
       const materials: THREE.MeshStandardMaterial[] = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
-        if (material.map) textures.add(material.map);
+        for (const candidate of [material.map, material.normalMap, material.roughnessMap, material.metalnessMap,
+          material.aoMap, material.emissiveMap]) if (candidate) textures.add(candidate);
         material.dispose();
       }
     });
