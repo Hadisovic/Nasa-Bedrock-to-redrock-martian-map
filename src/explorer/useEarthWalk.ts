@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bearingDeg, greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
-import { buildItineraryTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix } from "./earthWalk.ts";
+import { buildItineraryTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, routeCue, routeInstruction, sampleWalk, shorterFromSamePosition, stepDetector, usableFix } from "./earthWalk.ts";
 import type { EarthFix, WalkMode, WalkPose, WalkTrack } from "./earthWalk.ts";
 import { cueText, missionAudio } from "./walkAudio.ts";
 import type { WalkCue } from "./walkAudio.ts";
@@ -15,10 +15,27 @@ import { nearGale } from "./galeLayout.ts";
 
 type PermissionConstructor = { requestPermission?: () => Promise<"granted" | "denied"> };
 type Session = { mode: WalkMode; motion: boolean; tilt: boolean; stride: number; scale: number };
-type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null; obstacle?: boolean; resume?: boolean };
+type Replan = { from: LatLon; next: number; rejoin: { point: LatLon; remaining: number } | null; accuracy?: number; obstacle?: boolean; resume?: boolean };
 const emptyLegs: PlannedLeg[] = [];
 const meters = (a: LatLon, b: LatLon) => greatCircleKm(a, b) * 1000;
 const detailedAt = (point: LatLon) => insideMarswalkCoverage(point) || nearGale(point);
+const gpsOptions: PositionOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 };
+type GpsUpdate = { position: GeolocationPosition } | { error: GeolocationPositionError };
+type OpeningWatch = { id: number; subscribe: (listener: (update: GpsUpdate) => void) => void };
+
+function watchGpsOnStart(): OpeningWatch {
+  let latest: GpsUpdate | null = null;
+  let listener: ((update: GpsUpdate) => void) | null = null;
+  const deliver = (update: GpsUpdate) => {
+    if (listener) listener(update);
+    else latest = update;
+  };
+  const id = navigator.geolocation.watchPosition((position) => deliver({ position }), (error) => deliver({ error }), gpsOptions);
+  return { id, subscribe: (next) => {
+    listener = next;
+    if (latest) { next(latest); latest = null; }
+  } };
+}
 async function permitted(sensor: PermissionConstructor | undefined) {
   if (!sensor) return false;
   try { return !sensor.requestPermission || await sensor.requestPermission() === "granted"; }
@@ -52,6 +69,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const [muted, setMuted] = useState(false);
   const mute = useRef(false);
   const [offRoute, setOffRoute] = useState(false);
+  const [recovery, setRecovery] = useState<ReturnType<typeof routeInstruction> | null>(null);
   const [message, setMessage] = useState("");
   const [pose, setPose] = useState<WalkPose | null>(null);
   const [cue, setCue] = useState<WalkCue | null>(null);
@@ -63,11 +81,13 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   const [starting, setStarting] = useState(false);
   const lastCue = useRef<{ cue: WalkCue; at: number } | null>(null);
   const cueHistory = useRef(new Map<string, number>());
+  const routeRevision = useRef(0);
   const landmarksHeard = useRef(new Set<string>());
   const failedDetour = useRef<LatLon | null>(null);
   const audio = useRef<ReturnType<typeof missionAudio> | null>(null);
   const attempt = useRef(0);
   const gps = useRef<{ anchor: EarthFix; moved: ReturnType<typeof gpsMovement> } | null>(null);
+  const openingWatch = useRef<OpeningWatch | null>(null);
   const lastGpsFix = useRef(-Infinity);
   const state = useRef({ track, metres: 0, next: 0, point: null as LatLon | null,
     heading: 0, tilt: 0, neutral: null as number | null,
@@ -99,6 +119,8 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
 
   function stop() {
     attempt.current++;
+    if (openingWatch.current) navigator.geolocation.clearWatch(openingWatch.current.id);
+    openingWatch.current = null;
     audio.current?.dispose();
     audio.current = null;
     gps.current = null;
@@ -108,6 +130,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     setPaused(false);
     setObstacleHold(false);
     setOffRoute(false);
+    setRecovery(null);
     setPose(null);
     setCue(null);
     setRequest(null);
@@ -119,7 +142,12 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
   }
 
   useEffect(() => { stop(); }, [planKey]);
-  useEffect(() => () => { attempt.current++; audio.current?.dispose(); }, []);
+  useEffect(() => () => {
+    attempt.current++;
+    if (openingWatch.current) navigator.geolocation.clearWatch(openingWatch.current.id);
+    openingWatch.current = null;
+    audio.current?.dispose();
+  }, []);
 
   useEffect(() => {
     if (lastObstacle.current === blocked) return;
@@ -152,10 +180,11 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     audio.current?.dispose();
     try { audio.current = missionAudio(); } catch { audio.current = null; }
     // iPadOS requires both requests to begin in the Start button gesture.
-    const motion = mode === "Indoor Steps"
+    const motion = mode !== "Recorded Walk"
       ? permitted(window.DeviceMotionEvent as PermissionConstructor | undefined) : Promise.resolve(false);
     const orientation = tiltEnabled && isSecureContext
       ? permitted(window.DeviceOrientationEvent as PermissionConstructor | undefined) : Promise.resolve(false);
+    if (mode === "Outdoor") openingWatch.current = watchGpsOnStart();
     const [motionGranted, tiltGranted] = await Promise.all([motion, orientation]);
     if (id !== attempt.current) return false;
     setStarting(false);
@@ -169,6 +198,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       stopDistances };
     lastCue.current = null;
     cueHistory.current.clear();
+    routeRevision.current = 0;
     landmarksHeard.current.clear();
     failedDetour.current = null;
     setRemaining(track.at(-1)!.metres);
@@ -187,6 +217,16 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     s.retryAt = Date.now() + 8000;
     setRequest(null);
     if (s.arrived || s.next !== request.next) return;
+    const steerBack = () => {
+      if (!s.point || request.obstacle || session.mode !== "Outdoor") return false;
+      const end = s.stopDistances[s.next] ?? Infinity;
+      const nearest = locateOnWalk(s.track, s.point, Math.max(0, s.metres - 6), end);
+      if (nearest.distance <= 1) return false;
+      const instruction = routeInstruction(s.track, s.point, s.metres, end, "", nearest);
+      setRecovery(instruction);
+      announce({ text: instruction.text }, true, instruction.key);
+      return true;
+    };
     const failure = results.find(({ result }) => !selectedLeg(result, objective) || (detailed && result?.terrain?.regional))?.result;
     if (failure) {
       const leg = results.find(({ result }) => result === failure);
@@ -195,9 +235,11 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       setRemaining(null);
       if (request.obstacle) setPlanned(results);
       failedDetour.current = request.from;
-      if (failure.status === "no-route") announce("unavailable", true);
-      else if (failure.status === "ok") announce("terrain", true);
-      else announce({ text: failure.detail }, true);
+      if (!steerBack()) {
+        if (failure.status === "no-route") announce("unavailable", true);
+        else if (failure.status === "ok") announce("terrain", true);
+        else announce({ text: failure.detail }, true);
+      }
       return;
     }
     const { track: nextTrack, stopDistances: remainingStops } = trackFor(results, objective);
@@ -205,16 +247,19 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       failedDetour.current = request.from;
       setRemaining(null);
       setMessage("The planner returned no walkable distance from your current position.");
-      announce("unavailable", true);
+      if (!steerBack()) announce("unavailable", true);
       return;
     }
-    if (s.point && meters(request.from, s.point) > 8 && locateOnWalk(nextTrack, s.point).distance > 8) {
+    const tolerance = Math.max(8, request.accuracy ?? 0);
+    if (s.point && meters(request.from, s.point) > tolerance && locateOnWalk(nextTrack, s.point).distance > tolerance) {
       setMessage("Position changed while planning. Checking for another route.");
       s.retryAt = Date.now();
       return;
     }
     s.track = nextTrack;
+    routeRevision.current++;
     setOffRoute(false);
+    setRecovery(null);
     failedDetour.current = null;
     s.metres = locateOnWalk(nextTrack, s.point ?? request.from, 0, remainingStops[0] ?? Infinity).metres;
     s.stopDistances = [...s.stopDistances.slice(0, s.next), ...remainingStops];
@@ -263,12 +308,13 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       publish(s.metres < total);
       checkProgress();
     };
-    const checkProgress = (positionUncertainty = 0) => {
+    const checkProgress = (positionUncertainty = 0, justLocked = false) => {
       if (!s.point || s.arrived) return;
       const stop = stops[s.next];
       const previousStop = s.next;
       if (session.mode === "Outdoor") {
-        if (stop && meters(stop.point, s.point) <= 5 && s.metres >= (s.stopDistances[s.next] ?? 0) - 8) s.next++;
+        const arrivalRadius = Math.max(5, Math.min(18, positionUncertainty));
+        if (stop && meters(stop.point, s.point) <= arrivalRadius && s.metres >= (s.stopDistances[s.next] ?? 0) - arrivalRadius) s.next++;
       } else {
         while (s.next < stops.length && s.metres >= s.stopDistances[s.next]) s.next++;
       }
@@ -277,7 +323,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       const total = s.track.at(-1)!.metres;
       setRemaining(Math.max(0, total - s.metres));
       if ((session.mode !== "Outdoor" && s.metres >= total) ||
-        (session.mode === "Outdoor" && s.next === stops.length && meters(s.point, final) <= 5)) {
+        (session.mode === "Outdoor" && s.next === stops.length && meters(s.point, final) <= Math.max(5, Math.min(18, positionUncertainty)))) {
         s.arrived = true;
         setRemaining(0);
         setNextStop(null);
@@ -286,14 +332,29 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
         setPaused(true);
         return;
       }
-      if (s.next > previousStop && announce("stopReached")) return;
       const legEnd = s.stopDistances[s.next] ?? total;
+      if (session.mode === "Outdoor") {
+        const stopName = stops[s.next]?.point.name ?? (s.next < stops.length ? `stop ${s.next + 1}` : "the lander");
+        const instruction = routeInstruction(s.track, s.point, s.metres, legEnd, stopName);
+        const key = `route:${routeRevision.current}:leg:${s.next}:${instruction.key}`;
+        if (s.next > previousStop) {
+          announce({ text: `Stop reached. ${instruction.text}`, fallback: "stopReached" }, true, key);
+          return;
+        }
+        const terrain = detailed ? routeCue(s.track, s.metres, legEnd) : null;
+        if (!justLocked && (terrain === "slope" || terrain === "terrain") && announce(terrain)) return;
+        const spoken = { text: instruction.text, fallback: instruction.fallback };
+        if (justLocked || !cueHistory.current.has(key)) {
+          if (announce(spoken, justLocked || !lastCue.current, key)) return;
+        }
+      } else if (s.next > previousStop && announce("stopReached")) return;
       const landmark = nearbyLandmark(events, s.point, s.track, s.metres, legEnd, landmarksHeard.current, positionUncertainty);
       if (landmark && announce({ text: landmark.text })) {
         landmark.ids.forEach((site) => landmarksHeard.current.add(site));
         return;
       }
       const id = detailed ? routeCue(s.track, s.metres, legEnd) : null;
+      if (session.mode === "Outdoor") return;
       if (id === "left" || id === "right") {
         const turn = nextManeuver(s.track, s.metres, legEnd);
         announce({ text: `In about ${Math.round(turn.metres)} metres, turn ${id}.`, fallback: id }, false, id);
@@ -319,10 +380,10 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       }
       lastGpsFix.current = timestamp;
       const position = gps.current ??= { anchor: fix, moved: gpsMovement(fix) };
-      if (fixState !== "locked") {
+      const justLocked = fixState !== "locked";
+      if (justLocked) {
         fixState = "locked";
-        setMessage(rover ? "Location locked. Move to drive the simulated rover." : "Location locked. Walk to move the astronaut.");
-        announce("gpsLocked");
+        setMessage("Precise location acquired.");
       }
       const previous = s.point ?? lander;
       const changed = position.moved(fix);
@@ -336,36 +397,45 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
       const accuracy = Math.hypot(fix.accuracy, position.anchor.accuracy) * session.scale;
       const offRoute = located.distance > Math.max(8, accuracy + 4);
       setOffRoute(offRoute);
-      if (!offRoute && changed) {
+      if (!offRoute) {
+        setRecovery(null);
         if (failedDetour.current || (detailed && !detailedAt(previous))) setMessage("Back on the planned route.");
         failedDetour.current = null;
         s.metres = Math.max(s.metres, located.metres);
-        checkProgress(accuracy);
+        checkProgress(accuracy, justLocked);
+      } else {
+        const rejoin = routeInstruction(s.track, point, s.metres, s.stopDistances[s.next] ?? Infinity, "", located);
+        setRecovery(rejoin);
+        const replanUnavailable = (detailed && !detailedAt(point)) || failedDetour.current !== null;
+        if (replanUnavailable || !s.pending) announce({ text: rejoin.text }, false, rejoin.key);
       }
-      if (detailed && deviating(located.distance, accuracy, timestamp) && !s.arrived && !s.pending && Date.now() >= s.retryAt &&
-        detailedAt(point) && (s.next < stops.length || returning) &&
+      if (deviating(located.distance, accuracy, timestamp) && !s.arrived && !s.pending && Date.now() >= s.retryAt &&
+        (!detailed || detailedAt(point)) && (s.next < stops.length || returning) &&
         (!failedDetour.current || meters(failedDetour.current, point) > Math.max(8, accuracy))) {
         s.pending = true;
         deviating(0, fix.accuracy, timestamp);
         setMessage("Off route. Recalculating from your position…");
-        announce("recalculating");
+        announce("recalculating", true);
         const limit = s.stopDistances[s.next] ?? Infinity;
         const vertex = s.track.find(({ metres }) => metres >= located.metres && metres <= limit + 0.01);
-        setRequest({ from: point, next: s.next, rejoin: vertex
+        setRequest({ from: point, next: s.next, accuracy, rejoin: detailed && vertex
           ? { point: vertex.point, remaining: s.track.at(-1)!.metres - vertex.metres } : null });
       }
       if (detailed && changed && !detailedAt(point)) {
         setRemaining(null);
-        setMessage("Outside this terrain pack. Move back into the mapped area to continue.");
+        setMessage("Outside this terrain pack. Use the rejoin direction to get back to the route.");
       }
     };
     const onMotion = (event: DeviceMotionEvent) => {
       const linear = magnitude(event.acceleration), gravity = magnitude(event.accelerationIncludingGravity);
       if (!motionSeen && (linear !== null || gravity !== null)) {
         motionSeen = true;
-        setMessage("Step sensor ready. Distance uses your calibrated stride.");
+        if (session.mode === "Indoor Steps") setMessage("Step sensor ready. Distance uses your calibrated stride.");
       }
-      if (!s.arrived && detect(linear, gravity, performance.now())) advance(session.stride);
+      if (!s.arrived && detect(linear, gravity, performance.now())) {
+        if (session.mode === "Indoor Steps") advance(session.stride);
+        else if (fixState === "locked" && lastMove && Date.now() - lastMove < 2000) publish(true);
+      }
     };
     const onTilt = (event: DeviceOrientationEvent) => {
       if (event.beta === null || event.gamma === null) return;
@@ -377,7 +447,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     };
     if (session.mode === "Outdoor") {
       setMessage("Acquiring a location fix…");
-      watch = navigator.geolocation.watchPosition(onFix, (error) => {
+      const onLocationError = (error: GeolocationPositionError) => {
         if (!live) return;
         fixState = error.code === 1 ? "denied" : "waiting";
         setMessage(error.code === 1 ? "Location denied. Exit and choose a visual preview."
@@ -386,11 +456,20 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
         gps.current?.moved(null);
         deviating(0, 12, Date.now());
         if (error.code === 1 && watch !== undefined) { navigator.geolocation.clearWatch(watch); watch = undefined; }
-      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 });
+      };
+      const opening = openingWatch.current;
+      openingWatch.current = null;
+      if (opening) {
+        watch = opening.id;
+        opening.subscribe((update) => {
+          if ("position" in update) onFix(update.position);
+          else onLocationError(update.error);
+        });
+      } else watch = navigator.geolocation.watchPosition(onFix, onLocationError, gpsOptions);
     }
     if (session.motion) window.addEventListener("devicemotion", onMotion);
     if (session.tilt) window.addEventListener("deviceorientation", onTilt);
-    const motionTimer = session.motion ? window.setTimeout(() => {
+    const motionTimer = session.motion && session.mode === "Indoor Steps" ? window.setTimeout(() => {
       if (!motionSeen) setMessage("No motion readings received. Stop and try Recorded Walk.");
     }, 4500) : undefined;
     const timer = window.setInterval(() => {
@@ -431,7 +510,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
 
   function recordedSpeed(metres: number) { return Math.max(1.8, Number.isFinite(routeSpeed) ? routeSpeed : 0, metres / 38); }
   const progress = state.current;
-  const maneuver = session && !paused && !offRoute && !progress.arrived && detailed && progress.track.length > 1
+  const maneuver = session && !paused && !offRoute && !progress.arrived && (detailed || session.mode === "Outdoor") && progress.track.length > 1
     ? nextManeuver(progress.track, progress.metres, progress.stopDistances[progress.next] ?? Infinity) : null;
   const upcoming = useMemo(() => {
     if (!maneuver) return [];
@@ -447,7 +526,7 @@ export function useEarthWalk(lander: Endpoint | null, stops: Stop[], returning: 
     return steps;
   }, [!!maneuver, progress.track, progress.metres, progress.next, progress.stopDistances]);
   return { eligible, liveEligible, detailed, gpsAvailable, session, paused, pose, message, cue: cue && cueText(cue), remaining, accuracy, nextStop, planned, starting,
-    maneuver, upcoming, muted, rover, obstacleHold,
+    maneuver, recovery, upcoming, muted, rover, obstacleHold,
     toggleMute: () => {
       mute.current = !mute.current;
       setMuted(mute.current);

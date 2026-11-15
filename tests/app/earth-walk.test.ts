@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix } from "../../src/explorer/earthWalk.ts";
+import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, routeCue, routeInstruction, sampleWalk, shorterFromSamePosition, stepDetector, usableFix } from "../../src/explorer/earthWalk.ts";
 import type { Catalog } from "../../src/explorer/catalog.ts";
 import { relativeToLander } from "../../src/explorer/geo.ts";
 
@@ -12,6 +12,26 @@ const track = buildWalkTrack([
   { point: south, elevation: 0 }, { point: north, elevation: 0 },
   { point: east, elevation: 12 }, { point: north, elevation: 0 }, { point: south, elevation: 0 },
 ]);
+
+test("live GPS announces a heading, a turn, and the next direction after the bend", () => {
+  const legEnd = track[2].metres;
+  const first = routeInstruction(track, south, 0, legEnd, "Stop 1");
+  assert.match(first.text, /^Head north for about \d+ metres, then turn right\./);
+  const nearTurn = track[1].metres - 6;
+  assert.match(routeInstruction(track, sampleWalk(track, nearTurn).point, nearTurn, legEnd, "Stop 1").text, /Turn right now/);
+  const after = track[1].metres + 10;
+  assert.match(routeInstruction(track, sampleWalk(track, after).point, after, legEnd, "Stop 1").text, /^Head east .* toward Stop 1/);
+});
+
+test("an off-route GPS fix produces a bearing and distance to the current leg", () => {
+  const position = { lat: (north.lat + south.lat) / 2, lon: south.lon - 0.001 };
+  const legEnd = track[1].metres;
+  const nearest = locateOnWalk(track, position, 0, legEnd);
+  const cue = routeInstruction(track, position, 0, legEnd, "Stop 1", nearest);
+  assert.match(cue.text, /^Off route\. Head east for about \d+ metres to rejoin the route/);
+  assert.ok(cue.bearing > 85 && cue.bearing < 95);
+  assert.ok(cue.metres > 50 && cue.metres < 65);
+});
 
 test("Earth offsets are mapped 1:1, including a longitude seam crossing", () => {
   const start = { lat: 30, lon: 179.99995, accuracy: 4, timestamp: 1 };

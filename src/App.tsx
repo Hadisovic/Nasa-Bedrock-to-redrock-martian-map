@@ -230,7 +230,7 @@ export function App({ onHome, onExplore }: { onHome: () => void; onExplore: () =
   const threeD = mode === "3d" && terrain && !webglIssue;
 
   return (
-    <div className="app">
+    <div className="app terrain-console">
       <header className="topbar">
         <button type="button" className="brand" onClick={onHome} aria-label="Back to the intro page"><BrandRocket size={26} /> <span>Bedrock <small>to</small> <em>Redrock</em></span></button>
         <p className="topbar__place">Wildcat Ridge · Jezero Crater, Mars</p>

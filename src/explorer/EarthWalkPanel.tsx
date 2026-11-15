@@ -4,7 +4,6 @@ import { formatLatLon } from "./geo.ts";
 import type { useEarthWalk } from "./useEarthWalk.ts";
 
 type Walk = ReturnType<typeof useEarthWalk>;
-const modes: WalkMode[] = ["Outdoor", "Recorded Walk"];
 const modeLabel: Record<WalkMode, string> = {
   Outdoor: "Earth GPS Demo",
   "Indoor Steps": "Step-powered preview",
@@ -39,39 +38,44 @@ export function EarthWalkSetup({ walk, open, close, started }: {
   walk: Walk; open: boolean; close: () => void; started: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [mode, setMode] = useState<WalkMode | null>(null);
   const gpsAllowed = walk.liveEligible && walk.gpsAvailable && isSecureContext;
-  const selectedMode = mode === "Outdoor" && !gpsAllowed ? "Recorded Walk" : mode ?? (gpsAllowed ? "Outdoor" : "Recorded Walk");
   const [tilt, setTilt] = useState(false);
   const [scale, setScale] = useState(1);
   useEffect(() => {
     if (open && !dialog.current?.open) dialog.current?.showModal();
     if (!open && dialog.current?.open) dialog.current.close();
   }, [open]);
+  const unavailable = !walk.eligible || walk.starting || !!walk.session;
+  const launch = async (mode: WalkMode) => {
+    if (await walk.start(mode, .7, tilt && mode === "Outdoor", scale)) started();
+  };
   return <dialog ref={dialog} className="project-dialog earth-walk-setup" aria-labelledby="earth-walk-title"
     onCancel={(event) => { if (walk.starting) event.preventDefault(); }} onClose={close}>
     <header><h2 id="earth-walk-title">Start route</h2>
       <button type="button" className="btn btn--small" aria-label="Close route setup" disabled={walk.starting} onClick={close}>×</button></header>
-    <label>Mode <select value={selectedMode} disabled={walk.starting || !!walk.session}
-      onChange={(event) => setMode(event.target.value as WalkMode)}>
-      {modes.filter((value) => value !== "Outdoor" || gpsAllowed).map((value) =>
-        <option key={value} value={value}>{modeLabel[value]}</option>)}
-    </select></label>
-    <p className="small">{selectedMode === "Outdoor" ? "Allow precise location and use a large open area. Your first fix anchors the lander."
-      : walk.rover ? "Fast rover simulation. Recorded preview is the default on desktop."
-      : "Fast walk simulation. Recorded preview is the default on desktop."}</p>
-    {selectedMode === "Outdoor" && <>
-      <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
-        <option value={1}>1× · 1 m becomes 1 m</option><option value={10}>10× · 1 m becomes 10 m</option>
-        <option value={100}>100× · 10 m becomes 1 km</option>
-      </select></label>
-      {scale > 1 && <p className="small">The demo also scales GPS uncertainty. Use 1× for short routes on detailed terrain.</p>}
-      <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
-    </>}
-    <button type="button" className="btn btn--primary" disabled={!walk.eligible || walk.starting || !!walk.session}
-      onClick={async () => { if (await walk.start(selectedMode, .7, tilt && selectedMode === "Outdoor", scale)) started(); }}>
-      {walk.starting ? "Waiting for permissions…" : selectedMode === "Outdoor" ? "Start GPS demo" : "Start preview"}
-    </button>
+    <div className="earth-walk-setup__modes">
+      {walk.liveEligible && walk.gpsAvailable && !isSecureContext && <p className="small muted">Earth GPS Demo requires a secure connection.</p>}
+      {gpsAllowed && <section className="earth-walk-setup__mode">
+        <h3>Earth GPS Demo</h3>
+        <p>Walk outdoors with precise location. Your first fix anchors the lander, and Mission Control calls out each step.</p>
+        <details><summary>GPS options</summary>
+          <label>Earth to Mars distance <select value={scale} disabled={unavailable} onChange={(event) => setScale(Number(event.target.value))}>
+            <option value={1}>1× · 1 m becomes 1 m</option><option value={10}>10× · 1 m becomes 10 m</option>
+            <option value={100}>100× · 10 m becomes 1 km</option>
+          </select></label>
+          {scale > 1 && <p>Scaling also magnifies GPS uncertainty.</p>}
+          <label><input type="checkbox" checked={tilt} disabled={unavailable} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
+        </details>
+        <button type="button" className="btn btn--primary" disabled={unavailable} onClick={() => void launch("Outdoor")}>
+          {walk.starting ? "Waiting for permissions…" : "Start Earth GPS Demo"}
+        </button>
+      </section>}
+      <section className="earth-walk-setup__mode">
+        <h3>Recorded preview</h3>
+        <p>Play the route with a simulated {walk.rover ? "rover" : "astronaut"} and Mission Control voice cues.</p>
+        <button type="button" className={gpsAllowed ? "btn" : "btn btn--primary"} disabled={unavailable} onClick={() => void launch("Recorded Walk")}>Start preview</button>
+      </section>
+    </div>
     {!walk.session && walk.message && <p role="status" className="small">{walk.message}</p>}
   </dialog>;
 }
@@ -86,7 +90,10 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
   const preview = walk.session.mode !== "Outdoor";
   return <section aria-label="Earth Walk controls" className="earth-walk-controls">
     <header className="navigation-hud__headline">
-      {walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? "Arrived" : "Navigation"}</strong>}
+      {walk.recovery && !walk.paused ? <div className="gps-maneuver gps-maneuver--rejoin">
+        <b aria-hidden="true" style={{ rotate: `${walk.recovery.bearing}deg` }}>↑</b>
+        <div><strong>Rejoin route</strong><span>{walk.recovery.text}</span></div>
+      </div> : walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? "Arrived" : "Navigation"}</strong>}
       <button type="button" className="btn btn--small" aria-label={walk.muted ? "Unmute GPS voice" : "Mute GPS voice"}
         onClick={walk.toggleMute}>{walk.muted ? "Unmute" : "Mute"}</button>
       <button type="button" className="btn btn--small" aria-expanded={!collapsed} aria-controls="navigation-steps"

@@ -64,7 +64,7 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
   const hasRoute = legs.some((leg) => leg.result?.status === "ok");
   const title = pick === "start" ? "Tap Mars to place the lander" : pick === "position" ? "Set crew position on Mars"
     : pick === "block" ? "Mark a blocked terrain cell" : typeof pick === "number" ? `Place stop ${pick + 1}` : "Choose a stop";
-  return <div className="map-route">
+  return <div className={`map-route${!picking && summary.complete ? " map-route--ready" : ""}`}>
     {picking ? <div role="status" className="map-route__status"><strong>{title}</strong><span>Use the map, a site flag, or search.</span></div>
       : <button type="button" className="map-route__status map-route__summary" aria-label="Route details" onClick={onDetails}>
         <strong>{summary.complete ? `${distance(summary.distanceKm)} ${legs.at(-1)?.returning ? "round trip" : "one way"}`
@@ -75,9 +75,13 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
     {!picking && comparison}
     <div className="map-route__actions">
       {picking ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
-        {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>Start route</button>}
-        {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
-        <button type="button" className="btn btn--small" onClick={onClear}>Clear route</button>
+        {summary.complete && <button type="button" className="btn directions__start" onClick={onStart} disabled={!onStart}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 16-7-7 16-2-7z" /></svg>Start route
+        </button>}
+        <div className="map-route__secondary">
+          {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
+          <button type="button" className="btn btn--small" onClick={onClear}>Clear route</button>
+        </div>
       </>}
     </div>
   </div>;

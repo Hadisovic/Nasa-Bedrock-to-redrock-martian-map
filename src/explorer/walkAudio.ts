@@ -7,7 +7,6 @@ import shorter from "../assets/mission-control/shorter.wav?url";
 import unavailable from "../assets/mission-control/unavailable.wav?url";
 import arrived from "../assets/mission-control/arrived.wav?url";
 import temperature from "../assets/mission-control/temperature.wav?url";
-import gpsLocked from "../assets/mission-control/gps-locked.wav?url";
 import gpsLost from "../assets/mission-control/gps-lost.wav?url";
 import recalculating from "../assets/mission-control/recalculating.wav?url";
 import stopReached from "../assets/mission-control/stop-reached.wav?url";
@@ -18,7 +17,6 @@ const cues = {
   updated: ["Route updated.", updated], shorter: ["Shorter route found.", shorter], unavailable: ["No route found.", unavailable],
   arrived: ["Arrived.", arrived],
   temperature: ["Perseverance recorded a low of −83 and a high of −22 degrees Celsius here on July 19, 2022.", temperature],
-  gpsLocked: ["GPS ready. Follow the highlighted route.", gpsLocked],
   gpsLost: ["GPS signal weak. Waiting for a reliable position.", gpsLost],
   recalculating: ["You are off route. Recalculating.", recalculating],
   stopReached: ["Stop reached. Continue when you are ready.", stopReached],

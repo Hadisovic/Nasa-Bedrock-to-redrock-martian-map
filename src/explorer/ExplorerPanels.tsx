@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import type { Catalog, CatalogEvent, CatalogFilter, EnvironmentObservation, EventType, LayerEntry, LayerManifest } from "./catalog.ts";
+import type { ReactNode } from "react";
+import type { Catalog, CatalogEvent, CatalogFilter, EnvironmentObservation, LayerEntry, LayerManifest } from "./catalog.ts";
 import { EVENT_TYPE_LABEL, PRECISION_LABEL, isImageLayer, matchesFilter, searchEvents } from "./catalog.ts";
 import { formatLatLon, greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
-import { GoToLocation, MapFlag, RocketIcon, SourceFlag } from "./icons.tsx";
+import { GoToLocation, RocketIcon, SourceFlag } from "./icons.tsx";
 import { TYPE_ACCENT } from "./accents.ts";
 import { nearbyObservations, publicUrl, routingAvailability } from "./data.ts";
 
@@ -31,7 +32,7 @@ export function SearchBox({ events, unlocated, onGo, onRead, onRoute, routeLabel
   return (
     <div className="search" role="search">
       <label htmlFor="site-search" className="sr-only">Search sites, events, missions or aliases</label>
-      <input id="site-search" type="search" placeholder="Try “nearby samples”" value={query}
+      <input id="site-search" type="search" placeholder="Search Mars" value={query}
         onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
       {query && (
         <ul className="search__results" aria-label="Search results">
@@ -56,11 +57,13 @@ export function SearchBox({ events, unlocated, onGo, onRead, onRoute, routeLabel
   );
 }
 
-export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visibleCount, filtersOpen, onFilters }: {
+export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visibleCount, filtersOpen, onFilters, query, onQuery, mapControls }: {
   catalog: Catalog; filter: CatalogFilter; setFilter: (f: CatalogFilter) => void;
   onGo: (event: CatalogEvent) => void; onRead: (event: CatalogEvent) => void; visibleCount: number;
   filtersOpen: boolean; onFilters: (open: boolean) => void;
+  query: string; onQuery: (query: string) => void; mapControls: ReactNode;
 }) {
+  const [mapOptionsOpen, setMapOptionsOpen] = useState(false);
   const missions = useMemo(() => {
     const map = new Map<string, string>();
     for (const e of catalog.events) map.set(e.missionId, e.mission);
@@ -68,18 +71,34 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
   }, [catalog]);
   const types = useMemo(() => [...new Set(catalog.events.map((e) => e.type))].sort(), [catalog]);
   const toggle = <T,>(set: ReadonlySet<T>, value: T) => { const next = new Set(set); if (next.has(value)) next.delete(value); else next.add(value); return next; };
-  const list = catalog.events.filter((e) => matchesFilter(e, filter))
-    .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999") || a.title.localeCompare(b.title));
+  const list = useMemo(() => {
+    const filtered = catalog.events.filter((event) => matchesFilter(event, filter));
+    return query.trim() ? searchEvents(filtered, query, filtered.length)
+      : filtered.sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999") || a.title.localeCompare(b.title));
+  }, [catalog, filter, query]);
+  const filterCount = filter.missions.size + filter.types.size
+    + Number(filter.solMin != null || filter.solMax != null)
+    + Number(filter.yearMin != null || filter.yearMax != null);
   const num = (v: string) => (v.trim() === "" ? null : Number(v));
 
   return (
     <div className="panel-body catalog">
-      <h2>Historical events and discoveries</h2>
-      <p className="muted small">
-        {catalog.counts.total.mapped} precise and {catalog.counts.total.approximate} approximate or regional. Showing {visibleCount} on the map.
-      </p>
-      <details className="filters" open={filtersOpen} onToggle={(event) => onFilters(event.currentTarget.open)}>
-        <summary>Filter by mission, type, sol or year</summary>
+      <header className="catalog__heading">
+        <h2>Discoveries</h2>
+        <span role="status">{list.length} {list.length === 1 ? "result" : "results"}</span>
+      </header>
+      <div className="catalog__tools">
+        <label className="sr-only" htmlFor="catalog-search">Search discoveries</label>
+        <input id="catalog-search" type="search" placeholder="Search discoveries" value={query}
+          onChange={(event) => onQuery(event.target.value)} />
+        <button type="button" className="btn" aria-expanded={filtersOpen} aria-controls="catalog-filters"
+          onClick={() => { onFilters(!filtersOpen); setMapOptionsOpen(false); }}>
+          Filters{filterCount > 0 && <span className="catalog__filter-count">{filterCount}</span>}
+        </button>
+        <button type="button" className="btn" aria-expanded={mapOptionsOpen} aria-controls="catalog-map-display"
+          onClick={() => { setMapOptionsOpen(!mapOptionsOpen); onFilters(false); }}>Map display</button>
+      </div>
+      <div className="catalog__options filters" id="catalog-filters" hidden={!filtersOpen}>
         <fieldset><legend>Mission</legend>
           {missions.map(([id, name]) => (
             <label key={id} className="chip"><input type="checkbox" checked={filter.missions.has(id)} onChange={() => setFilter({ ...filter, missions: toggle(filter.missions, id) })} /> {name}</label>
@@ -87,8 +106,8 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
         </fieldset>
         <fieldset><legend>Type</legend>
           {types.map((t) => (
-            <label key={t} className="chip"><input type="checkbox" checked={filter.types.has(t)} onChange={() => setFilter({ ...filter, types: toggle(filter.types, t as EventType) })} />
-              <span className="swatch" style={{ background: TYPE_ACCENT[t] }} aria-hidden="true" /> {EVENT_TYPE_LABEL[t as EventType]}</label>
+            <label key={t} className="chip"><input type="checkbox" checked={filter.types.has(t)} onChange={() => setFilter({ ...filter, types: toggle(filter.types, t) })} />
+              <span className="swatch" style={{ background: TYPE_ACCENT[t] }} aria-hidden="true" /> {EVENT_TYPE_LABEL[t]}</label>
           ))}
         </fieldset>
         <fieldset className="range"><legend>Sol (mission day)</legend>
@@ -99,24 +118,29 @@ export function CatalogPanel({ catalog, filter, setFilter, onGo, onRead, visible
           <label>From <input type="number" inputMode="numeric" min={1976} value={filter.yearMin ?? ""} onChange={(e) => setFilter({ ...filter, yearMin: num(e.target.value) })} /></label>
           <label>to <input type="number" inputMode="numeric" min={1976} value={filter.yearMax ?? ""} onChange={(e) => setFilter({ ...filter, yearMax: num(e.target.value) })} /></label>
         </fieldset>
-        <button type="button" className="btn btn--small btn--ghost" onClick={() => setFilter(EMPTY_FILTER)}>Clear filters</button>
-      </details>
-      <ul className="event-list">
+        <button type="button" className="btn btn--small" disabled={!filterCount} onClick={() => setFilter(EMPTY_FILTER)}>Clear filters</button>
+      </div>
+      <div className="catalog__options" id="catalog-map-display" hidden={!mapOptionsOpen}>
+        {mapControls}
+        <p className="muted small">{visibleCount} records shown on the map.
+          {" "}The catalog includes {catalog.counts.total.mapped} precise and {catalog.counts.total.approximate} approximate or regional locations.</p>
+      </div>
+      <ul className="catalog__results" aria-label="Discovery results">
         {list.map((event) => (
-          <li key={event.id} className="event-row">
-            <MapFlag size={22} nasaSource />
-            <div>
-              <strong>{event.title}</strong>
-              <span className="muted small"> {event.mission} · {EVENT_TYPE_LABEL[event.type]}{event.sol != null ? ` · sol ${event.sol}` : ""}{event.date ? ` · ${event.date}` : ""}</span>
-              <div className="event-row__actions">
-                <button type="button" className="btn btn--small" onClick={() => onRead(event)}>Read about</button>
-                <GoToLocation onClick={() => onGo(event)} />
-              </div>
-            </div>
+          <li key={event.id} className="catalog__result">
+            <span className="catalog__type"><span style={{ background: TYPE_ACCENT[event.type] }} aria-hidden="true" />{EVENT_TYPE_LABEL[event.type]}</span>
+            <button type="button" className="catalog__title" aria-label={`Read about ${event.title}`} onClick={() => onRead(event)}>
+              <span>{event.title}</span><span aria-hidden="true">›</span>
+            </button>
+            <p className="catalog__meta">{[event.mission, event.sol != null ? `Sol ${event.sol}` : null, event.date].filter(Boolean).join(" · ")}</p>
+            <GoToLocation onClick={() => onGo(event)} />
           </li>
         ))}
-        {list.length === 0 && <li className="muted">No mapped records match these filters.</li>}
       </ul>
+      {list.length === 0 && <div className="catalog__empty">
+        <p>No discoveries match this search and filters.</p>
+        <button type="button" className="btn" onClick={() => { onQuery(""); setFilter(EMPTY_FILTER); }}>Reset search and filters</button>
+      </div>}
     </div>
   );
 }
@@ -209,11 +233,12 @@ const layerFilters = [
   { name: "Dust & weather", matches: (layer: LayerEntry) => layer.group === "weather" || /^(themis-|tes-thermal)/.test(layer.id) },
 ] as const;
 
-export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBasemapId, failed, zoomToLayer, retryLayer }: {
+export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBasemapId, failed, zoomToLayer, retryLayer, showPole }: {
   manifest: LayerManifest; state: Record<string, LayerState>; setState: (id: string, s: LayerState) => void;
   basemapId: string; setBasemapId: (id: string) => void; failed: ReadonlySet<string>;
   zoomToLayer: (entry: LayerEntry) => void;
   retryLayer: (id: string) => void;
+  showPole: (hemisphere: "north" | "south") => void;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<(typeof layerFilters)[number]["name"]>("All");
@@ -231,7 +256,7 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
   ) }));
   return (
     <div className="panel-body layers">
-      <h2>Filters</h2>
+      <h2>Map layers</h2>
       <div className="layer-search" role="search" aria-label="Search map layers">
         <label className="sr-only" htmlFor="layer-search">Search layers</label>
         <input type="search" id="layer-search" value={query} placeholder="Find water, minerals, dust…"
@@ -241,6 +266,15 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
             onClick={() => { setQuery(""); setCategory(name); }}>{name}</button>)}
         </div>
       </div>
+      {(category === "Ice indicators" || /\b(ice|polar|poles?)\b/i.test(query)) && <section className="polar-views">
+        <h3>Polar ice caps</h3>
+        <p className="small muted">Inspect both caps in the Viking orbital imagery. Odyssey hydrogen measurements cover only the mid-latitudes.</p>
+        <div className="mission-row">
+          <button type="button" className="btn" onClick={() => showPole("north")}>North polar cap</button>
+          <button type="button" className="btn" onClick={() => showPole("south")}>South polar cap</button>
+        </div>
+        <a className="small" href="https://science.nasa.gov/photojournal/growth-and-retreat-of-the-co2-ice-at-the-martian-poles/" target="_blank" rel="noreferrer">NASA seasonal ice observations</a>
+      </section>}
       {showOverview && baseCandidates.length > 1 && (
         <fieldset><legend>Basemap</legend>
           {baseCandidates.map((l) => (

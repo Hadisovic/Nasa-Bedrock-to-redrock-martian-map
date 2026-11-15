@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -145,8 +145,11 @@ export function Globe3D(props: Globe3DProps) {
   const [geologyUnit, setGeologyUnit] = useState<number | null>(null);
   const [geologyTexture, setGeologyTexture] = useState<{ region: string; map: THREE.Texture } | null>(null);
   const droneRef = useRef(drone);
-  const droneInput = useRef<FlightInput>({ forward: 0, slide: 0, turn: 0, rise: 0 });
+  const droneInput = useRef<FlightInput>({ forward: 0, slide: 0, rise: 0 });
   const droneLook = useRef(0.5);
+  const droneZoom = useRef(FOV);
+  const [overhead, setOverhead] = useState(false);
+  const [geologyOpen, setGeologyOpen] = useState(false);
   const lastDroneReport = useRef(0);
   const sunRef = useRef(sunPoint);
   sunRef.current = sunPoint;
@@ -158,6 +161,7 @@ export function Globe3D(props: Globe3DProps) {
     droneRef.current = null;
     setDrone(null);
     setTourOpen(false);
+    setGeologyOpen(false);
     setTourStop(null);
     setFlightStart(null); setFlightStops([]); setFlightPick(null);
     setGeologyUnit(null);
@@ -188,6 +192,9 @@ export function Globe3D(props: Globe3DProps) {
   const enterDrone = (point: LatLon, region: "wildcat" | "gale") => {
     props.onFlightStart();
     droneLook.current = region === "wildcat" ? 1.12 : 0.74;
+    droneZoom.current = FOV;
+    setOverhead(false);
+    setGeologyOpen(false);
     setFlightPosition({ point, heading: region === "gale" ? 180 : 0,
       height: region === "wildcat" ? 225 : 1380 });
     setNotice("");
@@ -229,21 +236,11 @@ export function Globe3D(props: Globe3DProps) {
     return [{ points: path.points, distanceKm: path.distanceKm, returning: false }];
   }) : paths, [!!drone, flightLegs, paths]);
   const selectedStop = flyingTour?.stops.find(({ id }) => id === tourStop);
-  const changeFlightHeight = (requested: number) => {
-    const current = droneRef.current;
-    if (!current) return;
-    const height = THREE.MathUtils.clamp(requested, 8, closeRegion === "gale" ? 1450 : 350);
-    if (height === current.height) return;
-    setNotice("");
-    setFlightPosition({ ...current, height });
-  };
-  const changeFlightHeightRef = useRef(changeFlightHeight);
-  changeFlightHeightRef.current = changeFlightHeight;
   const moveDrone = (seconds: number) => {
     const current = droneRef.current, terrain = detailRef.current;
-    const { forward, slide, turn, rise } = droneInput.current;
-    if (!current || !terrain || document.hidden || !(forward || slide || turn || rise)) return;
-    const heading = (current.heading + turn * 85 * seconds + 360) % 360;
+    const { forward, slide, rise } = droneInput.current;
+    if (!current || !terrain || document.hidden || !(forward || slide || rise)) return;
+    const heading = current.heading;
     const height = THREE.MathUtils.clamp(current.height + rise * (closeRegion === "wildcat" ? 18 : 55) * seconds,
       8, closeRegion === "gale" ? 1450 : 350);
     const magnitude = Math.hypot(forward, slide);
@@ -294,11 +291,12 @@ export function Globe3D(props: Globe3DProps) {
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
   const s = useRef<{
-    renderer: THREE.WebGLRenderer; camera: THREE.PerspectiveCamera; renderCamera: THREE.PerspectiveCamera; controls: OrbitControls; scene: THREE.Scene;
+    renderer: THREE.WebGLRenderer; camera: THREE.PerspectiveCamera; renderCamera: THREE.PerspectiveCamera; scene: THREE.Scene;
     overlayGroup: THREE.Group; markerGroup: THREE.Group; routeGroup: THREE.Group; globe: THREE.Mesh; relief: THREE.Group;
     baseTexture: THREE.Texture; anchors: Map<string, THREE.Vector3>;
     tileTexture: { value: THREE.Texture }; tileBounds: { value: THREE.Vector4 };
     fly: (v: GlobeView, animate: boolean, onArrival?: () => void) => void; zoomBy: (factor: number) => void; recluster: () => void;
+    resetNorth: () => void;
   } | null>(null);
   const onViewChangeRef = useRef(onViewChange);
   onViewChangeRef.current = onViewChange;
@@ -348,15 +346,38 @@ export function Globe3D(props: Globe3DProps) {
     const starfield = createStarfield();
     scene.add(starfield);
     const renderCamera = camera.clone();
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.052;
-    controls.enablePan = false;
-    controls.enableZoom = false;
-    controls.touches.TWO = null;
-    controls.minDistance = MIN_DISTANCE;
-    controls.maxDistance = 8;
-    controls.rotateSpeed = 0.5;
+    const controls = new TrackballControls(camera, renderer.domElement);
+    controls.noPan = true;
+    controls.noZoom = true;
+    controls.multiTouchRoll = true;
+    const worldNorth = new THREE.Vector3(0, 1, 0);
+    const lastDirection = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const transport = new THREE.Quaternion();
+    const north = new THREE.Vector3();
+    const inverseCamera = new THREE.Quaternion();
+    let minimumDistance = MIN_DISTANCE;
+    const localNorth = (out: THREE.Vector3) => {
+      const { lat, lon } = unitToLatLon([camera.position.x, camera.position.y, camera.position.z]);
+      const a = THREE.MathUtils.degToRad(lat), b = THREE.MathUtils.degToRad(lon);
+      return out.set(-Math.sin(a) * Math.cos(b), Math.cos(a), Math.sin(a) * Math.sin(b));
+    };
+    const updateOrbit = () => {
+      direction.copy(camera.position).normalize();
+      if (lastDirection.lengthSq()) {
+        // Carry the current heading when a fly-to or GPS changes the camera position.
+        camera.up.applyQuaternion(transport.setFromUnitVectors(lastDirection, direction));
+      } else localNorth(camera.up);
+      controls.update();
+      camera.position.setLength(THREE.MathUtils.clamp(camera.position.length(), minimumDistance, 8));
+      lastDirection.copy(camera.position).normalize();
+    };
+    const resetNorth = () => {
+      // Stop the remaining drag inertia before changing the heading.
+      controls.dynamicDampingFactor = 1;
+      updateOrbit();
+      localNorth(camera.up);
+    };
 
     const texture = new THREE.Texture(basemap);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -418,7 +439,7 @@ export function Globe3D(props: Globe3DProps) {
       if (!animate || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
         flight = null;
         camera.position.copy(to.multiplyScalar(surfaceRef.current(v).length() + h1));
-        controls.update();
+        updateOrbit();
         report();
         onArrival?.();
         return;
@@ -522,12 +543,11 @@ export function Globe3D(props: Globe3DProps) {
     let lastFrame = 0;
     let tiltAmount = 0;
     let clusterTilt = 0;
+    let clusterHeading = 0;
     const cameraUp = new THREE.Vector3();
     const target = new THREE.Vector3();
     const flightDirection = new THREE.Vector3();
     const flightRotation = new THREE.Quaternion();
-    const north = new THREE.Vector3();
-    const inverseCamera = new THREE.Quaternion();
     const sunPosition = new THREE.Vector3();
     const viewLight = new THREE.Vector3();
     const atlasSky = new THREE.Color(0xd6ad98);
@@ -586,17 +606,18 @@ export function Globe3D(props: Globe3DProps) {
         camera.position.setLength(surfaceRadius + next);
         if (Math.abs(next / desired - 1) < 0.001) targetClearance = null;
       }
-      controls.minDistance = surfaceRadius + floor;
+      minimumDistance = surfaceRadius + floor;
       controls.rotateSpeed = Math.min(0.65, Math.max(0.00002, 0.65 * (camera.position.length() - surfaceRadius)));
-      controls.enableDamping = !reduceMotion.matches;
-      controls.dampingFactor = 1 - Math.pow(1 - 0.052, frameMs / (1000 / 60));
+      controls.dynamicDampingFactor = reduceMotion.matches || flight || pose || droneRef.current
+        ? 1 : 1 - Math.pow(0.72, frameMs / (1000 / 60));
       controls.enabled = !droneRef.current;
-      controls.update();
+      updateOrbit();
       const targetTilt = detailRef.current ? pose?.tilt ?? ((tiltRef.current ? 0.58 : 0) + touchTilt.current) : 0;
       tiltAmount = reduceMotion.matches ? targetTilt : THREE.MathUtils.lerp(tiltAmount, targetTilt, 0.17);
       const clearance = camera.position.length() - surfaceRadius;
       renderCamera.position.copy(camera.position);
       renderCamera.quaternion.copy(camera.quaternion);
+      renderCamera.up.copy(camera.up);
       if (Math.abs(tiltAmount) > 0.001) {
         cameraUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
         target.copy(camera.position).setLength(surfaceRadius);
@@ -618,28 +639,25 @@ export function Globe3D(props: Globe3DProps) {
         renderCamera.up.copy(up);
         renderCamera.lookAt(north.multiplyScalar(Math.cos(a)).addScaledVector(east, Math.sin(a))
           .addScaledVector(up, -Math.tan(droneLook.current)).add(renderCamera.position));
-      } else renderCamera.up.set(0, 1, 0);
+      }
       renderCamera.updateMatrixWorld();
       if (pose && smoothPoint) earthAstronaut.current?.update(pose, smoothPoint, frameMs / 1000, renderCamera, heightPx(), surfaceRef.current);
       for (const patch of relief.children) {
         const normal = patch.userData.surfaceNormal as THREE.Vector3;
         patch.visible = normal.dot(renderCamera.position) > .99;
       }
-      if (compass.current) {
-        const lat = THREE.MathUtils.degToRad(center.lat), lon = THREE.MathUtils.degToRad(center.lon);
-        north.set(-Math.sin(lat) * Math.cos(lon), Math.cos(lat), Math.sin(lat) * Math.sin(lon))
-          .applyQuaternion(inverseCamera.copy(renderCamera.quaternion).invert());
-        compass.current.setAttribute("transform", `rotate(${flying ? -flying.heading : Math.atan2(north.x, north.y) * 180 / Math.PI} 36 36)`);
-      }
+      localNorth(north).applyQuaternion(inverseCamera.copy(renderCamera.quaternion).invert());
+      const heading = flying ? -flying.heading : THREE.MathUtils.radToDeg(Math.atan2(north.x, north.y));
+      compass.current?.setAttribute("transform", `rotate(${heading} 36 36)`);
       const solar = sunRef.current;
       const targetLight = solar ? 0 : 1;
       atlasMix = reduceMotion.matches ? targetLight : THREE.MathUtils.lerp(atlasMix, targetLight, 1 - Math.exp(-frameMs / 180));
-      viewLight.copy(camera.position).normalize().addScaledVector(camera.up, .45);
+      viewLight.copy(camera.position).normalize().addScaledVector(worldNorth, .45);
       viewLight.x -= .35;
       if (solar) sunPosition.copy(vec(solar.lat, solar.lon));
       else sunPosition.copy(viewLight).normalize();
       sun.position.copy(sunPosition).multiplyScalar(6);
-      nightFill.position.copy(sunPosition).multiplyScalar(-5).addScaledVector(camera.up, -.5);
+      nightFill.position.copy(sunPosition).multiplyScalar(-5).addScaledVector(worldNorth, -.5);
       const atlas = naturalColorRef.current ? atlasMix : 0;
       ambient.intensity = THREE.MathUtils.lerp(1.45, 2.65, atlas);
       ambient.color.lerpColors(solarSky, atlasSky, atlas);
@@ -662,20 +680,26 @@ export function Globe3D(props: Globe3DProps) {
       atmosphere.sunDirection.value.copy(sunPosition);
       atmosphere.atlasLighting.value = atlasMix;
       const near = Math.max(0.0000002, (flying ? flying.height / (MARS_RADIUS_KM * 1000) : clearance) * 0.1);
-      if (Math.abs(renderCamera.near / near - 1) > 0.01) { renderCamera.near = near; renderCamera.updateProjectionMatrix(); }
+      const fov = flying ? droneZoom.current : FOV;
+      if (Math.abs(renderCamera.near / near - 1) > 0.01 || renderCamera.fov !== fov) {
+        renderCamera.near = near;
+        renderCamera.fov = fov;
+        renderCamera.updateProjectionMatrix();
+      }
       updateMarkers(now);
       renderer.render(scene, renderCamera);
       if (now - lastReport > 100 && !flight) {
         lastReport = now;
-        if (flying || report() || Math.abs(clusterTilt - tiltAmount) > .02) {
+        if (flying || report() || Math.abs(clusterTilt - tiltAmount) > .02 || Math.abs(lonDelta(clusterHeading, heading)) > 1) {
           recluster();
           clusterTilt = tiltAmount;
+          clusterHeading = heading;
         }
       }
     };
     const zoomBy = (factor: number) => {
       if (droneRef.current) {
-        changeFlightHeightRef.current(droneRef.current.height * factor);
+        droneZoom.current = THREE.MathUtils.clamp(droneZoom.current * factor, 15, 70);
         return;
       }
       flight = null;
@@ -706,6 +730,7 @@ export function Globe3D(props: Globe3DProps) {
     const onTouchMove = (event: PointerEvent) => {
       const current = droneRef.current;
       if (current && drag?.id === event.pointerId) {
+        setOverhead(false);
         const heading = (current.heading - (event.clientX - drag.x) * 0.26 + 360) % 360;
         droneLook.current = THREE.MathUtils.clamp(droneLook.current + (event.clientY - drag.y) * 0.006, -0.2, 1.4);
         drag.x = event.clientX;
@@ -744,6 +769,7 @@ export function Globe3D(props: Globe3DProps) {
     const resize = () => {
       const width = element.clientWidth, height = element.clientHeight;
       renderer.setSize(width, height, false);
+      controls.handleResize();
       renderCamera.aspect = width / Math.max(1, height);
       renderCamera.updateProjectionMatrix();
       recluster();
@@ -753,7 +779,7 @@ export function Globe3D(props: Globe3DProps) {
     resize();
     fly(view, false);
     frame = requestAnimationFrame(loop);
-    s.current = { renderer, camera, renderCamera, controls, scene, overlayGroup, markerGroup, routeGroup, globe, relief, baseTexture: texture, tileTexture, tileBounds, anchors, fly, zoomBy, recluster };
+    s.current = { renderer, camera, renderCamera, scene, overlayGroup, markerGroup, routeGroup, globe, relief, baseTexture: texture, tileTexture, tileBounds, anchors, fly, zoomBy, recluster, resetNorth };
     setReady(true);
 
     // Keyboard: arrows rotate, +/- zoom.
@@ -766,7 +792,7 @@ export function Globe3D(props: Globe3DProps) {
       }
       const { lat, lon } = unitToLatLon([camera.position.x, camera.position.y, camera.position.z]);
       const d = camera.position.length();
-      const step = Math.max(0.0003, (d - controls.minDistance) * 12);
+      const step = Math.max(0.0003, (d - minimumDistance) * 12);
       const next: Record<string, [number, number, number]> = {
         ArrowLeft: [lat, lon - step, d], ArrowRight: [lat, lon + step, d],
         ArrowUp: [Math.min(85, lat + step), lon, d], ArrowDown: [Math.max(-85, lat - step), lon, d],
@@ -774,8 +800,8 @@ export function Globe3D(props: Globe3DProps) {
       const n = next[event.key];
       if (!n) return;
       event.preventDefault();
-      camera.position.copy(vec(n[0], n[1]).multiplyScalar(Math.max(controls.minDistance, n[2])));
-      controls.update();
+      camera.position.copy(vec(n[0], n[1]).multiplyScalar(Math.max(minimumDistance, n[2])));
+      updateOrbit();
       recluster();
       report();
     };
@@ -871,7 +897,12 @@ export function Globe3D(props: Globe3DProps) {
       if (!active) { value.geometry.dispose(); value.texture.dispose(); return; }
       asset = value;
       setDetail({ region: requestDetail, asset: value });
-    }, () => { if (active && props.tour?.site.id === requestDetail) setNotice("The flyover terrain could not load."); });
+    }, (error: unknown) => {
+      if (active && props.tour?.site.id === requestDetail) {
+        if (import.meta.env.DEV) console.warn("The flyover terrain could not load.", error);
+        setNotice("The flyover terrain could not load.");
+      }
+    });
     return () => {
       active = false;
       asset?.geometry.dispose();
@@ -1153,7 +1184,7 @@ export function Globe3D(props: Globe3DProps) {
           if (hit) onPick(unitToLatLon([hit.x, hit.y, hit.z]));
         } else props.onRouteClick?.(hitsRoute(ray, event.pointerType === "touch" ? 48 : 14) ? point : null);
       }}
-      aria-label={drone ? "Drone View. Drag to look. Scroll or pinch to change altitude." : "Rotatable 3D globe of Mars. Drag to rotate, scroll or pinch to zoom, arrow keys rotate and plus or minus zoom."}>
+      aria-label={drone ? "Drone View. Drag to look. Scroll or pinch to zoom." : "Rotatable 3D globe of Mars. Drag to rotate, scroll or pinch to zoom, arrow keys rotate and plus or minus zoom."}>
       <div ref={hitLayer} className="map3d__pins">
         {clusters.map((cluster) => (
           <div key={cluster.id} data-id={cluster.id}
@@ -1195,7 +1226,8 @@ export function Globe3D(props: Globe3DProps) {
         </button>)}
       </div>}
       <MapControls switchView={props.switchView} zoomIn={() => s.current?.zoomBy(1 / 1.6)} zoomOut={() => s.current?.zoomBy(1.6)}
-        needle={compass} flying={!!drone} extras={<>{props.mapActions}
+        needle={compass} flying={!!drone}
+        extras={<>{props.mapActions}
           {activeDetail && !hasEarthWalk && <button type="button" aria-label={tilted ? "Top view" : "Tilt terrain"}
             title={tilted ? "Top view" : "Tilt terrain"} aria-pressed={tilted}
             onClick={() => { touchTilt.current = 0; setTilted(!tilted); }}>
@@ -1203,22 +1235,48 @@ export function Globe3D(props: Globe3DProps) {
           </button>}</>} resetNorth={() => {
         const state = droneRef.current;
         if (state) setFlightPosition({ ...state, heading: 0 });
-        else { setTilted(false); touchTilt.current = 0; s.current?.fly(view, true); }
+        else s.current?.resetNorth();
       }} />
       <div className={`flight-tools${drone ? " flight-tools--flying" : ""}`}>
-        {drone && <button type="button" className="btn btn--small" onClick={() => {
+        {drone && <button type="button" className="btn btn--small" aria-label="Exit Drone View" title="Exit Drone View" onClick={() => {
           closeFlight(); setNotice(""); props.onFlightExit();
-        }}><span aria-hidden="true">↩</span> Exit Drone View</button>}
+        }}><FlightIcon path="M10 4H5v16h5m-1-8h11m-4-4 4 4-4 4" />Exit</button>}
         {drone && <>
-          {flyingTour && <button type="button" className="btn btn--small" aria-expanded={tourOpen} onClick={() => setTourOpen(!tourOpen)}>
-            Terrain & route
+          {flyingTour && <button type="button" className="btn btn--small" aria-label="Terrain and route" aria-expanded={tourOpen}
+            onClick={() => { setTourOpen(!tourOpen); setGeologyOpen(false); }}>
+            <FlightIcon path="m3 18 6-9 4 5 3-4 5 8H3Z" />Terrain
           </button>}
-          {flyingTour && <button type="button" className="btn btn--small" aria-pressed={geologyOn} onClick={() => {
-            setGeologyOn(!geologyOn); setGeologyUnit(null);
-          }}>Geology</button>}
+          {flyingTour && <button type="button" className="btn btn--small" aria-expanded={geologyOpen}
+            aria-controls="drone-geology" onClick={() => { setGeologyOpen(!geologyOpen); setTourOpen(false); }}>
+            <FlightIcon path="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" />Geology
+          </button>}
+          <button type="button" className="btn btn--small" aria-pressed={overhead} title="Toggle overhead view" onClick={() => {
+            droneLook.current = overhead ? .55 : 1.4;
+            setOverhead(!overhead);
+          }}><FlightIcon path="M3 8V4h4m10 0h4v4m0 8v4h-4m-10 0H3v-4m5-4h8m-4-4v8" />View</button>
+          <button type="button" className="btn btn--small" aria-label="Zoom in" title="Zoom in" onClick={() => s.current?.zoomBy(1 / 1.3)}>
+            <FlightIcon path="M6 12h12m-6-6v12" />
+          </button>
+          <button type="button" className="btn btn--small" aria-label="Zoom out" title="Zoom out" onClick={() => s.current?.zoomBy(1.3)}>
+            <FlightIcon path="M6 12h12" />
+          </button>
         </>}
         {notice && <span className="badge" role="status">{notice}</span>}
       </div>
+      {drone && <p className="drone-landscape-hint">Turn your phone sideways for more flying room.</p>}
+      {flyingTour && geologyOpen && <aside id="drone-geology" className="flight-story" aria-label="Geology legend">
+        <header><h3>Geology</h3><button type="button" className="btn btn--small" aria-label="Close geology" onClick={() => setGeologyOpen(false)}>×</button></header>
+        <p>Colors show mapped rock and surface units. Select a unit to see what it represents.</p>
+        <label><input type="checkbox" checked={geologyOn} onChange={(event) => {
+          setGeologyOn(event.target.checked); setGeologyUnit(null);
+        }} /> Show geology on the terrain</label>
+        <div className="flight-legend">
+          {flyingTour.geology.labels.map((unit, index) => <button type="button" key={unit.title} onClick={() => {
+            setGeologyUnit(index); setTourStop(null); setGeologyOpen(false); setTourOpen(true);
+          }}><span style={{ background: unit.color }} />{unit.title}</button>)}
+          <a href={flyingTour.geology.reference} target="_blank" rel="noreferrer">{flyingTour.geology.credit}</a>
+        </div>
+      </aside>}
       {flyingTour && tourOpen && <aside className="flight-story" aria-label="Flyover guide">
         <header><h3>{selectedStop?.title ?? activeUnit?.title ?? flyingTour.title}</h3>
           <button type="button" className="btn btn--small" aria-label="Close flyover guide" onClick={() => setTourOpen(false)}>×</button>
@@ -1259,11 +1317,7 @@ export function Globe3D(props: Globe3DProps) {
               {flyingTour.reference && <a href={flyingTour.reference} target="_blank" rel="noreferrer">NASA’s 2019 proposed flyover</a>}
             </div>
           </>}
-        {!selectedStop && <div className="flight-legend">
-          {geologyOn && !activeUnit && flyingTour.geology.labels.map((unit, index) => <button type="button" key={unit.title}
-            onClick={() => setGeologyUnit(index)}><span style={{ background: unit.color }} />{unit.title}</button>)}
-          <a href={flyingTour.geology.reference} target="_blank" rel="noreferrer">{flyingTour.geology.credit}</a>
-        </div>}
+        {activeUnit && <p className="small"><a href={flyingTour.geology.reference} target="_blank" rel="noreferrer">{flyingTour.geology.credit}</a></p>}
       </aside>}
       {drone && flightWalk.session && <div className="flight-walk-status">
         <span>{flightWalk.cue ?? (flightWalk.arrived ? "Arrived" : "Walking to the next stop")}</span>
@@ -1278,7 +1332,11 @@ export function Globe3D(props: Globe3DProps) {
       {!drone && <div className="map-hud map-hud--scale">{zoomDetail && activeDetail === zoomDetail
         ? `${zoomDetail.label} · ~${zoomDetail.spacing} m relief`
         : activeDetail ? (closeRegion === "wildcat" ? "HiRISE · Wildcat Ridge" : "Gale relief · 20 m elevation") : "Global MOLA relief"}
-        {detailImagery && tileKey && !activeDetail ? " · Trek imagery" : ""} · {formatLatLon(view, 2)}</div>}
+        {detailImagery && tileKey && !activeDetail ? " · Trek imagery" : ""}</div>}
     </div>
   );
+}
+
+function FlightIcon({ path }: { path: string }) {
+  return <svg className="flight-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={path} /></svg>;
 }

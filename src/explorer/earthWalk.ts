@@ -166,6 +166,21 @@ export function orderedStopDistances(track: WalkTrack, stops: readonly LatLon[])
 const landmarkTypes = new Set(["landing", "rover-stop", "science-observation", "sample", "sample-depot", "hardware"]);
 const compassPoints = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
 
+export function routeInstruction(track: WalkTrack, position: LatLon, metres: number, legEnd: number, stop: string,
+  rejoin?: { point: LatLon; distance: number }) {
+  const end = Math.min(legEnd, track.at(-1)!.metres);
+  const step = nextManeuver(track, metres, end);
+  const target = rejoin?.point ?? sampleWalk(track, Math.min(end, metres + 14)).point;
+  const bearing = bearingDeg(position, target);
+  const direction = compassPoints[Math.round(bearing / 45) % 8];
+  const span = rejoin?.distance ?? step.metres;
+  const distance = span >= 1000 ? `${(span / 1000).toFixed(1)} kilometres` : `${Math.max(1, Math.round(span))} metres`;
+  if (rejoin) return { key: `rejoin:${direction}:${Math.floor(span / 20)}`, text: `Off route. Head ${direction} for about ${distance} to rejoin the route.`, bearing, metres: span };
+  if (step.kind === "stop") return { key: `straight:${stop}:${direction}`, text: `Head ${direction} for about ${distance} toward ${stop}.`, bearing, metres: span };
+  const turn = step.metres <= 7 ? `Turn ${step.kind} now.` : `Head ${direction} for about ${distance}, then turn ${step.kind}.`;
+  return { key: `turn:${Math.round((metres + step.metres) / 10)}:${step.kind}:${step.metres <= 7}`, text: turn, bearing, metres: span, fallback: step.kind };
+}
+
 /** Find a sourced, observed landmark near the crew and near the next part of the active leg. */
 export function nearbyLandmark(events: readonly CatalogEvent[], point: LatLon, track: WalkTrack,
   metres: number, legEnd: number, seen: ReadonlySet<string>, positionUncertainty = 0) {
