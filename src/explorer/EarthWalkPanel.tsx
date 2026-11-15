@@ -6,6 +6,7 @@ import { formatLatLon } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import { NavigationIcon, RoverIcon } from "./icons.tsx";
 import { marsAt } from "./marsTime.ts";
+import { preloadRoverModel } from "./roverAsset.ts";
 import type { useEarthWalk } from "./useEarthWalk.ts";
 
 type Walk = ReturnType<typeof useEarthWalk>;
@@ -54,8 +55,10 @@ export function EarthWalkSetup({ walk, open, close, started, comparison, pathSel
   const [scale, setScale] = useState(1);
   const [notices, setNotices] = useState(noticePreference);
   useEffect(() => {
-    if (open && !dialog.current?.open) dialog.current?.showModal();
-    if (!open && dialog.current?.open) dialog.current.close();
+    if (open) {
+      if (!dialog.current?.open) dialog.current?.showModal();
+      void preloadRoverModel().catch(() => { /* Rover navigation can retry the fetch. */ });
+    } else if (dialog.current?.open) dialog.current.close();
   }, [open]);
   const launch = async (mode: WalkMode, rover?: boolean) => {
     if (await walk.start({ mode, tilt: tilt && mode === "Outdoor", scale, deviceNotices: notices, rover })) started();

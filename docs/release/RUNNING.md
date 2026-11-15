@@ -94,8 +94,9 @@ For a short indoor test, use **Recorded preview** to verify the camera, route, a
 Demo waits for a reliable fix and is best tested outdoors in an open area.
 
 The [Perseverance model](https://science.nasa.gov/resource/mars-perseverance-rover-3d-model/) is
-credited to NASA/JPL-Caltech. The app loads it when rover playback starts and includes it in the
-offline app download. Rover estimates use user-entered speeds and limits and the selected route's
+credited to NASA/JPL-Caltech. The app starts fetching it when the Start route dialog opens and reuses
+the download for 3D rover navigation. It is included in the offline app download. The flat map and the
+3D loading fallback use a rover marker. Rover estimates use user-entered speeds and limits and the selected route's
 measured slope. A suggestion requires a complete detailed round trip, a walking time over budget,
 and a rover time within budget and reserve. The visual model represents Perseverance.
 
