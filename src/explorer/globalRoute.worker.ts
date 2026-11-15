@@ -15,6 +15,7 @@ import type { ScienceCandidate } from "./destinationScience.ts";
 export interface LegRequest {
   id: number; start: LatLon; end: LatLon; slope: number; url: string;
   width: number; height: number; base: string; blocked: LatLon | null;
+  shortestOnly?: boolean;
 }
 export type LegResponse = { id: number; result: DirectionalRoute };
 export type ScienceRequest = LegRequest & { kind: "science"; candidates: ScienceCandidate[] };
@@ -39,14 +40,14 @@ const unproject = (point: ReturnType<typeof project>) => {
 };
 
 export async function localRoute(source: TerrainGrid, start: LatLon, end: LatLon, slope: number, terrainInfo: LegTerrain,
-  blocked: LatLon | null): Promise<DirectionalRoute> {
+  blocked: LatLon | null, shortestOnly = false): Promise<DirectionalRoute> {
   const { planDirectionalLeg, nearestConnectedPoint } = await import("../analysis/routing.ts");
   const cell = blocked && cellAt(source.layout, project(blocked));
   const terrain = cell ? { ...source, elevationsM: source.elevationsM.slice() } : source;
   if (cell) terrain.elevationsM[cell.row * terrain.layout.width + cell.column] = NaN;
   const plan = (from: LatLon, to: LatLon) => planDirectionalLeg({
     terrain, habitat: project(from), destination: project(to), maxAbsSlopeDeg: slope, slopePenaltyWeight: LOWER_TERRAIN_WEIGHT,
-  }, { balancedWeight: BALANCED_WEIGHT, spacingM: terrainInfo.spacingM });
+  }, { balancedWeight: BALANCED_WEIGHT, spacingM: terrainInfo.spacingM, shortestOnly });
   const leg = (route: RouteLeg, from: LatLon, to: LatLon, roughness?: Float32Array) => {
     const points = route.geometry.map(unproject);
     points[0] = from;
@@ -97,12 +98,12 @@ function loadGrid(url: string, width: number, height: number) {
   return request;
 }
 
-export async function calculate({ start, end, slope, url, width, height, base, blocked }: LegRequest): Promise<DirectionalRoute> {
+export async function calculate({ start, end, slope, url, width, height, base, blocked, shortestOnly = false }: LegRequest): Promise<DirectionalRoute> {
   if (insideMarswalkCoverage(start) && insideMarswalkCoverage(end)) {
     const terrain = await (jezero ??= loadJezeroTerrain().catch((error) => { jezero = undefined; throw error; }));
     return localRoute(terrain, start, end, slope,
       { label: "Wildcat Ridge HiRISE", spacingM: terrain.layout.pixelSizeM, regional: false,
-        source: "https://doi.org/10.5066/P9REJ9JN" }, blocked);
+        source: "https://doi.org/10.5066/P9REJ9JN" }, blocked, shortestOnly);
   }
   if (nearGale(start) && nearGale(end)) {
     const { elevations } = await loadGrid(new URL(galeElevationFile, base).href, galeLayout.width, galeLayout.height);
@@ -111,7 +112,7 @@ export async function calculate({ start, end, slope, url, width, height, base, b
         sources: [{ title: "USGS Gale elevation model", url: "https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m" }],
         limitations: ["20 m bilinear sample of a mixed-resolution terrain mosaic via NASA Mars Trek."] } };
     return localRoute(terrain, start, end, slope, { label: "Gale Crater terrain", spacingM: galeLayout.pixelSizeM, regional: false,
-      source: terrain.provenance.sources[0].url }, blocked);
+      source: terrain.provenance.sources[0].url }, blocked, shortestOnly);
   }
 
   // Bound each request to a small crop. Preserve offline planet-scale routing and
@@ -119,7 +120,7 @@ export async function calculate({ start, end, slope, url, width, height, base, b
   if (Math.max(Math.abs(start.lat - end.lat), Math.abs(start.lon - end.lon)) <= 0.67) {
     const { loadTrekRouting } = await import("./trekRouting.ts");
     const local = await loadTrekRouting([start, end], AbortSignal.timeout(4500));
-    if (local) return localRoute(local.terrain, start, end, slope, local.terrainInfo, blocked);
+    if (local) return localRoute(local.terrain, start, end, slope, local.terrainInfo, blocked, shortestOnly);
   }
   const grid = await loadGrid(url, width, height);
   return routeGlobalLeg(grid, start, end, slope, blocked ?? undefined);
@@ -129,7 +130,7 @@ if (typeof self !== "undefined") self.onmessage = async ({ data }: MessageEvent<
   if ("kind" in data && data.kind === "science") {
     try {
       const result = await nearestReachable(data.candidates, async ({ event }) => {
-        const route = await calculate({ ...data, end: event.location! });
+        const route = await calculate({ ...data, end: event.location!, shortestOnly: true });
         if (route.status === "ok") return route.terrain.regional ? { status: "unavailable" as const }
           : { status: "ok" as const, distanceKm: route.shortest.distanceKm };
         return { status: route.status };

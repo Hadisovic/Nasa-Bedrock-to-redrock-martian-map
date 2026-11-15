@@ -29,9 +29,28 @@ test("terrain slows movement consistently without changing route geometry or acc
   assert.ok(Math.abs(track.at(-1)!.seconds - rising.assessment!.equivalentDistanceKm * 1000 / .7) < 1e-8);
   assert.ok(track.at(-1)!.seconds > buildTravelTrack([flat], .7, 15).at(-1)!.seconds);
   assert.deepEqual(track.map(({ point }) => point), rising.points);
-  assert.deepEqual([cyclePlaybackRate(1), cyclePlaybackRate(2), cyclePlaybackRate(3), cyclePlaybackRate(4)], [2, 3, 4, 1]);
+  assert.deepEqual([cyclePlaybackRate(1), cyclePlaybackRate(60), cyclePlaybackRate(180), cyclePlaybackRate(600)], [60, 180, 600, 1]);
   assert.match(terrainAhead(track, 0)!.label, /Uphill/);
   assert.equal(terrainAhead(buildTravelTrack([flat], .7, 15), 0), null);
+});
+
+test("fast-forward advances mission time and distance together without changing the modeled arrival", () => {
+  const track = buildTravelTrack([flat], .042, 15);
+  const duration = track.at(-1)!.seconds;
+  const departure = Date.UTC(2026, 10, 15, 10);
+  let metres = 0, missionSeconds = 0;
+  for (const rate of [1, 60, 180, 600] as const) {
+    const step = advanceTravel(track, metres, 1, rate);
+    missionSeconds += step.advancedSeconds;
+    metres = step.metres;
+    const remaining = duration - step.seconds;
+    assert.ok(Math.abs(departure + missionSeconds * 1000 + remaining * 1000 - (departure + duration * 1000)) < .01);
+  }
+  assert.ok(metres > advanceTravel(track, 0, 4, 1).metres * 100);
+  const arrival = advanceTravel(track, metres, duration, 600);
+  assert.ok(Math.abs(missionSeconds + arrival.advancedSeconds - duration) < 1e-8, "clock stops at arrival instead of overshooting");
+  assert.equal(arrival.metres, track.at(-1)!.metres);
+  assert.equal(advanceTravel(track, metres, 0, 600).advancedSeconds, 0, "paused preview advances neither clock nor traveler");
 });
 
 test("new automatic profiles and old saved plans remain readable without preserving unrealistic rover timing", () => {

@@ -3,9 +3,10 @@ import { greatCircleKm } from "./geo.ts";
 import type { LatLon } from "./geo.ts";
 import type { GlobalRouteLeg } from "./globalRouting.ts";
 
-export type PlaybackRate = 1 | 2 | 3 | 4;
+export type PlaybackRate = 1 | 2 | 3 | 4 | 60 | 180 | 600;
 export type TravelPoint = { point: LatLon; elevation: number | null; metres: number; seconds: number };
-export const cyclePlaybackRate = (rate: PlaybackRate): PlaybackRate => rate === 4 ? 1 : (rate + 1) as PlaybackRate;
+const playbackRates = [1, 60, 180, 600] as const;
+export const cyclePlaybackRate = (rate: PlaybackRate): PlaybackRate => playbackRates[(playbackRates.indexOf(rate as typeof playbackRates[number]) + 1) % playbackRates.length];
 
 /** The same terrain-equivalent time drives both the estimate and the moving traveler.
  * This is a scenario allowance, not an empirically calibrated suit/vehicle model. */
@@ -48,8 +49,9 @@ function interpolate(track: readonly TravelPoint[], value: number, field: "metre
 }
 export const elapsedTravelSeconds = (track: readonly TravelPoint[], metres: number) => interpolate(track, metres, "metres", "seconds");
 export function advanceTravel(track: readonly TravelPoint[], metres: number, elapsedSeconds: number, rate: PlaybackRate) {
-  const seconds = Math.min(track.at(-1)?.seconds ?? 0, elapsedTravelSeconds(track, metres) + Math.max(0, elapsedSeconds) * rate);
-  return { metres: interpolate(track, seconds, "seconds", "metres"), seconds };
+  const before = elapsedTravelSeconds(track, metres);
+  const seconds = Math.min(track.at(-1)?.seconds ?? 0, before + Math.max(0, elapsedSeconds) * rate);
+  return { metres: interpolate(track, seconds, "seconds", "metres"), seconds, advancedSeconds: Math.max(0, seconds - before) };
 }
 
 export function terrainAhead(track: readonly { point: LatLon; elevation: number | null; metres: number }[], metres: number) {

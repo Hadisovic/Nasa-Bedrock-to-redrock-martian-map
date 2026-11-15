@@ -31,13 +31,14 @@ import type { DroneSite } from "./droneCoverage.ts";
 import { ExplorerHelp } from "./ExplorerHelp.tsx";
 import { useEarthWalk } from "./useEarthWalk.ts";
 import { EarthWalkControls, EarthWalkSetup } from "./EarthWalkPanel.tsx";
-import { GoToLocation } from "./icons.tsx";
+import { FlightIcon, GoToLocation } from "./icons.tsx";
 import { RouteInfo } from "./RouteInfo.tsx";
 import "../styles/navigation.css";
 import { DestinationScienceCard } from "./DestinationScienceCard.tsx";
 import { useDestinationScience } from "./useDestinationScience.ts";
 
-const Globe3D = lazy(() => import("./Globe3D.tsx").then((m) => ({ default: m.Globe3D })));
+const loadGlobe3D = () => import("./Globe3D.tsx");
+const Globe3D = lazy(() => loadGlobe3D().then((m) => ({ default: m.Globe3D })));
 
 type Tab = "catalog" | "card" | "layers" | "marswalk" | "drone";
 const panelTitles: Record<Tab, string> = {
@@ -101,7 +102,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [view, setView] = useState<GlobeView>(planetView);
   const [flySignal, setFlySignal] = useState(0);
   const flyTarget = useRef<GlobeView | null>(null);
-  const flyTo = useCallback((target: GlobeView) => {
+  const idleOrbit = useRef(initial.mode === "3d" && !initial.plan && !initial.site);
+  const stopIdleOrbit = () => { idleOrbit.current = false; };
+  const flyTo = useCallback((target: GlobeView, orbit = false) => {
+    idleOrbit.current = orbit;
     flyTarget.current = target;
     setView(target);
     setFlySignal((n) => n + 1);
@@ -156,7 +160,8 @@ export function Explorer({ onHome }: { onHome: () => void }) {
     const timer = window.setInterval(() => setUtc(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, []);
-  const subsolar = useMemo(() => solar ? marsSun(utc).subsolar : null, [solar, utc]);
+  // Fetch the 3D code alongside imagery instead of starting another download waterfall after it.
+  useEffect(() => { if (mode === "3d") void loadGlobe3D().catch(() => {}); }, [mode]);
   const [selectedId, setSelectedId] = useState<string | null>(initial.site);
   const [cardId, setCardId] = useState<string | null>(null);
   const [filter, setFilter] = useState<CatalogFilter>(EMPTY_FILTER);
@@ -250,13 +255,15 @@ export function Explorer({ onHome }: { onHome: () => void }) {
   const [earthWalkSetupOpen, setEarthWalkSetupOpen] = useState(false);
   const earthWalk = useEarthWalk(start, stops, returning, legs, grid, activeSlope, blocked, choice,
     mission.rover ? mission.roverSpeed : mission.speed, data?.environment ?? [], events, mission.rover, null);
+  const clockUtc = earthWalk.simulationUtc ?? utc;
+  const subsolar = useMemo(() => solar ? marsSun(clockUtc).subsolar : null, [solar, clockUtc]);
   const visibleLegs = earthWalk.planned ?? legs;
   const selectedChoice = effectiveChoice(visibleLegs, choice);
   const routeSummary = summarizeItinerary(visibleLegs, stops, mission, selectedChoice, earthWalk.progress);
   const resolvedLegs = useMemo(() => visibleLegs.flatMap((leg) => selectedLeg(leg.result, selectedChoice) ?? []), [visibleLegs, selectedChoice]);
   const paths = useMemo<MapLeg[]>(() => mapLegsForChoices(visibleLegs, selectedChoice), [visibleLegs, selectedChoice]);
   const scienceDestination = stops.at(-1)?.point ?? null;
-  const destinationScience = useDestinationScience(scienceDestination, events, grid, activeSlope, blocked);
+  const destinationScience = useDestinationScience(scienceDestination, events, grid, activeSlope, blocked, !legs.some(({ result }) => !result));
   const changeTravelMode = (rover: boolean) => {
     if (mission.rover === rover) return;
     earthWalk.stop(); setPick(null); setRouteInfoOpen(false);
@@ -597,7 +604,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
         ? <path d="M20 15A8.5 8.5 0 0 1 9 4a8.5 8.5 0 1 0 11 11Z" />
         : <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2" /></>}</svg>
     </button>}
-    <button type="button" aria-label="Reset view" title="Reset view" onClick={() => { setRouteMenu(null); flyTo(planetView); }}>
+    <button type="button" aria-label="Reset view" title="Reset view" onClick={() => { setRouteMenu(null); flyTo(planetView, threeD); }}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2 6M4 5v6h6" /></svg>
     </button>
   </>;
@@ -610,9 +617,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
       setPanelOpen(false); setRouteInfoOpen(false); setPick(null); setRouteMenu(null); setRouteToolsOpen(false);
     }
   };
-  const clock = marsAt(utc, view);
+  const clock = marsAt(clockUtc, view);
   return (
-    <div className="app explorer" onKeyDown={(event) => {
+    <div className="app explorer" onPointerDownCapture={stopIdleOrbit} onWheelCapture={stopIdleOrbit}
+      onKeyDownCapture={stopIdleOrbit} onClickCapture={stopIdleOrbit} onKeyDown={(event) => {
       if (event.key === "Escape") {
         if (routeToolsOpen) { event.preventDefault(); closeRouteTools(); }
         else if (routeMenu) { event.preventDefault(); setRouteMenu(null); }
@@ -637,10 +645,10 @@ export function Explorer({ onHome }: { onHome: () => void }) {
         }} onRead={read} onRoute={planTo} routeLabel={pick === "start" ? "Set lander" : typeof pick === "number" ? "Replace stop"
           : pick === "position" ? "Set crew position" : pick === "block" ? "Mark blocked cell" : "Add stop"} />}
         <ExplorerHelp /></div>
-          <div className="mars-clock" aria-label="Live Mars time at the map center" title="Local true solar time at the map center">
+          <div className="mars-clock" aria-label={earthWalk.simulationUtc === null ? "Live Mars time at the map center" : "Simulated Mars mission time"} title={earthWalk.simulationUtc === null ? "Local true solar time at the map center" : `Simulation clock · ${earthWalk.playbackRate}×`}>
             <strong>{clock.time}</strong>
-            <span>Sol {clock.sol}</span>
-            <time dateTime={new Date(utc).toISOString()}>{new Date(utc).toISOString().slice(0, 10)} UTC</time>
+            <span>Sol {clock.sol}{earthWalk.simulationUtc !== null && " · SIM"}</span>
+            <time dateTime={new Date(clockUtc).toISOString()}>{new Date(clockUtc).toISOString().slice(0, 10)} UTC</time>
           </div>
       </header>
       <section className="explorer-toolbar" aria-label="Explorer toolbar">
@@ -684,7 +692,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
                 onFlightExit={() => exitDrone()}
                 sunPoint={subsolar} onPick={chooseOnMap} onRoute={planTo} elevationAt={elevationAt}
                 onRouteClick={paths.length ? tapRoute : undefined} onRouteHover={paths.length ? hoverRoute : undefined}
-                view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current}
+                view={view} onViewChange={setView} flySignal={flySignal} flyTarget={flyTarget.current} idleOrbit={idleOrbit}
                 tiles={tiles} naturalColor={natural}
                 onFlightStart={() => { setPanelOpen(false); setRouteMenu(null); setRouteToolsOpen(false); setPick(null); }}
                 onUnavailable={(detail) => {
@@ -788,7 +796,7 @@ export function Explorer({ onHome }: { onHome: () => void }) {
               <p className="small">Two interactive terrain samples with optional geology, inspired by NASA’s Curiosity flyover.</p>
               <div className="drone-simulation-options" role="group" aria-label="Drone simulations">
                 {droneSites.map((site) => <button key={site.id} type="button" className="btn"
-                  onClick={() => goToDrone(site, true)}>{site.label} · {site.spacingM} m</button>)}
+                  onClick={() => goToDrone(site, true)}><FlightIcon kind="drone" />{site.label} · {site.spacingM} m</button>)}
               </div>
             </section>}
             {tab === "catalog" && (data?.catalog

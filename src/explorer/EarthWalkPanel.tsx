@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import type { nextManeuver, WalkMode } from "./earthWalk.ts";
 import { formatLatLon } from "./geo.ts";
+import { noticePreference, notificationsSupported, saveNoticePreference } from "./deviceNotifications.ts";
 import type { useEarthWalk } from "./useEarthWalk.ts";
 
 type Walk = ReturnType<typeof useEarthWalk>;
-const modes: WalkMode[] = ["Outdoor", "Recorded Walk"];
 const modeLabel: Record<WalkMode, string> = {
   Outdoor: "Earth GPS Demo",
   "Indoor Steps": "Step-powered preview",
   "Recorded Walk": "Recorded preview",
 };
 
-function RouteMetrics({ metres, speed, paused = false, recorded = false, beforeStart = false, regional = false, movementSeconds, playbackRate = 1 }: {
-  metres: number; speed: number; movementSeconds?: number; playbackRate?: number; paused?: boolean; recorded?: boolean; beforeStart?: boolean; regional?: boolean;
+function RouteMetrics({ metres, speed, paused = false, recorded = false, beforeStart = false, regional = false, movementSeconds, playbackRate = 1, simulationUtc }: {
+  metres: number; speed: number; movementSeconds?: number; playbackRate?: number; simulationUtc?: number | null; paused?: boolean; recorded?: boolean; beforeStart?: boolean; regional?: boolean;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -28,10 +28,10 @@ function RouteMetrics({ metres, speed, paused = false, recorded = false, beforeS
   const distance = metres >= 1000 ? `${(metres / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km` : `${Math.round(metres)} m`;
   return <dl className="route-metrics">
     {!regional && <>
-    <div><dt>ETA</dt><dd>{paused || seconds === null ? "—" : new Date(now + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</dd></div>
+    <div><dt>ETA{recorded ? " · mission" : ""}</dt><dd>{seconds === null ? "—" : new Date((simulationUtc ?? now) + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</dd></div>
     <div><dt>{beforeStart ? "Travel time" : "Travel left"}</dt><dd>{duration}</dd></div>
     </>}
-    {!regional && recorded && playbackRate > 1 && seconds !== null && <div><dt>Playback left · {playbackRate}×</dt><dd>{Math.ceil(seconds / playbackRate / 60)} min</dd></div>}
+    {!regional && recorded && playbackRate > 1 && seconds !== null && <div><dt>Preview left · {playbackRate}×</dt><dd>{seconds / playbackRate < 60 ? `${Math.ceil(seconds / playbackRate)} sec` : `${Math.ceil(seconds / playbackRate / 60)} min`}</dd></div>}
     <div><dt>{beforeStart ? "Distance" : "Distance left"}</dt><dd>{distance}</dd></div>
   </dl>;
 }
@@ -40,39 +40,51 @@ export function EarthWalkSetup({ walk, open, close, started }: {
   walk: Walk; open: boolean; close: () => void; started: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [mode, setMode] = useState<WalkMode | null>(null);
   const gpsAllowed = walk.liveEligible && walk.gpsAvailable && isSecureContext;
-  const selectedMode = mode === "Outdoor" && !gpsAllowed ? "Recorded Walk" : mode ?? (gpsAllowed ? "Outdoor" : "Recorded Walk");
-  const [tilt, setTilt] = useState(false);
+  const [tilt, setTilt] = useState(true);
   const [scale, setScale] = useState(1);
+  const [notify, setNotify] = useState(noticePreference);
+  const deviceNotices = notificationsSupported();
   useEffect(() => {
     if (open && !dialog.current?.open) dialog.current?.showModal();
     if (!open && dialog.current?.open) dialog.current.close();
   }, [open]);
+  const launch = async (mode: WalkMode) => {
+    if (await walk.start(mode, .7, tilt && mode === "Outdoor", scale, deviceNotices && notify)) started();
+  };
+  const disabled = !walk.eligible || walk.starting || !!walk.session;
   return <dialog ref={dialog} className="project-dialog earth-walk-setup" aria-labelledby="earth-walk-title"
     onCancel={(event) => { if (walk.starting) event.preventDefault(); }} onClose={close}>
     <header><h2 id="earth-walk-title">Start route</h2>
       <button type="button" className="btn btn--small" aria-label="Close route setup" disabled={walk.starting} onClick={close}>×</button></header>
-    <label>Mode <select value={selectedMode} disabled={walk.starting || !!walk.session}
-      onChange={(event) => setMode(event.target.value as WalkMode)}>
-      {modes.filter((value) => value !== "Outdoor" || gpsAllowed).map((value) =>
-        <option key={value} value={value}>{modeLabel[value]}</option>)}
-    </select></label>
-    <p className="small">{selectedMode === "Outdoor" ? "Allow precise location and use a large open area. Your first fix anchors the lander."
-      : walk.rover ? "NASA rover simulation at its modeled pace. Speed up playback after starting."
-      : "Astronaut simulation at its modeled pace. Speed up playback after starting."}</p>
-    {selectedMode === "Outdoor" && <>
-      <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
-        <option value={1}>1× · 1 m becomes 1 m</option><option value={10}>10× · 1 m becomes 10 m</option>
-        <option value={100}>100× · 10 m becomes 1 km</option>
-      </select></label>
-      {scale > 1 && <p className="small">The demo also scales GPS uncertainty. Use 1× for short routes on detailed terrain.</p>}
-      <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
-    </>}
-    <button type="button" className="btn btn--primary" disabled={!walk.eligible || walk.starting || !!walk.session}
-      onClick={async () => { if (await walk.start(selectedMode, .7, tilt && selectedMode === "Outdoor", scale)) started(); }}>
-      {walk.starting ? "Waiting for permissions…" : selectedMode === "Outdoor" ? "Start GPS demo" : "Start preview"}
-    </button>
+    {gpsAllowed && <section className="route-start-card">
+      <h3>Earth GPS Demo</h3>
+      <p>Move the astronaut by walking with this device. Allow precise location and start in an open area.</p>
+      {deviceNotices && <label className="route-start-card__notifications">
+        <input type="checkbox" checked={notify} onChange={(event) => {
+          saveNoticePreference(event.target.checked);
+          setNotify(event.target.checked);
+        }} /> Device notifications
+      </label>}
+      <button type="button" className="btn btn--primary" disabled={disabled} onClick={() => void launch("Outdoor")}>Start GPS demo</button>
+      <details>
+        <summary>GPS options</summary>
+        <label>Earth to Mars distance <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
+          <option value={1}>1× · 1 m becomes 1 m</option><option value={10}>10× · 1 m becomes 10 m</option>
+          <option value={100}>100× · 10 m becomes 1 km</option>
+        </select></label>
+        {scale > 1 && <p>The demo scales GPS uncertainty as well. Use 1× for short routes on detailed terrain.</p>}
+        <label><input type="checkbox" checked={tilt} onChange={(event) => setTilt(event.target.checked)} /> Tilt the 3D camera with this device</label>
+        <p>Keep Martian Map open for live GPS. Your phone may pause location and voice in the background. On iPhone and iPad, add Martian Map to the Home Screen for notifications.</p>
+        {deviceNotices && Notification.permission === "denied" && <p>Notifications are blocked. You can allow them in your browser’s site settings.</p>}
+      </details>
+    </section>}
+    <section className="route-start-card">
+      <h3>Recorded preview</h3>
+      <p>Play the route on this device without sharing your location.</p>
+      <button type="button" className={`btn${gpsAllowed ? "" : " btn--primary"}`} disabled={disabled}
+        onClick={() => void launch("Recorded Walk")}>Start preview</button>
+    </section>
     {!walk.session && walk.message && <p role="status" className="small">{walk.message}</p>}
   </dialog>;
 }
@@ -85,9 +97,17 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
   useEffect(() => { if (!walk.session) setCollapsed(true); }, [walk.session]);
   if (!walk.session) return null;
   const preview = walk.session.mode !== "Outdoor";
+  const imminent = walk.guidance && walk.guidance.metres <= 12
+    ? walk.guidance.kind : null;
   return <section aria-label="Earth Walk controls" className="earth-walk-controls">
     <header className="navigation-hud__headline">
-      {walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? "Arrived" : "Navigation"}</strong>}
+      {walk.guidance ? <div className="gps-maneuver" aria-label="Next maneuver">
+        {imminent === "left" || imminent === "right" ? <b aria-hidden="true">{imminent === "left" ? "↰" : "↱"}</b>
+          : <svg viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${walk.guidance.bearing}deg)` }}>
+            <path d="M12 3 5 12l5-1v9h4v-9l5 1z" fill="currentColor" />
+          </svg>}
+        <div><strong>{walk.guidance.distance}</strong><span>{walk.guidance.action}</span></div>
+      </div> : walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? "Arrived" : "Navigation"}</strong>}
       <button type="button" className="btn btn--small" aria-label={walk.muted ? "Unmute GPS voice" : "Mute GPS voice"}
         onClick={walk.toggleMute}>{walk.muted ? "Unmute" : "Mute"}</button>
       <button type="button" className="btn btn--small" aria-expanded={!collapsed} aria-controls="navigation-steps"
@@ -95,10 +115,11 @@ export function EarthWalkControls({ walk, speed, recenter, exit, report, reporti
     </header>
     {walk.terrain && !walk.arrived && <p className="navigation-hud__terrain">{walk.terrain.label} · {walk.terrain.slopeDeg.toFixed(1)}° measured grade</p>}
     {walk.remaining !== null && !walk.arrived && <RouteMetrics metres={walk.remaining} speed={speed} movementSeconds={walk.travelSecondsRemaining}
-      playbackRate={walk.playbackRate} paused={walk.paused} recorded={preview} regional={!walk.detailed} />}
+      playbackRate={walk.playbackRate} simulationUtc={walk.simulationUtc} paused={walk.paused} recorded={preview} regional={!walk.detailed} />}
     <div className="mission-row navigation-hud__primary">
       {!walk.arrived && <button type="button" className="btn btn--small" disabled={walk.obstacleHold} onClick={walk.togglePause}>{walk.paused ? "Resume" : "Pause"}</button>}
-      {preview && !walk.arrived && <button type="button" className="btn btn--small" onClick={walk.cycleRate} aria-label={`Playback speed ${walk.playbackRate} times; change speed`}>⏩ {walk.playbackRate}×</button>}
+      {preview && !walk.arrived && <button type="button" className="btn btn--small" onClick={walk.cycleRate} title="Fast-forward movement and mission time together" aria-label={`Playback speed ${walk.playbackRate} times; change speed`}>
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="m3 5 8 7-8 7V5Zm10 0 8 7-8 7V5Z" /></svg> {walk.playbackRate}×</button>}
       {onInfo && <button type="button" className="btn btn--small" onClick={onInfo}>Route info</button>}
       <button type="button" className="btn btn--small earth-walk-controls__exit" onClick={exit}>Exit</button>
     </div>

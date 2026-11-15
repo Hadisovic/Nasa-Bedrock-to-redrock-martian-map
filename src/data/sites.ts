@@ -2,7 +2,7 @@ import manifest from "../../data/mars/jezero/sources.json" with { type: "json" }
 import traverse from "../../data/mars/jezero/rover-waypoints.json" with { type: "json" };
 import { cellCenter, projectMars } from "../contracts/index.ts";
 import type { ProjectedPoint, Provenance, RasterLayout, ScienceSite } from "../contracts/index.ts";
-import { jezeroWaypoint } from "../contracts/jezero.ts";
+import { jezeroWaypoint } from "../contracts/jezeroWaypoint.ts";
 
 export const ELEVATION_LAYOUT: RasterLayout = (() => {
   const [westM, southM, eastM, northM] = manifest.region.bounds_m;

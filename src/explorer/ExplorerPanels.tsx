@@ -205,7 +205,7 @@ const layerFilters = [
   { name: "All", matches: () => true },
   { name: "Minerals", matches: (layer: LayerEntry) => /^(aqueous-|hydrous-|chloride-|grs-silicon|grs-iron|tes-plagioclase|tes-high-ca|tes-sheet)/.test(layer.id) },
   { name: "Water", matches: (layer: LayerEntry) => /^(grs-water|aqueous-|hydrous-)/.test(layer.id) },
-  { name: "Ice indicators", matches: (layer: LayerEntry) => layer.id === "grs-water" },
+  { name: "Ice indicators", matches: (layer: LayerEntry) => layer.id === "grs-water" || layer.id === "polar-caps" },
   { name: "Dust & weather", matches: (layer: LayerEntry) => layer.group === "weather" || /^(themis-|tes-thermal)/.test(layer.id) },
 ] as const;
 
@@ -273,7 +273,7 @@ export function GlobalLayersPanel({ manifest, state, setState, basemapId, setBas
                   <details className="small muted">
                     <summary aria-label={`About ${l.title}`} title="Layer details" />
                     <p>{l.measures}{l.units ? ` (${l.units})` : ""}.</p>
-                    <p>{l.instrument ? `${l.instrument}, ` : ""}{l.mission}. Coverage: {l.featuresFile ? "Recorded locations within the source footprint"
+                    <p>{l.instrument ? `${l.instrument}, ` : ""}{l.mission}. Coverage: {l.id === "polar-caps" ? "Mapped north and south polar caps" : l.featuresFile ? "Recorded locations within the source footprint"
                       : planetwide ? "All longitudes and latitudes" : `Longitude ${west}° to ${east}°, latitude ${south}° to ${north}°`}.
                       {l.hasTransparency && !l.featuresFile ? " Clear areas show where this layer has no data." : ""}
                       {l.sourceResolution ? ` Source resolution ${l.sourceResolution}; shipped at ${l.shippedResolution}.` : ""} {l.observationDates ? `Observed ${l.observationDates}.` : ""}

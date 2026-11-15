@@ -10,7 +10,7 @@ import { scienceCandidates } from "./destinationScience.ts";
 import type { nearestReachable } from "./destinationScience.ts";
 import type { ScienceRequest, ScienceResponse } from "./globalRoute.worker.ts";
 
-export function useDestinationScience(point: Endpoint | null, events: readonly CatalogEvent[], grid: LayerEntry | undefined, slope: number, blocked: LatLon | null = null) {
+export function useDestinationScience(point: Endpoint | null, events: readonly CatalogEvent[], grid: LayerEntry | undefined, slope: number, blocked: LatLon | null = null, enabled = true) {
   const exact = useMemo(() => !point ? null : events.find((event) => event.observed && event.location &&
     (event.id === point.catalogEventId || (event.title === point.name && greatCircleKm(point, event.location) < .001))) ?? null,
   [point, events]);
@@ -21,7 +21,7 @@ export function useDestinationScience(point: Endpoint | null, events: readonly C
   const [answer, setAnswer] = useState<{ key: string; result: Awaited<ReturnType<typeof nearestReachable>> } | null>(null);
   const key = JSON.stringify([point?.lat, point?.lon, slope, blocked, scoped.map(({ event }) => event.id)]);
   useEffect(() => {
-    if (!point || !grid || !scoped.length) return;
+    if (!enabled || !point || !grid || !scoped.length) return;
     let worker: Worker;
     try { worker = new Worker(new URL("./globalRoute.worker.ts", import.meta.url), { type: "module" }); }
     catch { setAnswer({ key, result: { site: null, unresolved: true } }); return; }
@@ -32,7 +32,7 @@ export function useDestinationScience(point: Endpoint | null, events: readonly C
       base: window.location.href, candidates: scoped };
     worker.postMessage(request);
     return () => worker.terminate();
-  }, [key, point, grid, scoped, slope, blocked]);
+  }, [key, point, grid, scoped, slope, blocked, enabled]);
   const result = answer?.key === key ? answer.result : null;
   return { exact, nearest: candidates[0] ?? null, reachable: result?.site ?? null,
     pending: !!grid && !!scoped.length && !result, unresolved: result?.unresolved ?? (!grid || !scoped.length),

@@ -61,6 +61,13 @@ test("real Wildcat Habitat A / Sol 502 routes preserve constraints, alternatives
   const { terrain } = await decodeJezeroRaster(Uint8Array.from(bytes).buffer, "elevation");
   const start = unproject(habitatPresets[0].location), end = unproject(jezeroWaypoint.location);
   const outbound = await localRoute(terrain, start, end, 15, localInfo, null);
+  const checkpoint = await localRoute(terrain, start, end, 15, localInfo, null, true);
+  assert.equal(checkpoint.status, "ok");
+  if (checkpoint.status === "ok" && outbound.status === "ok") {
+    assert.deepEqual(checkpoint.shortest.points, outbound.shortest.points, "checkpoint optimization preserves the exact shortest path");
+    assert.equal(checkpoint.balanced, undefined);
+    assert.equal(checkpoint.alternative, undefined);
+  }
   const returning = await localRoute(terrain, end, start, 15, localInfo, null);
   verifyGeometry(outbound, terrain, 15); verifyGeometry(returning, terrain, 15);
   const legs = itineraryLegs(start, [{ point: end, scienceMinutes: 0 }], true)

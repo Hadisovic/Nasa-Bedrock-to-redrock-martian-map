@@ -1,21 +1,12 @@
 import { fromArrayBuffer } from "geotiff";
 import manifest from "../../data/mars/jezero/sources.json" with { type: "json" };
-import { MARS_EQUIRECTANGULAR, projectMars } from "./coordinates.ts";
+import { MARS_EQUIRECTANGULAR } from "./coordinates.ts";
+export { jezeroWaypoint } from "./jezeroWaypoint.ts";
 import type { RasterLayout } from "./coordinates.ts";
 import type { MapLayer, Provenance } from "./index.ts";
 
 type RasterKind = "elevation" | "imagery";
 type JezeroLayer<K extends RasterKind> = Extract<MapLayer, { status: "available"; kind: K }>;
-
-export const jezeroWaypoint = {
-  id: manifest.science.waypoint.rmc,
-  sol: manifest.science.waypoint.sol,
-  location: projectMars({
-    longitudeEastDeg: manifest.science.waypoint.longitude_east_deg,
-    latitudePlanetocentricDeg: manifest.science.waypoint.latitude_planetocentric_deg,
-  }),
-  sourceUrl: manifest.science.waypoint.url,
-};
 
 function rasterProvenance(kind: RasterKind): Provenance {
   const source = manifest[kind];

@@ -388,6 +388,27 @@ for id_, el, title, meas, smooth in [
         "processing": "Parsed the TAB (lat/lon bin centres, lon 0-360E converted to -180..180, NOT_APPLICABLE 9999.999 -> NaN) into a 72x36 grid. Wrote float32 and a 1440x720 RGBA PNG: viridis key colours stretched linearly between the legend end stops, alpha 0 where NaN.",
     }, rel)
 
+# ---------------- mapped polar caps ----------------
+add({
+    "id": "polar-caps", "title": "USGS mapped polar ice caps", "group": "materials",
+    "trekLayerId": None, "productId": "USGS SIM 3292, unit lApc",
+    "mission": "USGS Geologic Map of Mars", "instrument": None,
+    "measures": "Mapped geologic footprint of the late Amazonian north and south polar caps",
+    "units": None, "verticalDatum": None, "treatment": "false-color",
+    "legend": {"type": "categorical", "stops": [
+        {"value": "north", "color": "#c7e6ff", "label": "North polar cap"},
+        {"value": "south", "color": "#82bfff", "label": "South polar cap"},
+    ], "note": "Mapped geologic units. This shows neither seasonal frost extent nor water-ice concentration."},
+    "global": False, "coverage": GLOBAL,
+    "sourceResolution": "1:20,000,000 mapping scale", "shippedResolution": "4096 × 2048 equirectangular PNG",
+    "observationDates": None, "credit": "USGS, Tanaka et al. (2014), Scientific Investigations Map 3292",
+    "terms": "USGS public domain data. Credit USGS and Tanaka et al.",
+    "sourceUrls": ["https://doi.org/10.3133/sim3292",
+                   "https://services.arcgis.com/nzS0F0zdNLvs7nc8/ArcGIS/rest/services/Mars_Geology_feature_layer/FeatureServer/0"],
+    "downloaded": "USGS geologic unit lApc, two polygons returned by the source feature service in Mars longitude and latitude.",
+    "processing": "Rasterized both source polygons with separate colors. Unmapped pixels remain transparent.",
+}, "layers/global/polar-caps.png")
+
 # ---------------- regional ----------------
 r = reg["h2942_0000_nd3_z6"]
 L = "h2942_0000_nd3"; U = "f9c95b2f-8cf9-40ab-b2ec-b74d9c9d0c9f"

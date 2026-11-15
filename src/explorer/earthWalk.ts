@@ -177,6 +177,37 @@ export function orderedStopDistances(track: WalkTrack, stops: readonly LatLon[])
 
 const landmarkTypes = new Set(["landing", "rover-stop", "science-observation", "sample", "sample-depot", "hardware"]);
 const compassPoints = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+export const compassIndex = (bearing: number) => Math.round(bearing / 45) % compassPoints.length;
+const compassDirection = (bearing: number) => compassPoints[compassIndex(bearing)];
+
+export function walkDirection(track: WalkTrack, metres: number, legEnd: number, target: string, regional: boolean) {
+  const next = regional
+    ? { kind: "stop" as const, metres: Math.max(0, Math.min(legEnd, track.at(-1)!.metres) - metres) }
+    : nextManeuver(track, metres, legEnd);
+  const at = sampleWalk(track, metres);
+  const ahead = sampleWalk(track, metres + Math.min(12, next.metres));
+  const bearing = next.metres >= 1 ? bearingDeg(at.point, ahead.point) : at.heading;
+  const distance = walkDistance(next.metres), spoken = walkDistance(next.metres, true);
+  const direction = compassDirection(bearing);
+  const action = next.kind === "stop" ? `Toward ${target}` : `Turn ${next.kind}`;
+  const text = next.kind === "stop"
+    ? `${regional ? "Regional guidance. " : ""}Head ${direction} toward ${target}, about ${spoken} along the route.`
+    : next.metres < 5 ? `Turn ${next.kind} ahead.` : `Head ${direction} for about ${spoken}, then turn ${next.kind}.`;
+  return { ...next, action, text, bearing, distance };
+}
+
+export function rejoinDirection(from: LatLon, nearest: { point: LatLon; distance: number }) {
+  const bearing = bearingDeg(from, nearest.point);
+  const distance = walkDistance(nearest.distance);
+  const direction = compassDirection(bearing);
+  return { kind: "rejoin" as const, metres: nearest.distance, bearing, distance, action: `Route to the ${direction}`,
+    text: `The planned route is about ${walkDistance(nearest.distance, true)} ${direction}. Return along terrain you know is clear.` };
+}
+
+function walkDistance(metres: number, spoken = false) {
+  return metres >= 1000 ? `${(metres / 1000).toFixed(1)} ${spoken ? "kilometres" : "km"}`
+    : `${Math.round(metres)} ${spoken ? "metres" : "m"}`;
+}
 
 /** Find a sourced, observed landmark near the crew and near the next part of the active leg. */
 export function nearbyLandmark(events: readonly CatalogEvent[], point: LatLon, track: WalkTrack,
@@ -196,7 +227,7 @@ export function nearbyLandmark(events: readonly CatalogEvent[], point: LatLon, t
   if (!nearest) return null;
   const { event, place, distance, uncertainty } = nearest;
   const direction = distance > Math.max(1, uncertainty + positionUncertainty)
-    ? compassPoints[Math.round(bearingDeg(point, place) / 45) % compassPoints.length] : null;
+    ? compassDirection(bearingDeg(point, place)) : null;
   const rounded = Math.max(5, Math.round(distance / 5) * 5);
   return { text: direction ? `Nearby: ${event.title}, about ${rounded} metres ${direction}.`
     : `Nearby: ${event.title}, within about ${Math.max(5, Math.ceil((distance + uncertainty + positionUncertainty) / 5) * 5)} metres.`,

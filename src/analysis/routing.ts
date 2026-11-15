@@ -282,18 +282,18 @@ function prepareRoute(request: RouteRequest, exactRuns = false): Preparation {
   return { graph, start, goal, strict, unknownNote, unknownCells };
 }
 
-export function planDirectionalLeg(request: RouteRequest, comparison?: { balancedWeight: number; spacingM: number }) {
+export function planDirectionalLeg(request: RouteRequest, comparison?: { balancedWeight: number; spacingM: number; shortestOnly?: boolean }) {
   const prepared = prepareRoute(request, !!comparison);
   if ("result" in prepared) return prepared.result;
   const { graph, start, goal, strict, unknownNote } = prepared;
   const path = search(graph, start, goal, strict);
   if (!path) return { status: "no-route" as const, detail: `No connected path stays within ${strict.maxAbsSlopeDeg}° on this leg.${unknownNote}` };
-  const roughness = comparison && localRoughness(graph.terrain.elevationsM, graph.terrain.layout.width,
-    graph.terrain.layout.height, comparison.spacingM);
+  const roughness = comparison && !comparison.shortestOnly ? localRoughness(graph.terrain.elevationsM, graph.terrain.layout.width,
+    graph.terrain.layout.height, comparison.spacingM) : undefined;
   const weighted = (penaltyWeight: number) => ({ ...strict, penaltyWeight, roughness });
   const leg = (cells: number[]) => toLeg(graph, request.habitat, request.destination, cells);
-  const lower = request.slopePenaltyWeight ? search(graph, start, goal, weighted(request.slopePenaltyWeight)) : undefined;
-  const balanced = comparison ? search(graph, start, goal, weighted(comparison.balancedWeight)) : undefined;
+  const lower = !comparison?.shortestOnly && request.slopePenaltyWeight ? search(graph, start, goal, weighted(request.slopePenaltyWeight)) : undefined;
+  const balanced = comparison && !comparison.shortestOnly ? search(graph, start, goal, weighted(comparison.balancedWeight)) : undefined;
   return { status: "available" as const, shortest: leg(path),
     balanced: balanced && !sameCells(path, balanced) ? leg(balanced) : undefined,
     alternative: lower && !sameCells(path, lower) ? leg(lower) : undefined,

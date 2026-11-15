@@ -4,7 +4,6 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
 import "@fontsource/archivo-black/400.css";
-import { App } from "./App.tsx";
 import { Explorer } from "./explorer/Explorer.tsx";
 import { Resources } from "./components/Resources.tsx";
 import "./styles/app.css";
@@ -12,6 +11,7 @@ import "./styles/home.css";
 import "./styles/mission.css";
 
 const Bench = lazy(() => import("./bench/Bench.tsx").then((m) => ({ default: m.Bench })));
+const App = lazy(() => import("./App.tsx").then((m) => ({ default: m.App })));
 const LiveHome = lazy(() => import("./components/LiveHome.tsx").then((m) => ({ default: m.LiveHome })));
 
 type Page = "intro" | "explore" | "map" | "bench";
@@ -41,7 +41,9 @@ function Root() {
     <div className="explorer-entry"><Explorer key={explorerVisit} onHome={() => { window.location.hash = "#/"; }} /></div>
     <Resources />
   </div>;
-  if (page === "map") return <App onHome={() => { window.location.hash = "#/"; }} onExplore={() => { window.location.hash = "#/explore"; }} />;
+  if (page === "map") return <Suspense fallback={<main className="loading" role="status">Loading local map…</main>}>
+    <App onHome={() => { window.location.hash = "#/"; }} onExplore={() => { window.location.hash = "#/explore"; }} />
+  </Suspense>;
   if (page === "bench") return <Suspense fallback={null}><Bench /></Suspense>;
   return <Suspense fallback={<main className="reference-home" aria-busy="true" />}>
     <LiveHome onEnter={() => { window.location.hash = "#/explore?mode=3d"; }} />
