@@ -2,7 +2,7 @@
 
 Local branch: `fix/navigation-clock-loading`. Combines navigation PR #6 (`be41670137ec67641ca2081faa05aed9c5ca28e6`) with phone-polish PR #5 (`72e7b4ac73751ec0c87e8dd01bce7add22ac585f`) and the requested corrections. Base main is `d75037d6beedad1a7e55ee32c9eb79b915e140a7`.
 
-The user explicitly requested notification before pushing or merging if conflicts exist. Four conflicts were found and resolved locally: `Directions.tsx`, `EarthWalkPanel.tsx`, `Explorer.tsx`, `useEarthWalk.ts`. Nothing from this correction has been pushed, neither PR has been merged, and main remains unchanged. Local integration is ready for the user's go-ahead.
+The user explicitly requested notification before pushing or merging if conflicts exist. Four conflicts were found and resolved locally: `Directions.tsx`, `EarthWalkPanel.tsx`, `Explorer.tsx`, `useEarthWalk.ts`. At that review checkpoint, the correction was local, both PRs were unmerged and main was unchanged. The user subsequently authorized proceeding after confirming no remaining conflicts; a fresh merge-tree check against current main passed. Integration order is PR #5 followed by PR #6, preserving both histories.
 
 ## Corrections
 
