@@ -1,5 +1,18 @@
 import { nasaInsignia } from "./nasaMark.ts";
 
+const flightPaths = {
+  drone: "M8 9h8v6H8zM8 12H4m12 0h4M2 8h5m10 0h5M4 8v4m16-4v4m-9 3h2",
+  exit: "M11 6 5 12l6 6m-6-6h13m-2-8h4v16h-4",
+  terrain: "M3 18 9 8l4 6 3-4 5 8zM7 12h4",
+  geology: "m3 8 9-5 9 5-9 5zM3 12l9 5 9-5M3 16l9 5 9-5",
+  camera: "M4 8h4l2-3h4l2 3h4v11H4zM9 13a3 3 0 1 0 6 0 3 3 0 1 0-6 0",
+};
+
+export function FlightIcon({ kind }: { kind: keyof typeof flightPaths }) {
+  return <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor"
+    strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={flightPaths[kind]} /></svg>;
+}
+
 export function GoToLocation({ onClick }: { onClick: () => void }) {
   return <button type="button" className="btn btn--small btn--locate" onClick={onClick}>
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
