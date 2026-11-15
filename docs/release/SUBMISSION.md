@@ -5,6 +5,12 @@ the Irbid local event's format and deadline, and every link before submitting. P
 below are a 30-second video and at most seven slides. Change them if the official form says
 otherwise.
 
+## Project website
+
+- **New submission URL:** [redrock-map.earth](https://redrock-map.earth/). Use this URL in the Space Apps website field once it serves Martian Map over HTTPS.
+- **Verified live demo during the domain switch:** [b-2-r.us](https://b-2-r.us/).
+- **Backup demo:** [Cloudflare Pages](https://b2r-5f4.pages.dev/).
+
 ## Story in one line
 
 Real rover discovery → terrain-informed round trip → one changed assumption → a clear return

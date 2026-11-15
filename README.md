@@ -8,6 +8,8 @@ Martian Map · NASA Space Apps Challenge 2026 · Irbid, Jordan
 
 [Open the live app](https://b-2-r.us/) · [Explore Mars](https://b-2-r.us/#/explore) · [Try a Marswalk](https://b-2-r.us/#/map?tab=mission) · [Meet the team](https://www.spaceappschallenge.org/2026/find-a-team/bedrock-to-redrock/)
 
+**New project domain:** [redrock-map.earth](https://redrock-map.earth/) · Cloudflare Pages activation pending.
+
 </div>
 
 [![Martian Map intro with the Bedrock to Redrock badge, blocky astronaut, map display, and lander on Mars](docs/screenshots/home.jpg)](https://b-2-r.us/)
