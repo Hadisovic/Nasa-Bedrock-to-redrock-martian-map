@@ -15,6 +15,7 @@
     "data:waypoints": "node scripts/data/extract-waypoints.mjs"
   },
   "dependencies": {
+    "@block65/webcrypto-web-push": "2.0.0",
     "@fontsource-variable/workbench": "^5.3.0",
     "@fontsource/archivo-black": "5.3.0",
     "@fontsource/inter": "5.3.0",

@@ -1,8 +1,32 @@
 const scope = self.registration.scope;
 const prefix = "martian-map-offline:" + scope + ":";
 const url = (path) => new URL(path, scope).href;
+const routePush = url("api/route-push");
+const routeNoticeTag = "martian-map-gps";
 self.addEventListener("install", (event) => { event.waitUntil(self.skipWaiting()); });
 self.addEventListener("activate", (event) => { event.waitUntil(self.clients.claim()); });
+
+self.addEventListener("push", (event) => {
+  let notice;
+  try { notice = event.data?.json(); } catch { return; }
+  if (notice?.type !== routeNoticeTag || typeof notice.body !== "string" || notice.body.length > 320 ||
+      !Number.isFinite(notice.expires) || notice.expires < Date.now()) return;
+  event.waitUntil(self.registration.showNotification("Martian Map · GPS demo", {
+    body: notice.body, tag: routeNoticeTag, silent: true, icon: url("images/martian-map-logo.png"),
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  if (event.notification.tag !== routeNoticeTag) return;
+  event.notification.close();
+  event.waitUntil((async () => {
+    const clients = (await self.clients.matchAll({ type: "window", includeUncontrolled: true }))
+      .filter((client) => client.url.startsWith(scope));
+    const explorer = clients.find((client) => new URL(client.url).hash.startsWith("#/explore")) ?? clients[0];
+    if (explorer) return explorer.focus();
+    return self.clients.openWindow(url("./#/explore"));
+  })());
+});
 
 self.addEventListener("message", (event) => {
   const { pack, version, files } = event.data ?? {};
@@ -28,7 +52,7 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET" || !request.url.startsWith(scope) || request.headers.has("Range")) return;
+  if (request.method !== "GET" || request.url === routePush || !request.url.startsWith(scope) || request.headers.has("Range")) return;
   event.respondWith((async () => {
     const keys = (await caches.keys()).filter((name) => name.startsWith(prefix)).reverse();
     const fromPacks = async (resource) => {

@@ -64,7 +64,12 @@ export function MapRouteControls({ pick, legs, summary, onCancel, onDetails, onF
     {!picking && summary.complete && comparison}
     <div className="map-route__actions">
       {picking ? <button type="button" className="btn btn--small" onClick={onCancel}>Cancel</button> : <>
-        {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>Start route</button>}
+        {summary.complete && <button type="button" className="btn btn--small directions__start" onClick={onStart} disabled={!onStart}>
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+            <path d="M4 11 20 4l-7 16-2.3-6.7L4 11Z" />
+          </svg>
+          Start route
+        </button>}
         {hasRoute && <button type="button" className="btn btn--small" onClick={onFit}>Fit route</button>}
         <button type="button" className="btn btn--small" onClick={onClear}>Clear route</button>
       </>}

@@ -1,7 +1,7 @@
 # Running, testing and deploying
 
-Requires Node.js 22.18+ or 24+, plus npm. All data is bundled, so no API keys or network services
-are needed at runtime.
+Requires Node.js 22.18+ or 24+, plus npm. The map and routing data are bundled. Web Push
+on the hosted app uses the optional relay described below.
 
 ## Local development
 
@@ -101,3 +101,11 @@ python scripts/data/jezero.py crop --output <tmp>   # regenerate the HiRISE crop
 python scripts/data/jezero.py verify
 npm run data:waypoints                              # refresh in-crop rover waypoints from NASA
 ```
+
+## Earth GPS notifications
+
+In GPS options, leave **Device notifications** checked and allow the browser prompt when starting the demo. Switching away during an active Earth GPS route can display the last confirmed instruction, or a prompt to reopen the map if no fix was available. Location and spoken guidance resume in the open map when the device has a fresh fix. On iPhone and iPad use the Home Screen app.
+
+The production Cloudflare Pages project can relay Web Push through `/api/route-push`. Generate a stable VAPID key pair with `npx web-push generate-vapid-keys`, then configure `ROUTE_PUSH_PUBLIC_KEY`, `ROUTE_PUSH_PRIVATE_KEY` (secret), and `ROUTE_PUSH_SUBJECT` (an HTTPS contact URL or contact mailto URI) in Pages before deploying. Keep the private key out of source control and the frontend build. The relay gets the browser subscription and the instruction text, with a 20-second lifetime. Earth GPS coordinates stay on the device. Without the relay the app uses local service-worker notifications on supported browsers.
+
+To verify the deployed relay, use Chrome on Android or add the site to the Home Screen on iPhone. Start Earth GPS, wait for the next instruction, switch to another app, tap the notification, then confirm fresh GPS guidance resumes. Repeat with notifications denied, a paused route, and a recorded preview.

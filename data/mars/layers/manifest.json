@@ -1312,6 +1312,64 @@
       "hasTransparency": true
     },
     {
+      "id": "polar-caps",
+      "title": "USGS mapped polar ice caps",
+      "group": "materials",
+      "trekLayerId": null,
+      "productId": "USGS SIM 3292, unit lApc",
+      "mission": "USGS Geologic Map of Mars",
+      "instrument": null,
+      "measures": "Mapped geologic footprint of the late Amazonian north and south polar caps",
+      "units": null,
+      "verticalDatum": null,
+      "treatment": "false-color",
+      "legend": {
+        "type": "categorical",
+        "stops": [
+          {
+            "value": "north",
+            "color": "#c7e6ff",
+            "label": "North polar cap"
+          },
+          {
+            "value": "south",
+            "color": "#82bfff",
+            "label": "South polar cap"
+          }
+        ],
+        "note": "Mapped geologic units. This shows neither seasonal frost extent nor water-ice concentration."
+      },
+      "global": false,
+      "coverage": {
+        "west": -180,
+        "east": 180,
+        "south": -90,
+        "north": 90
+      },
+      "sourceResolution": "1:20,000,000 mapping scale",
+      "shippedResolution": "4096 \u00d7 2048 equirectangular PNG",
+      "observationDates": null,
+      "credit": "USGS, Tanaka et al. (2014), Scientific Investigations Map 3292",
+      "terms": "USGS public domain data. Credit USGS and Tanaka et al.",
+      "sourceUrls": [
+        "https://doi.org/10.3133/sim3292",
+        "https://services.arcgis.com/nzS0F0zdNLvs7nc8/ArcGIS/rest/services/Mars_Geology_feature_layer/FeatureServer/0"
+      ],
+      "downloaded": "USGS geologic unit lApc, two polygons returned by the source feature service in Mars longitude and latitude.",
+      "processing": "Rasterized both source polygons with separate colors. Unmapped pixels remain transparent.",
+      "file": "layers/global/polar-caps.png",
+      "width": 4096,
+      "height": 2048,
+      "bytes": 34262,
+      "hasTransparency": true,
+      "rasterBounds": {
+        "west": -180,
+        "east": 180,
+        "south": -90,
+        "north": 90
+      }
+    },
+    {
       "id": "hrsc-viking1-h2942",
       "rasterBounds": {"west":-49.592285,"east":-46.395264,"south":14.073486,"north":26.806641},
       "title": "Mars Express HRSC, Viking 1 Landing Site Mosaic (orbit 2942)",
