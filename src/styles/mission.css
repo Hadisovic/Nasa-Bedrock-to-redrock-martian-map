@@ -579,7 +579,12 @@
 .navigation-hud__details .route-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .route-metrics__arrival { grid-column:1 / -1; }
 .route-metrics__arrival small { display:block; color:#c3cede; margin-top:.12rem; font-size:.73rem; }
-.navigation-hud__steps { margin:.15rem 0; padding-inline-start:1.3rem; font-size:.74rem; }
+.navigation-hud__directions { border-top:1px solid #405168; padding-top:.3rem; }
+.navigation-hud__directions summary { cursor:pointer; font-size:.78rem; font-weight:650; }
+.navigation-hud__steps { margin:.25rem 0; padding-inline-start:1.45rem; list-style:decimal; font-size:.74rem; }
+.navigation-hud__steps li { padding:.15rem 0; }
+.navigation-hud__steps li > div { display:flex; gap:.35rem; align-items:center; }
+.navigation-hud__steps svg { color:#a0edff; width:16px; height:16px; flex:none; }
 .navigation-map-prompt, .flight-pick-prompt { position:absolute; bottom:65px; left:12px; z-index:8; padding:.45rem .65rem;
   max-width:calc(100% - 24px); display:flex; gap:.55rem; align-items:center; background:var(--map-panel);
   color:#f3f6fa; border:1px solid #6d8099; border-radius:12px; font-size:.82rem; }

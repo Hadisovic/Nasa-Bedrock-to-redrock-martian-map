@@ -142,25 +142,24 @@ export function EarthWalkControls({ walk, speed, utc, returning, preview, recent
   if (!walk.session) return null;
   const playback = walk.session.mode !== "Outdoor";
   const recommend = preview?.recommendation;
-  const imminent = walk.guidance && walk.guidance.metres <= 12
-    ? walk.guidance.kind : null;
+  const recorded = walk.session.mode === "Recorded Walk";
+  const alert = recorded && walk.cueIsDirection ? null : walk.cue;
   return <section aria-label="Earth Walk controls" className={`earth-walk-controls${preview ? " earth-walk-controls--preview" : ""}`}>
     <header className="navigation-hud__headline">
       {walk.guidance ? <div className="gps-maneuver" aria-label="Next maneuver">
-        {imminent === "left" || imminent === "right" ? <NavigationIcon kind={imminent} />
-          : <svg viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${walk.guidance.bearing}deg)` }}>
-            <path d="M12 3 5 12l5-1v9h4v-9l5 1z" fill="currentColor" />
-          </svg>}
-        <div><strong>{walk.guidance.distance}</strong><span>{walk.guidance.action}</span></div>
+        <DirectionArrow step={walk.guidance} showTurn={recorded || walk.guidance.metres <= 12} />
+        <div><strong>{walk.guidance.distance}</strong><span>{recorded && walk.guidance.kind === "stop"
+          ? `Continue ${walk.guidance.direction}`
+          : `${walk.guidance.action}${recorded ? ` · ${walk.guidance.direction}` : ""}`}</span></div>
       </div> : walk.maneuver ? <NextManeuver maneuver={walk.maneuver} stop={walk.nextStop} /> : <strong>{walk.arrived ? "Arrived" : walk.session.mode === "Outdoor" ? "Earth GPS" : "Route preview"}</strong>}
       <button type="button" className="navigation-icon-button" aria-label={walk.muted ? "Unmute GPS voice" : "Mute GPS voice"}
         onClick={walk.toggleMute}><NavigationIcon kind={walk.muted ? "mute" : "sound"} /></button>
       <button type="button" className="navigation-icon-button" aria-label={collapsed ? "Show" : "Hide"} aria-expanded={!collapsed} aria-controls="navigation-steps"
         onClick={() => setCollapsed(!collapsed)}><NavigationIcon kind={collapsed ? "expand" : "collapse"} /></button>
     </header>
-    {(walk.message || walk.cue) && <div role="status" className="navigation-hud__alert">
+    {(walk.message || alert) && <div role="status" className="navigation-hud__alert">
       {walk.message && <div>{walk.message}</div>}
-      {walk.cue && (!collapsed || walk.cue !== walk.guidance?.text) && <div>Mission Control · {walk.cue}</div>}
+      {alert && (!collapsed || alert !== walk.guidance?.text) && <div>Mission Control · {alert}</div>}
     </div>}
     <div className="navigation-hud__details" id="navigation-steps" hidden={collapsed}>
     {walk.nextStop && !walk.arrived && <strong>{walk.nextStop}</strong>}
@@ -182,19 +181,31 @@ export function EarthWalkControls({ walk, speed, utc, returning, preview, recent
       speed={speed} utc={utc} returning={returning} preview={preview} />}
     {preview && recommend && !walk.arrived && preview.walk !== null && preview.rover !== null &&
       <span className="small">Full trip · Walk {duration(preview.walk * 60)} · Rover {duration(preview.rover * 60)}</span>}
-    {walk.upcoming.length > 1 && <ol className="navigation-hud__steps" aria-label="Upcoming directions">
-      {walk.upcoming.map(({ kind, metres }, index) => <li key={index}>
-        {metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`} · {kind === "left" ? "Turn left" : kind === "right" ? "Turn right" : `Toward ${walk.nextStop ?? "destination"}`}
-      </li>)}
-    </ol>}
     <div className="mission-row">
       {!walk.arrived && <button type="button" className="btn btn--small" disabled={walk.obstacleHold} onClick={walk.togglePause}>{walk.paused ? "Resume" : "Pause"}</button>}
       <button type="button" className="btn btn--small" onClick={recenter}>Recenter</button>
       <button type="button" className="btn btn--small" disabled={!walk.cue || walk.muted} onClick={walk.repeat}>Repeat last cue</button>
       <button type="button" className="btn btn--small earth-walk-controls__exit" onClick={exit}>Exit route</button>
     </div>
+    {(recorded ? walk.upcoming.length > 0 : walk.upcoming.length > 1) && <details open className="navigation-hud__directions">
+      <summary>Upcoming directions</summary>
+      <ol className="navigation-hud__steps" aria-label="Upcoming directions">
+        {walk.upcoming.map((step, index) => <li key={index}>
+          <div><DirectionArrow step={step} showTurn /><span><strong>{step.distance}</strong> · {step.action} · {step.direction}</span></div>
+        </li>)}
+      </ol>
+    </details>}
     </div>
   </section>;
+}
+
+function DirectionArrow({ step, showTurn }: {
+  step: { kind: "left" | "right" | "stop" | "rejoin"; bearing: number }; showTurn: boolean;
+}) {
+  if (showTurn && (step.kind === "left" || step.kind === "right")) return <NavigationIcon kind={step.kind} />;
+  return <svg viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${step.bearing}deg)` }}>
+    <path d="M12 3 5 12l5-1v9h4v-9l5 1z" fill="currentColor" />
+  </svg>;
 }
 
 function NextManeuver({ maneuver, stop }: { maneuver: ReturnType<typeof nextManeuver>; stop: string | null }) {

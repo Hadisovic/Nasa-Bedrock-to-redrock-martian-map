@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, earthGpsScales, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
+import { buildItineraryTrack, buildWalkTrack, deviationTracker, earthGpsDevice, earthGpsScales, gpsMovement, locateOnWalk, marsFromEarth, nearbyLandmark, nextManeuver, orderedStopDistances, rejoinDirection, routeCue, sampleWalk, shorterFromSamePosition, stepDetector, upcomingWalkDirections, usableFix, walkDirection } from "../../src/explorer/earthWalk.ts";
 import type { Catalog } from "../../src/explorer/catalog.ts";
 import { greatCircleKm, relativeToLander } from "../../src/explorer/geo.ts";
 
@@ -176,6 +176,22 @@ test("the maneuver arrow and distance follow the routed bend and stop boundary",
   assert.deepEqual(nextManeuver(path, stop - 35, stop), { kind: "stop", metres: 35 });
   const mirrored = buildWalkTrack([south, north, { lat: north.lat, lon: north.lon - 0.001 }].map((point) => ({ point, elevation: 0 })));
   assert.equal(nextManeuver(mirrored, stop - 35, mirrored.at(-1)!.metres).kind, "left");
+});
+
+test("ordered preview instructions follow the current leg and respect coarse coverage", () => {
+  const exit = { lat: east.lat + 0.001, lon: east.lon };
+  const path = buildWalkTrack([south, north, east, exit].map((point) => ({ point, elevation: 0 })));
+  const progress = path[1].metres - 35;
+  const end = path[2].metres;
+  const steps = upcomingWalkDirections(path, progress, end, "Science stop", false);
+  assert.deepEqual(steps.map(({ kind, direction }) => [kind, direction]), [["right", "north"], ["stop", "east"]]);
+  assert.ok(Math.abs(steps[0].metres - 35) <= 4);
+  assert.ok(Math.abs(steps[1].metres - (end - progress)) < .01);
+  assert.equal(steps[1].action, "Toward Science stop");
+  const regional = upcomingWalkDirections(path, progress, end, "Science stop", true);
+  assert.equal(regional.length, 1);
+  assert.equal(regional[0].kind, "stop");
+  assert.match(regional[0].text, /^Regional guidance/);
 });
 
 test("nearby rover landmarks use sourced coordinates and follow the active leg", () => {

@@ -1400,6 +1400,7 @@ export function Globe3D(props: Globe3DProps) {
       </aside>}
       {drone && flightWalk.session && <div className="flight-walk-status">
         <span>{flightWalk.arrived ? "Arrived" : `${flightWalk.rover ? "Rover" : "Walk"} preview · ${Math.round(flightWalk.remaining ?? 0)} m left`}</span>
+        {flightWalk.guidance && <span>{flightWalk.guidance.distance} · {flightWalk.guidance.action}</span>}
         {!flightWalk.arrived && <button type="button" className="btn btn--small" onClick={flightWalk.togglePause}>{flightWalk.paused ? "Resume" : "Pause"}</button>}
         <button type="button" className="btn btn--small" onClick={flightWalk.toggleMute}>{flightWalk.muted ? "Unmute" : "Mute"}</button>
         <button type="button" className="btn btn--small" onClick={flightWalk.stop}>End preview</button>

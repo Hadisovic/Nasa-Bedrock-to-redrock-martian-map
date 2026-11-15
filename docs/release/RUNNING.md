@@ -55,6 +55,8 @@ from device port `4173` to `localhost:4173` on the computer. Open `http://localh
 Under **Directions → Route options → Offline maps**, download **Planet map and app** and the
 terrain pack for your route. Verify the route opens on the phone before disconnecting the cable.
 For a walk away from the computer, open the same build from a trusted HTTPS host reachable by the phone.
+A [GPS demo route guide](GPS-DEMO-ROUTES.md) provides share links and exact coordinates for checking
+stop-aware replanning, rejoin guidance, recorded voice and sourced alerts.
 A hosted preview uses `npm run build` and the `dist/` output directory. Open the HTTPS link directly
 in Safari or Chrome, choose **Directions → Start route → Earth GPS Demo**, and allow precise location.
 A regular Wi-Fi HTTP preview is suitable for checking the layout. The URL paths are:

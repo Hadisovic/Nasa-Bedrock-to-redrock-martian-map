@@ -184,14 +184,27 @@ export function walkDirection(track: WalkTrack, metres: number, legEnd: number, 
   const text = next.kind === "stop"
     ? `${regional ? "Regional guidance. " : ""}Head ${direction} toward ${target}, about ${spoken} along the route.`
     : next.metres < 5 ? `Turn ${next.kind} ahead.` : `Head ${direction} for about ${spoken}, then turn ${next.kind}.`;
-  return { ...next, action, text, bearing, distance };
+  return { ...next, action, text, bearing, distance, direction };
+}
+
+export function upcomingWalkDirections(track: WalkTrack, metres: number, legEnd: number, target: string, regional: boolean) {
+  const steps = [];
+  let cursor = metres;
+  for (let i = 0; i < 4; i++) {
+    const step = walkDirection(track, cursor, legEnd, target, regional);
+    const ahead = cursor - metres + step.metres;
+    steps.push({ ...step, metres: ahead, distance: walkDistance(ahead) });
+    if (step.kind === "stop") break;
+    cursor = Math.min(legEnd, cursor + step.metres + 6);
+  }
+  return steps;
 }
 
 export function rejoinDirection(from: LatLon, nearest: { point: LatLon; distance: number }) {
   const bearing = bearingDeg(from, nearest.point);
   const distance = walkDistance(nearest.distance);
   const direction = compassDirection(bearing);
-  return { kind: "rejoin" as const, metres: nearest.distance, bearing, distance, action: `Route to the ${direction}`,
+  return { kind: "rejoin" as const, metres: nearest.distance, bearing, distance, direction, action: `Route to the ${direction}`,
     text: `The planned route is about ${walkDistance(nearest.distance, true)} ${direction}. Return along terrain you know is clear.` };
 }
 
